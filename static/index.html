@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>AQAI — Listen</title>
+<meta name="theme-color" content="#9AF7B4">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="gate-active">
+
+<!-- ENTRY GATE — required: browsers block autoplaying sound. Its
+     background is the same panorama sphere the music screen uses (see
+     #stage in #app below) - the gate is just transparent so it shows
+     through, already carrying the exact same mouse-look, vignette and
+     CRT-line shader for free ---->
+<div id="gate">
+  <div id="gate-content">
+    <div id="gate-logo-tilt">
+      <div class="logo3d" id="gate-logo3d" role="img" aria-label="AQAI"></div>
+    </div>
+    <div class="gate-actions">
+      <button class="gate-btn" id="gate-btn">TAP TO LISTEN</button>
+      <div class="gate-hint">Sound on &middot; Headphones recommended</div>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+
+  <!-- ============ HOME ============ -->
+  <section class="view active" id="view-home">
+    <div id="stage"></div>
+    <div id="artist-color-overlay" aria-hidden="true"></div>
+    <div id="bg-gradient" aria-hidden="true"></div>
+
+    <div class="home-top">
+      <div class="logo-text">AQAI</div>
+      <div class="pano-btns" id="pano-btns">
+        <button class="util-btn" id="pano-prev" aria-label="Previous background video">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <span class="pano-label" id="pano-label">0 / 0</span>
+        <button class="util-btn" id="pano-next" aria-label="Next background video">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <button class="util-btn danger" id="pano-remove" aria-label="Remove this background video">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+        </button>
+        <button class="util-btn" id="btn-sphere-control" aria-label="Control the sphere with your mouse" aria-pressed="false" title="Control the sphere">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9 2 12l3 3"/><path d="M9 5l3-3 3 3"/><path d="M15 19l-3 3-3-3"/><path d="M19 9l3 3-3 3"/><path d="M2 12h20"/><path d="M12 2v20"/></svg>
+        </button>
+      </div>
+      <div class="util-btns">
+        <button class="util-btn util-btn-wide danger" id="btn-delete" aria-label="Delete this song">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+          <span>Delete song</span>
+        </button>
+        <button class="util-btn" id="btn-info" aria-label="About AQAI">!</button>
+      </div>
+    </div>
+
+    <canvas id="wave-canvas" aria-hidden="true"></canvas>
+
+    <div id="lyrics"><div id="lyric-rows" aria-live="polite"></div></div>
+
+    <div class="player">
+      <div class="artist-photo-wrap">
+        <img class="artist-photo" id="artist-photo" src="assets/profilepic.png" alt="">
+        <svg class="artist-photo-ring" id="artist-photo-ring" viewBox="0 0 189.0625 152.1412" aria-hidden="true">
+          <polygon id="artist-ring-poly" fill="none" stroke-width="2"></polygon>
+        </svg>
+      </div>
+      <div class="meta-row">
+        <div class="meta">
+          <span class="title" id="m-title">—</span>
+          <input class="title title-edit-input" id="m-title-input" type="text" aria-label="Song title">
+          <span class="by">BY</span>
+          <span class="sub" id="m-folder">—</span>
+          <input class="sub title-edit-input" id="m-folder-input" type="text" aria-label="Artist name">
+          <button class="util-btn" id="btn-edit-title" aria-label="Rename this song">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+          </button>
+          <button class="util-btn" id="btn-edit-artist" aria-label="Rename this artist">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="controls-row">
+        <div class="transport">
+          <button class="ctl" id="c-random" aria-label="Random song">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="m4 4 5 5"/></svg>
+          </button>
+          <div class="transport-center">
+            <button class="ctl" id="c-prev" aria-label="Previous song">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg>
+            </button>
+            <button class="ctl toggle big-play" id="c-play" aria-label="Play">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button class="ctl" id="c-next" aria-label="Next song">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg>
+            </button>
+          </div>
+          <button class="util-btn mobile-more-btn" id="btn-more" aria-label="More options">
+            <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+          </button>
+        </div>
+        <div class="bar-row">
+          <span class="time" id="t-cur">0:00</span>
+          <div id="bar" role="slider" aria-label="Song position" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div id="bar-fill"></div><div id="bar-knob"></div>
+          </div>
+          <span class="time" id="t-tot">0:00</span>
+          <button class="vol-btn on" id="c-mute" aria-label="Mute">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 8a5 5 0 0 1 0 8"/><path d="M17.7 5a9 9 0 0 1 0 14"/><path d="M6 15H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h2l3.5-4.5A.8.8 0 0 1 11 5v14a.8.8 0 0 1-1.5.5z"/></svg>
+          </button>
+          <input type="range" id="c-volume" min="0" max="1" step="0.01" value="0.01" aria-label="Volume">
+        </div>
+        <div class="side-btns" id="side-btns">
+          <button class="util-btn util-btn-wide" id="btn-fulllyrics" aria-label="Show full lyrics">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+            <span>Lyrics</span>
+          </button>
+          <button class="util-btn" id="btn-download" aria-label="Download this song">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg>
+          </button>
+          <button class="util-btn" id="btn-share" aria-label="Share this song">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-3.9M8.6 13.5l6.8 3.9"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LIST ============ -->
+  <section class="view" id="view-list">
+    <div class="list-head">
+      <h2>Music</h2>
+      <p><span id="list-count"></span> &middot; tap a track to play it</p>
+      <input type="text" id="list-search" placeholder="Search title, folder, tags…">
+    </div>
+    <div id="tracklist"></div>
+  </section>
+
+  <!-- ============ INFO ============ -->
+  <section class="view" id="view-info">
+    <img class="logo" src="assets/logo.png" alt="AQAI Amsterdam">
+    <div class="info-block">
+      <h3>About</h3>
+      <p>AQAI is an independent music collective from Amsterdam, releasing across a family of artists and sounds. Everything you hear on this page is an original AQAI production, pulled live from the local library.</p>
+    </div>
+    <div class="info-block">
+      <h3>Library</h3>
+      <p><span id="info-count">—</span> tracks, scanned automatically from every project folder — nothing here is hardcoded.</p>
+    </div>
+    <div class="info-block">
+      <h3>Lyrics</h3>
+      <p>Word-by-word timing is generated automatically with Whisper, aligned against each song's real lyrics. Use Sync Studio to hand-correct any track.</p>
+    </div>
+    <div class="info-block">
+      <p class="dim">© 2026 AQAI, Amsterdam. All rights reserved.</p>
+    </div>
+  </section>
+
+  <!-- ============ SYNC STUDIO (visible only with #sync) ============ -->
+  <section class="view" id="view-sync">
+    <div class="sync-head">
+      <h2>Sync Studio</h2>
+      <p>1&nbsp;·&nbsp;Pick a song (lyrics load automatically) &nbsp; 2&nbsp;·&nbsp;Choose a mode &nbsp; 3&nbsp;·&nbsp;Press start and tap along with the song. <b>Per line</b> = one tap when each line starts (fast, word timing is filled in automatically). <b>Per word</b> = one tap per word (precise). The result previews instantly on Home and can be exported.</p>
+    </div>
+    <input type="text" id="sync-search" placeholder="Search for a track to sync…">
+    <div class="sync-tracks" id="sync-tracks"></div>
+    <div class="sync-tracks" id="sync-mode">
+      <button class="sync-track sel" data-mode="line">Tap per line · fast</button>
+      <button class="sync-track" data-mode="word">Tap per word · precise</button>
+    </div>
+    <textarea id="sync-lyrics" placeholder="Lyrics load automatically when you pick a track above…&#10;Lines longer than 5 words are split automatically."></textarea>
+    <div class="sync-actions">
+      <button class="btn primary" id="sync-start">Start tapping</button>
+      <button class="btn" id="sync-export" disabled>Export JSON</button>
+    </div>
+    <textarea id="sync-out" readonly></textarea>
+  </section>
+
+</div>
+
+<!-- ============ FULL LYRICS OVERLAY — a floating card over the Home
+     screen, sitting between the logo and the player ============ -->
+<div id="lyrics-full-backdrop" aria-hidden="true"></div>
+<div id="lyrics-full">
+  <button class="lf-close" id="lf-close" aria-label="Close full lyrics">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+  </button>
+  <div class="lf-meta">
+    <span class="lf-title" id="lf-title">—</span>
+    <span class="lf-by">BY</span>
+    <span class="lf-sub" id="lf-folder">—</span>
+  </div>
+  <div id="lf-list"></div>
+</div>
+
+<!-- ============ TAP OVERLAY ============ -->
+<div id="tap-ui">
+  <div class="tap-top">
+    <span class="t" id="tap-title">—</span>
+    <span class="t" id="tap-time">0:00</span>
+  </div>
+  <div class="tap-words">
+    <div id="tap-prev"></div>
+    <div id="tap-word">—</div>
+    <div id="tap-next"></div>
+    <div id="tap-count"></div>
+  </div>
+  <div class="tap-side">
+    <button class="btn" id="tap-back">‹ Redo word</button>
+    <button class="btn" id="tap-slow">0.75×</button>
+    <button class="btn" id="tap-quit">Stop</button>
+  </div>
+  <div id="tap-zone">TAP HERE ON EVERY WORD</div>
+</div>
+
+<!-- ============ BOTTOM NAV ============ -->
+<nav>
+  <button class="nav-btn active" data-view="home" aria-label="Home">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>
+    <div id="vu-meter" aria-hidden="true"></div>
+  </button>
+  <button class="nav-btn" data-view="list" aria-label="Music list">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+  </button>
+  <button class="nav-btn nav-btn-word" data-view="info" aria-label="Info">AQAI</button>
+  <button class="nav-btn hidden" data-view="sync" id="nav-sync" aria-label="Sync studio">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+  </button>
+</nav>
+
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="themes.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

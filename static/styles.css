@@ -1,0 +1,926 @@
+/* ============================================================
+   AQAI PLAYER — dark edition
+   background #0E1F1A (near-black green)  ·  3D object/accent mint #9AF7B4
+   text & controls white
+   TRACKS are loaded live from /api/tracks instead of being hardcoded.
+   Open with  #sync  in the URL to reveal the Sync Studio.
+   ============================================================ */
+@font-face{font-family:'Brice';src:url('assets/fonts/Brice-Light.woff2') format('woff2');font-weight:300;font-style:normal;font-display:swap}
+@font-face{font-family:'Brice';src:url('assets/fonts/Brice-Regular.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Brice';src:url('assets/fonts/Brice-Semi-Bold.woff2') format('woff2');font-weight:600;font-style:normal;font-display:swap}
+@font-face{font-family:'Brice';src:url('assets/fonts/Brice-Bold.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:'Brice';src:url('assets/fonts/Brice-Black.woff2') format('woff2');font-weight:900;font-style:normal;font-display:swap}
+@font-face{font-family:'Brice Condensed';src:url('assets/fonts/Brice-Regular-Condensed.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Brice Condensed';src:url('assets/fonts/Brice-Semi-Bold-Condensed.woff2') format('woff2');font-weight:600;font-style:normal;font-display:swap}
+@font-face{font-family:'Brice Condensed';src:url('assets/fonts/Brice-Bold-Condensed.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:'Brice Condensed';src:url('assets/fonts/Brice-Black-Condensed.woff2') format('woff2');font-weight:900;font-style:normal;font-display:swap}
+@font-face{font-family:'Brice Expanded';src:url('assets/fonts/Brice-Black-Expanded.woff2') format('woff2');font-weight:900;font-style:normal;font-display:swap}
+:root{
+  --bg:         #0E1F1A;
+  --bg-dark:    #0B1915;
+  --bg-soft:    #16332A;
+  --object:     #9AF7B4;
+  --object-deep:#7FE39C;
+  --active-green: #7CFF9E;
+  --lyric-active: #127F86;
+  --lyric-yellow: #FFE066;
+  --gate-blue: #5AC8FA;
+  --fg:         #FFFFFF;
+  --fg-soft:    rgba(255,255,255,.6);
+  --fg-faint:   rgba(255,255,255,.32);
+  --line:       rgba(255,255,255,.18);
+  --wash:       rgba(255,255,255,.08);
+  --nav-bg:     rgba(14,31,26,.88);
+  --hover-gradient: var(--lyric-active);
+  --font-display:'Brice', sans-serif;
+  --font-body:  'Brice', sans-serif;
+  --font-title: 'Brice Condensed', sans-serif;
+  --nav-h:      56.64px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overscroll-behavior:none}
+body{
+  color:var(--fg);
+  font-family:var(--font-body);
+  touch-action:manipulation;
+  overflow:hidden;
+}
+body::before{
+  content:"";position:fixed;inset:0;z-index:-1;
+  background:#000000;
+}
+body::after{
+  content:"";position:fixed;left:0;right:0;bottom:0;z-index:60;
+  height:10px;background:var(--artist-color, var(--active-green));pointer-events:none;
+}
+button{font-family:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible{outline:2px solid var(--fg);outline-offset:3px;border-radius:8px}
+/* belt-and-suspenders: every clickable/interactive control shows a hand
+   cursor, even non-<button> ones (the seek bar, range inputs, ...) */
+button,[role="button"],[role="slider"],input[type="range"],a,.nav-btn,label{cursor:pointer}
+textarea,input{font-family:var(--font-body);color:var(--fg)}
+img.logo{display:block;user-select:none;-webkit-user-drag:none;filter:brightness(0) invert(1)}
+body.theme-light img.logo{filter:brightness(0)}
+
+/* ---------- entry gate (autoplay policy) ---------- */
+/* while the gate is up, hide the rest of the Home screen's chrome so
+   only its #stage (the panorama sphere) shows through the transparent
+   gate behind the logo - otherwise the player controls, top bar and
+   bottom nav would all be visible (and clickable) underneath it too */
+body.gate-active .home-top,
+body.gate-active #lyrics,
+body.gate-active #wave-canvas,
+body.gate-active .player,
+body.gate-active nav,
+/* intro sphere shows raw: drop the artist-color tint and the bottom
+   readability scrim so no overlay sits on top of it (shader vignette /
+   scanlines / darkening are disabled via the uGate uniform in app.js) */
+body.gate-active #artist-color-overlay,
+body.gate-active #bg-gradient{display:none}
+/* the bottom accent bar is also part of that same chrome - no artist is
+   loaded yet on the gate screen, so it'd otherwise show as a flat green
+   strip with no purpose */
+body.gate-active::after{display:none}
+/* transparent - the panorama sphere from #stage (the same one the music
+   screen uses) shows straight through, so the gate gets its background
+   video, mouse-look, vignette and CRT lines for free instead of a
+   separate copy of any of that (see loadPanoFile in app.js's boot code) */
+#gate{
+  position:fixed;inset:0;z-index:60;
+  display:flex;align-items:center;justify-content:center;
+  background:transparent;
+  transition:opacity .6s ease, visibility .6s;
+  padding:24px;
+  overflow:hidden;
+}
+#gate.hidden{opacity:0;visibility:hidden}
+/* logo/button/hint sit statically - only the logo itself tilts with the
+   mouse (see #gate-logo-tilt below), not the button/hint text */
+/* only the logo is in normal flow, so #gate's flex-centering puts it dead
+   center (both axes); the button + hint float below it, offset 80px lower */
+#gate-content{
+  position:relative;z-index:2;
+  display:flex;flex-direction:column;align-items:center;
+}
+.gate-actions{
+  position:absolute;top:calc(100% + 80px);left:50%;transform:translateX(-50%);
+  display:flex;flex-direction:column;align-items:center;gap:34px;
+  white-space:nowrap;
+}
+/* tilts in 3D with the mouse, same mechanism as the lyrics carousel */
+#gate-logo-tilt{
+  position:relative;perspective:800px;transform-style:preserve-3d;
+  /* fully opaque, no blend - the logo is solid black and the screen-blended
+     reflection layer turns its front face into a full mirror of the sphere */
+}
+/* extruded 3D logo: stacked copies of the same silhouette a few px
+   apart in depth (see app.js, which builds the .logo3d-layer stack),
+   spinning slowly around its own Y axis independent of the mouse tilt */
+.logo3d{
+  /* every .logo3d-layer child is position:absolute (so they can stack
+     exactly on top of each other at different depths) - without an
+     explicit size here the whole thing collapses to 0x0, since
+     absolutely-positioned children can't establish their parent's size */
+  width:min(400px,90vw);aspect-ratio:8/3;
+  position:relative;transform-style:preserve-3d;
+  animation:logo3dSpin 9s linear infinite;
+  font-family:var(--font-display);font-weight:900;letter-spacing:-.02em;
+  font-size:min(108px,28.8vw);line-height:1;white-space:nowrap;
+}
+@keyframes logo3dSpin{ to { transform:rotateY(360deg); } }
+/* every face (front/back end caps + side walls) is a canvas-rendered
+   bitmap <img> - gradient + specular sheen (+ bevel on the end caps)
+   baked in, see renderLogoFace() in app.js - rather than a live CSS/SVG
+   gradient, which silently paints as a flat color once nested inside
+   this transform-style:preserve-3d stack */
+.logo3d-layer{
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+}
+/* front and back faces (end caps) - not the side/depth walls in between -
+   at reduced opacity */
+.logo3d-front,.logo3d-back{opacity:1}
+/* (opacity + overlay blend for the intro logo are on #gate-logo-tilt, its
+   wrapper, so #gate-logo3d keeps preserve-3d and its 50px extrusion shows) */
+/* sphere-control toggle: lit in the artist colour while the user is
+   steering the sphere with the mouse (auto music-reactive drift otherwise) */
+#btn-sphere-control.on{background:var(--artist-color, var(--active-green));color:#000000;border-color:var(--artist-color, var(--active-green))}
+.gate-btn{
+  font-family:var(--font-display);font-weight:600;font-size:13px;letter-spacing:.2em;
+  color:var(--bg);background:var(--object);
+  padding:19px 46px;border-radius:999px;
+  box-shadow:0 20px 68px rgba(0,0,0,.315);
+  animation:pulse 2.4s ease-in-out infinite, gateBtnColorCycle 4s ease-in-out infinite;
+  transition:background .2s,transform .1s;
+}
+.gate-btn:hover{background:var(--object-deep)}
+.gate-btn:active{background:var(--active-green)}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+/* white -> yellow -> green -> blue -> green -> yellow -> white, then a
+   short pause (still white) before looping */
+@keyframes gateBtnColorCycle{
+  0%{background-color:#FFFFFF}
+  13.33%{background-color:var(--lyric-yellow)}
+  26.67%{background-color:var(--active-green)}
+  40%{background-color:var(--gate-blue)}
+  53.33%{background-color:var(--active-green)}
+  66.67%{background-color:var(--lyric-yellow)}
+  80%,100%{background-color:#FFFFFF}
+}
+/* karaoke word fade: dark artist -> artist -> yellow -> white */
+@keyframes wordFadeBlueGreenWhite{
+  0%{color:color-mix(in srgb, var(--artist-color, var(--active-green)) 49%, black)}
+  55%{color:var(--artist-color, var(--active-green))}
+  80%{color:var(--lyric-yellow)}
+  100%{color:var(--fg)}
+}
+.gate-hint{font-size:11px;color:var(--fg-soft);letter-spacing:.16em;text-transform:uppercase}
+/* same white->yellow->green->blue->green->yellow->white->pause cycle as
+   the button, just on text color, slower, and staggered per letter (see
+   app.js, which sets --i on each .gate-hint-letter) so it sweeps left
+   to right instead of changing all at once */
+.gate-hint-letter{
+  display:inline-block;
+  animation:gateTextColorCycle 9s ease-in-out infinite;
+  animation-delay:calc(var(--i) * .1s);
+}
+@keyframes gateTextColorCycle{
+  0%{color:#FFFFFF}
+  13.33%{color:var(--lyric-yellow)}
+  26.67%{color:var(--active-green)}
+  40%{color:var(--gate-blue)}
+  53.33%{color:var(--active-green)}
+  66.67%{color:var(--lyric-yellow)}
+  80%,100%{color:#FFFFFF}
+}
+
+/* ---------- app shell ---------- */
+#app{position:fixed;inset:0;display:flex;flex-direction:column}
+.view{
+  position:absolute;inset:0;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom));
+  display:none;flex-direction:column;
+}
+.view.active{display:flex}
+
+/* ============================ HOME ============================ */
+#view-home{overflow:hidden}
+#stage{position:fixed;inset:0;z-index:0}
+/* full-screen tint in the current track's artist color, sitting right on
+   top of the 3D sphere/background video (z-index:0) but below every
+   other overlay/UI layer (z-index:1+) - color set per-track in
+   renderMeta() via the --artist-color custom property */
+/* radial fade instead of a flat tint - center keeps the original .25
+   darkness, fading out toward the edges to 40% less dark (.15) since
+   alpha is baked into each gradient stop, opacity itself is no longer
+   used (it would darken the whole element uniformly, undoing the fade) */
+#artist-color-overlay{
+  position:fixed;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(circle at 50% 50%,
+    color-mix(in srgb, var(--artist-color, var(--active-green)) 18%, transparent) 0%,
+    color-mix(in srgb, var(--artist-color, var(--active-green)) 10%, transparent) 100%);
+  mix-blend-mode:multiply;
+}
+/* readability scrim behind the whole bottom UI cluster (title/artist,
+   transport, duration/volume, side buttons) - sits in front of the 3D
+   sphere (#stage, z-index:0) but behind all that UI content (z-index:2+);
+   top is pinned dynamically to just under the artist photo, in
+   positionBgGradient() */
+#bg-gradient{
+  position:fixed;left:0;right:0;bottom:0;z-index:1;pointer-events:none;
+  background:linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,.5) 100%);
+}
+#stage canvas{display:block;width:100%;height:100%}
+
+.home-top{
+  position:relative;z-index:2;
+  display:flex;align-items:center;justify-content:center;
+  margin-top:calc(env(safe-area-inset-top) + 16px);
+  padding:0 20px;
+}
+/* solid wordmark in the current track's artist color (--artist-color,
+   set per-track in renderMeta(); falls back to the default green),
+   vertically aligned with the audio visualizer (top is set dynamically
+   in JS by positionLogo(), which runs alongside positionWaveCanvas());
+   sits above #wave-canvas in stacking order (z-index) so the canvas can
+   be clipped to leave a gap under it, per drawWaveCanvas() */
+.home-top .logo-text{
+  font-family:var(--font-display);font-weight:900;font-size:47.817px;
+  letter-spacing:-.02em;
+  position:absolute;left:50%;transform:translate(-50%, -50%);
+  z-index:3;
+  animation:logoGreenArtistCycle 4s ease-in-out infinite;
+}
+/* artist color <-> a 20%-brighter version of it, looping */
+@keyframes logoGreenArtistCycle{
+  0%,100%{color:var(--artist-color, var(--active-green))}
+  50%{color:color-mix(in srgb, var(--artist-color, var(--active-green)) 80%, white)}
+}
+.util-btns{position:absolute;right:14px;top:50%;transform:translateY(-50%);display:flex;gap:6px}
+.pano-btns{
+  position:absolute;left:14px;top:50%;transform:translateY(-50%);
+  display:flex;align-items:center;gap:6px;z-index:2;
+}
+.pano-btns .util-btn svg{width:12.8px;height:12.8px}
+.pano-label{
+  font-family:var(--font-title);font-size:11px;letter-spacing:.04em;
+  color:var(--fg-soft);min-width:44px;text-align:center;white-space:nowrap;
+}
+.util-btn{
+  width:30.4px;height:30.4px;border-radius:11.2px;position:relative;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--artist-color, var(--active-green));border:1px solid var(--artist-color, var(--active-green));
+  outline:4px solid transparent;outline-offset:-2px;
+  background:rgba(255,255,255,.06);backdrop-filter:blur(8px);
+  font-family:var(--font-display);font-weight:900;font-size:15px;
+  transition:background-color .3s ease,color .3s ease,border-color .3s ease,border-width .1s ease,box-shadow .3s ease;
+  box-shadow:0 0 3px rgba(255,255,255,0);
+}
+.util-btn::before{
+  content:"";position:absolute;inset:0;z-index:0;border-radius:inherit;
+  background:var(--hover-gradient);opacity:0;transition:opacity .5s ease;
+  pointer-events:none;
+}
+/* hover: no scaling - background/icon/text fade to solid white + black
+   over .2s, and fade back on hover-out (the .danger/remove button keeps
+   its own distinct red hover treatment below instead) */
+.util-btn:not(.danger):hover{
+  background:#ffffff;color:#000000;border-color:#ffffff;
+  box-shadow:0 0 3px rgba(255,255,255,.2);
+}
+/* .danger (delete/remove buttons) - a distinct red warning treatment
+   instead of the default white, reused anywhere a destructive action
+   button appears (pano remove, delete song, ...) */
+.util-btn.danger:hover{color:#000000;outline-color:#FF5C5C;border-color:#FF5C5C}
+.util-btn.danger:hover::before{opacity:1;background:#FF5C5C}
+.util-btn.danger:active{background:#FF5C5C;border-color:#FF5C5C}
+.util-btn:active{background:var(--artist-color, var(--active-green));color:#000000;border-color:var(--artist-color, var(--active-green))}
+.util-btn svg{width:14.4px;height:14.4px;position:relative;z-index:1}
+.util-btn.spinning{pointer-events:none;opacity:.6}
+.util-btn.spinning svg{animation:aqaiSpin 1s linear infinite}
+@keyframes aqaiSpin{to{transform:rotate(360deg)}}
+.util-btn-wide{width:auto;flex:0 0 auto;gap:4.8px;padding:0 9.6px}
+.util-btn-wide span{position:relative;z-index:1;line-height:1;top:1.6px;
+  font-family:var(--font-title);font-weight:700;font-size:12.8px;
+  letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;
+}
+
+/* music-reactive line visualizer - flat 2D canvas sitting between the
+   logo and the lyrics viewer (not part of the 3D sphere); top/height are
+   set in JS by positionWaveCanvas() since they depend on the live
+   layout of both neighbors */
+/* extends 10px past the viewport edge on both sides, so the line runs a
+   little further left/right than the rest of the row content - width is
+   explicit (not left+right auto-stretch) since <canvas> is a replaced
+   element and doesn't stretch from left/right offsets the way a <div> does */
+#wave-canvas{position:absolute;left:-10px;width:calc(100% + 20px);z-index:2;pointer-events:none;display:block}
+
+/* lyrics — 3-row carousel: the real previous/next lines sit 4px above and
+   below the active line, all at the same size; only color/opacity marks
+   which one is active */
+/* 10% of the viewport reserved on each side (so the viewer is always
+   exactly 80% wide, whatever the screen size) and centered on both
+   axes - top:50%/translateY(-50%) for vertical, left/right:10% (instead
+   of a fixed-px padding) for horizontal */
+#lyrics{
+  position:absolute;left:10%;right:10%;top:50%;transform:translateY(calc(-50% - 80px)) scale(1.5);
+  z-index:2;pointer-events:none;
+  text-align:center;
+  height:calc(clamp(18px,calc(14vw - 10px),70px) * 4.6);overflow:hidden;
+}
+#lyric-rows{position:relative;width:100%;height:100%}
+.lyric-row{
+  position:absolute;left:50%;top:50%;width:100%;max-width:100%;
+  white-space:nowrap;
+  font-family:var(--font-title);font-weight:700;text-transform:uppercase;
+  font-size:clamp(18px,calc(14vw - 10px),70px);line-height:calc(1.4em - 20px);
+  transition:transform .3s ease-in-out;
+}
+.lyric-row .w{
+  display:inline-block;margin:0 .12em;
+  color:color-mix(in srgb, var(--artist-color, var(--active-green)) 70%, black);opacity:.19;
+  transition:transform .3s ease;
+}
+.lyric-row.near .w{opacity:.285}
+.lyric-row.active-row .w{color:color-mix(in srgb, var(--artist-color, var(--active-green)) 70%, black);opacity:1}
+
+/* full lyrics overlay */
+/* a floating vertical card over the Home screen: sits 40px below the
+   logo and stops above the player/title, positioned in JS via
+   positionLyricsFull() since it depends on the logo/player's live layout */
+/* full-screen 50% black scrim behind the card - dims the whole app
+   while the lyrics overview is open */
+#lyrics-full-backdrop{
+  position:fixed;inset:0;z-index:55;display:none;
+  background:rgba(0,0,0,.5);
+}
+#lyrics-full-backdrop.open{display:block}
+/* width is no longer a fixed percentage - set per-track in JS by
+   buildFullLyrics() to fit the longest lyric line plus 20% breathing
+   room on each side, so the card can overlap/exceed the screen when a
+   line is wide instead of shrinking every line down to a fixed box */
+#lyrics-full{
+  position:fixed;left:50%;transform:translateX(-50%);z-index:56;
+  display:none;flex-direction:column;
+  background:#ffffff;border:1px solid var(--line);border-radius:20px;
+  overflow:hidden;
+  box-shadow:0 20px 60px rgba(0,0,0,.5);
+}
+#lyrics-full.open{display:flex}
+.lf-close{
+  position:absolute;right:40px;top:40px;z-index:2;
+  width:30.4px;height:30.4px;border-radius:11.2px;
+  display:flex;align-items:center;justify-content:center;
+  color:#000000;border:1.5px solid #aaaaaa;
+  outline:4px solid transparent;outline-offset:-2px;
+  background:#ffffff;backdrop-filter:blur(8px);
+  transition:transform .1s,color .5s ease,outline-color .5s ease;
+}
+.lf-close::before{
+  content:"";position:absolute;inset:0;z-index:0;border-radius:inherit;
+  background:var(--hover-gradient);opacity:0;transition:opacity .5s ease;
+  pointer-events:none;
+}
+/* hover: solid black button with a white X icon */
+.lf-close:hover{color:#ffffff;background:#000000;border-color:#000000;outline-color:transparent}
+.lf-close:hover::before{opacity:0}
+.lf-close:active{background:var(--artist-color, var(--active-green));color:#000000;border-color:var(--artist-color, var(--active-green))}
+.lf-close svg{width:14.4px;height:14.4px;position:relative;z-index:1}
+.lf-meta{
+  padding:40px 22px 0 40px;text-align:left;
+  display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+}
+.lf-title{font-family:var(--font-title);font-weight:700;font-size:31.2px;text-transform:uppercase;color:color-mix(in srgb, var(--artist-color, var(--active-green)) 75%, black)}
+.lf-by{font-family:var(--font-title);font-weight:400;font-size:21.84px;text-transform:uppercase;color:#666666}
+.lf-sub{font-family:var(--font-title);font-weight:400;font-size:31.2px;text-transform:uppercase;color:color-mix(in srgb, var(--artist-color, var(--active-green)) 75%, black)}
+#lf-list{
+  flex:1;overflow-y:auto;padding:20px 8px 20px 38px; /* text nudged 2px left */
+  /* 20px top padding keeps the first line (tight line-height) from being
+     clipped at the scroll edge, and starts it ~20px below the title;
+     40px of space at the bottom of the card */
+  margin:0 0 40px 0;
+  -webkit-overflow-scrolling:touch;
+  text-align:left;
+  display:flex;flex-direction:column;gap:25px; /* 25px cellspace between sentences */
+}
+/* scrollbar: a 15px thumb, horizontally centred under the close button
+   (button at right:40px, width 30.4px → centre 55.2px in from the card
+   edge; a 47.7px transparent right border with padding-box clip keeps the
+   15px thumb centred on that same point). Hidden until the user hovers the
+   list or scrolls. */
+#lf-list::-webkit-scrollbar{width:62.7px}
+#lf-list::-webkit-scrollbar-track{background:transparent}
+#lf-list::-webkit-scrollbar-thumb{
+  background:transparent;border-radius:7.5px;
+  border:none;border-right:47.7px solid transparent;background-clip:padding-box;
+  transition:background .2s ease;
+}
+#lf-list:hover::-webkit-scrollbar-thumb,
+#lf-list.scrolling::-webkit-scrollbar-thumb{background:#d9d9d9}
+.lf-row{
+  font-family:var(--font-title);font-weight:400;text-transform:none;white-space:nowrap;
+  font-size:clamp(16.5px,4.4vw,24.2px);line-height:calc(0.3375em - 1.25px);
+  padding:1px 0;
+  color:#000000;
+  transition:color .25s ease;
+}
+.lf-row .w{
+  display:inline-block;margin:0 .12em;
+  color:inherit;
+}
+.lf-row.current{color:var(--lyric-active)}
+.lf-gap{height:22px}
+
+/* bottom player block */
+.player{
+  position:absolute;left:0;right:0;bottom:45px;z-index:3;
+  padding:26px 20px 14px;
+}
+
+/* artist photo placeholder - profilepic.png doubles as the mask shape
+   for the per-artist photos (artist_1.png etc) once those are wired up;
+   for now it's just shown directly, centered above the title/artist row.
+   z-index:0 (lower than .meta-row's 3) keeps it behind the song-title
+   pill if the two ever overlap; top is set dynamically in JS by
+   positionArtistPhoto() - 60px above the controls row */
+.artist-photo-wrap{position:relative;z-index:0;width:167.0625px;margin:0 auto -5px;transform:translateY(-38px) scale(1.1)}
+/* soft glow behind the photo, tinted the current track's artist colour */
+.artist-photo-wrap::before{
+  content:"";position:absolute;inset:-16%;z-index:0;
+  border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,
+    color-mix(in srgb, var(--artist-color, var(--active-green)) 78%, transparent) 0%,
+    transparent 68%);
+  filter:blur(16px);
+}
+/* 2px stroke around the photo: the same profilepic.png silhouette, filled
+   solid and sized 2px larger on every side, sitting just behind the photo
+   so only a 2px rim of it shows around the masked edge */
+.artist-photo-wrap::after{
+  content:"";position:absolute;inset:-4px;z-index:0;pointer-events:none;
+  /* artist-colour stroke: 25% lighter at the top, easing down to the full
+     artist colour at the bottom */
+  background:linear-gradient(to bottom,
+    color-mix(in srgb, var(--artist-color, var(--active-green)) 75%, white) 0%,
+    var(--artist-color, var(--active-green)) 100%);
+  -webkit-mask-image:url('assets/profilepic.png');-webkit-mask-size:100% 100%;-webkit-mask-repeat:no-repeat;-webkit-mask-position:center;
+  mask-image:url('assets/profilepic.png');mask-size:100% 100%;mask-repeat:no-repeat;mask-position:center;
+}
+/* second, round audio visualiser: one continuous closed outline connecting
+   60 points around the photo's oval (plain SVG polygon, no CSS
+   mask-composite trickery, which some browsers render unreliably),
+   starting 5px outside the stroke above. Each point's distance from centre
+   tracks its own frequency band's level, so the ring's outline wobbles in
+   and out rather than sprouting separate spikes - see
+   buildRingSpikes()/updateArtistRingVisualiser() in app.js. */
+.artist-photo-ring{
+  position:absolute;inset:-11px;z-index:0;pointer-events:none;
+  width:calc(100% + 22px);height:calc(100% + 22px);
+  overflow:visible;
+}
+#artist-ring-poly{
+  stroke:var(--artist-color, var(--active-green));
+  stroke-linejoin:round;
+}
+.artist-photo{
+  display:block;width:100%;height:auto;position:relative;z-index:1;
+}
+/* artist_N.png photos are plain rectangular RGB images (no alpha of
+   their own) - clipped into profilepic.png's oval shape via mask so they
+   read the same as the profilepic.png placeholder does on its own;
+   profilepic.png is the exact same pixel dimensions as the artist_N.png
+   files, hence the 100% 100% (no need for contain/cover math) */
+.artist-photo.masked{
+  -webkit-mask-image:url('assets/profilepic.png');
+  -webkit-mask-size:100% 100%;
+  -webkit-mask-repeat:no-repeat;
+  -webkit-mask-position:center;
+  mask-image:url('assets/profilepic.png');
+  mask-size:100% 100%;
+  mask-repeat:no-repeat;
+  mask-position:center;
+}
+/* title/by/artist: taken out of the normal .player flow entirely and
+   fixed in place instead, vertically centered (translateY(-50%)) on a
+   Y set in JS by positionWaveCanvas() - together with the visualizer,
+   both anchored 25px below the AQAI logo's own bottom edge */
+.meta-row{
+  position:fixed;left:0;right:0;top:0;z-index:3;
+  transform:translateY(-50%);
+  display:flex;align-items:center;justify-content:center;
+  text-align:center;
+}
+/* pill in the artist's color behind the song/by/artist text, black text
+   for contrast; scaled to 75% of its previous size overall, with
+   trimmed left/right padding (10px/12px, was 22px each) */
+.meta{
+  position:relative;z-index:1;
+  min-width:0;max-width:100%;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  border-radius:15px;
+  padding:5.5px 12px 5.5px 10px; /* another 20px narrower (10px each side) */
+  color:#000000;
+  transform:scale(.8625); /* 115% of the former .75 */
+  box-shadow:0 3px 8px rgba(0,0,0,.35);
+  background:#eeeeee;
+}
+/* same artist-color <-> 20%-brighter cycle as the logo, just on
+   background-color instead of text color */
+@keyframes bgArtistBrightCycle{
+  /* pill background 40% lighter (mixed with 40% white), still pulsing brighter */
+  0%,100%{background-color:color-mix(in srgb, var(--artist-color, var(--active-green)) 60%, white)}
+  50%{background-color:color-mix(in srgb, var(--artist-color, var(--active-green)) 45%, white)}
+}
+.meta > *{vertical-align:middle;position:relative;top:3px}
+.meta .title{
+  font-family:var(--font-title);font-weight:700;font-size:clamp(17.00595px,5.314359375vw,29.7604125px);
+  word-spacing:.15em;min-width:0;text-transform:uppercase;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  color:color-mix(in srgb, var(--artist-color, var(--active-green)) 60%, black); /* artist colour, 40% darker */
+}
+.meta .by{
+  flex:0 0 auto;font-family:var(--font-title);font-weight:400;font-size:clamp(8.83215px,2.7594vw,15.4536px);
+  text-transform:uppercase;color:#000000;
+}
+.meta .sub{
+  flex:0 0 auto;font-family:var(--font-title);font-weight:400;font-size:clamp(17.00595px,5.314359375vw,29.7604125px);
+  word-spacing:.15em;text-transform:uppercase;
+  white-space:nowrap;
+  color:color-mix(in srgb, var(--artist-color, var(--active-green)) 60%, black); /* artist colour, 40% darker */
+}
+/* song title/artist: artist color -> white -> artist color, looping */
+@keyframes metaGreenWhiteCycle{
+  0%,100%{color:var(--artist-color, var(--active-green))}
+  50%{color:var(--fg)}
+}
+/* rename-in-place: clicking a pencil swaps the static title/artist span
+   for its input (same type styling so nothing visually jumps), typing
+   and then blurring/Enter saves it - see beginEditTitle()/commitEditTitle()
+   and beginEditArtist()/commitEditArtist() */
+.title-edit-input{
+  display:none;
+  font-family:var(--font-title);font-weight:700;font-size:clamp(17.00595px,5.314359375vw,29.7604125px);letter-spacing:.02em;
+  word-spacing:.15em;min-width:0;width:min(60vw,420px);
+  color:#eeeeee;
+  background:transparent;border:none;border-bottom:1.5px solid var(--artist-color, var(--active-green));outline:none;
+  padding:0;
+}
+.meta.editing-title #m-title{display:none}
+.meta.editing-title #m-title-input{display:inline-block}
+.meta.editing-title #btn-edit-title{display:none}
+.meta.editing-artist #m-folder{display:none}
+.meta.editing-artist #m-folder-input{display:inline-block}
+.meta.editing-artist #btn-edit-artist{display:none}
+/* quick fade in on hover, slower 1s fade back to the original look on
+   hover-out (the :hover rule's own faster transition wins while
+   hovering; this slower one only applies once the pointer leaves) */
+#btn-edit-title,#btn-edit-artist{transition:background-color 1s ease,color 1s ease,border-color 1s ease,box-shadow 1s ease}
+#btn-edit-title:hover,#btn-edit-artist:hover{transition:background-color .3s ease,color .3s ease,border-color .3s ease,box-shadow .3s ease}
+/* rename buttons are shown (edit song title / edit artist name) */
+/* transport (left) · progress/volume (middle) · lyrics/download/share/etc
+   (right), sitting together as one centered cluster with exactly 40px
+   between each group (not spread to the row's full width) */
+/* one continuous "single line" tier all the way from full width down to
+   the 650px breakpoint below - controls-row stays a centered 80%-wide
+   cluster throughout, and .bar-row (duration/volume) fluidly narrows
+   with it via max-width:75% (a percentage of controls-row's own width,
+   so it shrinks smoothly as the viewport does); there is no separate
+   fixed-width tier in between anymore, only this and the 650px stack */
+.controls-row{
+  position:relative;top:25px;
+  display:flex;align-items:center;justify-content:center;flex-wrap:wrap;
+  gap:40px;min-height:44px;margin-bottom:14px;
+  width:80%;margin-left:auto;margin-right:auto;
+}
+/* base .bar-row rule - MUST stay above the responsive overrides below
+   (their equal-specificity .bar-row rules only win by coming later in
+   the file; this one used to live far below them and silently clobbered
+   every breakpoint's override) */
+.bar-row{
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  flex:1 1 auto;max-width:75%;min-width:0;
+}
+.transport{display:flex;align-items:center;gap:8px}
+.transport-center{display:flex;align-items:center;gap:8px}
+.ctl.big-play{width:35.2px;height:35.2px;border-radius:12px}
+.ctl.big-play svg{width:16px;height:16px}
+/* now a direct sibling of .transport/.bar-row in .controls-row, so the
+   40px gap from the volume slider comes for free via .controls-row's own
+   gap - no extra margin needed */
+.side-btns{display:flex;align-items:center;gap:10px}
+.mobile-more-btn{display:none;flex:0 0 auto}
+
+/* narrower still: not enough room for transport + duration/volume side by
+   side, so the duration/volume block (with Lyrics/download/share riding
+   along with it) drops to its own row, sitting between the transport
+   controls above and the bottom tab bar below, instead of squeezing
+   everything onto one line */
+@media (max-width:650px){
+  .controls-row{flex-wrap:wrap;row-gap:12px}
+  /* the duration/volume bar is what actually drops to its own row here;
+     transport and the side buttons keep sharing the row above it,
+     side-btns sitting right of the transport controls */
+  .transport{order:1}
+  .side-btns{order:2;margin-left:20px}
+  .bar-row{order:3;flex-basis:100%;width:100%;max-width:100%;flex-wrap:wrap;justify-content:center}
+  /* same size as the plain icon buttons (download/share) instead of the
+     wider text pill, so all three side buttons match */
+  #btn-fulllyrics{width:30.4px;padding:0}
+  #btn-fulllyrics span{display:none}
+}
+
+/* true mobile: exactly 15px from the actual screen edge (not the wider
+   80%-centered cluster used above), on both the transport row and the
+   duration/volume row. Transport becomes three zones spanning the full
+   width - shuffle pinned left, prev/play/next centred, the "..." button
+   pinned right - and side-btns (Lyrics/download/share) hide behind that
+   "..." button instead of sitting inline, only appearing (as their own
+   centred row) once #btn-more toggles #side-btns' .open class. */
+@media (max-width:480px){
+  .player{padding-left:15px;padding-right:15px}
+  .controls-row{width:100%;margin-left:0;margin-right:0}
+  .bar-row{width:100%;margin:0;padding:0}
+  .transport{width:100%;justify-content:space-between;gap:0}
+  #c-random{transform:scale(.9)}
+  .mobile-more-btn{display:flex}
+  .side-btns{display:none;order:4;flex-basis:100%;width:100%;margin:10px 0 0;justify-content:center}
+  .side-btns.open{display:flex}
+}
+
+#vu-meter{
+  display:flex;align-items:flex-end;justify-content:center;gap:2px;
+  height:20px;flex:0 0 auto;
+  /* the flex row centers this against the 23px home icon by default;
+     nudge down by half the height difference so their bottoms line up
+     instead of their centers */
+  position:relative;top:1.5px;
+}
+#vu-meter span{
+  width:3px;min-height:0;border-radius:1.5px;
+  background:#ffffff;
+  transition:height .08s linear;
+}
+/* the Home tab is filled green while active, so its bars switch to
+   black there for contrast - same convention as the tab's own icon */
+.nav-btn.active #vu-meter span{background:#000000}
+.ctl{
+  flex:0 0 auto;width:33.6px;height:33.6px;border-radius:11.2px;position:relative;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--artist-color, var(--active-green));border:1px solid var(--artist-color, var(--active-green));background:transparent;
+  outline:4px solid transparent;outline-offset:-2px;
+  transition:background-color .3s ease,color .3s ease,border-color .3s ease,box-shadow .3s ease;
+  box-shadow:0 0 3px rgba(255,255,255,0);
+}
+.ctl::before{
+  content:"";position:absolute;inset:0;z-index:0;border-radius:inherit;
+  background:var(--hover-gradient);opacity:0;transition:opacity .5s ease;
+  pointer-events:none;
+}
+/* hover: no scaling - background/icon fade to solid white + black over
+   .2s, and fade back on hover-out */
+.ctl:hover{background:#ffffff;color:#000000;border-color:#ffffff;box-shadow:0 0 3px rgba(255,255,255,.2)}
+.ctl:active{background:var(--artist-color, var(--active-green));color:#000000;border-color:var(--artist-color, var(--active-green))}
+.ctl svg{width:15.2px;height:15.2px;position:relative;z-index:1}
+.ctl.toggle.on{color:#000000;background:var(--artist-color, var(--active-green));border-color:var(--artist-color, var(--active-green));box-shadow:0 8px 22px rgba(0,0,0,.4)}
+.ctl.toggle.on:hover{background:var(--artist-color, var(--active-green));border-color:var(--artist-color, var(--active-green));color:#000000;outline-color:var(--artist-color, var(--active-green))}
+.ctl.toggle.on:hover::before{opacity:0}
+
+.bar-row .time{font-family:var(--font-title);font-size:11px;letter-spacing:.06em;color:var(--fg-soft);flex:0 0 auto}
+#bar{
+  position:relative;height:26px;flex:1 1 auto;display:flex;align-items:center;cursor:pointer;
+  touch-action:none;min-width:0;
+}
+#bar::before{content:"";position:absolute;left:0;right:0;height:5px;border-radius:2.5px;background:#888888}
+#bar-fill{
+  position:absolute;left:0;height:5px;width:0%;border-radius:2.5px;
+  background:var(--artist-color, var(--active-green));
+}
+#bar-knob{
+  position:absolute;width:21.84px;height:21.84px;border-radius:50%;
+  background:var(--artist-color, var(--active-green));left:0%;transform:translateX(-50%);
+  border:2px solid var(--artist-color, var(--active-green));
+  transition:transform .15s ease;
+}
+#bar:hover #bar-knob{transform:translateX(-50%) scale(1.15)}
+/* same rounded-button chrome as .ctl (transport controls) - border,
+   transparent fill, fade-to-white on hover, fade-to-artist-color on
+   active - so the mute button matches every other round icon button */
+.vol-btn{
+  flex:0 0 auto;width:33.6px;height:33.6px;border-radius:11.2px;position:relative;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--artist-color, var(--active-green));border:1px solid var(--artist-color, var(--active-green));background:transparent;
+  outline:4px solid transparent;outline-offset:-2px;
+  transition:background-color .3s ease,color .3s ease,border-color .3s ease,box-shadow .3s ease;
+  box-shadow:0 0 3px rgba(255,255,255,0);
+}
+.vol-btn::before{
+  content:"";position:absolute;inset:0;z-index:0;border-radius:inherit;
+  background:var(--hover-gradient);opacity:0;transition:opacity .5s ease;
+  pointer-events:none;
+}
+.vol-btn:hover{background:#ffffff;color:#000000;border-color:#ffffff;box-shadow:0 0 3px rgba(255,255,255,.2)}
+.vol-btn:active{background:var(--artist-color, var(--active-green));color:#000000;border-color:var(--artist-color, var(--active-green))}
+.vol-btn svg{width:15.2px;height:15.2px;position:relative;z-index:1}
+/* .on = sound currently on (not muted) - same filled "engaged" look as
+   .ctl.toggle.on (the play button while playing) */
+.vol-btn.on{color:#000000;background:var(--artist-color, var(--active-green));border-color:var(--artist-color, var(--active-green));box-shadow:0 8px 22px rgba(0,0,0,.4)}
+.vol-btn.on:hover{background:var(--artist-color, var(--active-green));border-color:var(--artist-color, var(--active-green));color:#000000}
+.vol-btn.muted{color:var(--fg-faint);border-color:var(--fg-faint)}
+#c-volume{
+  --vol-pct:100%;
+  flex:0 1 55px;width:55px;height:26px;
+  -webkit-appearance:none;appearance:none;cursor:pointer;
+  background:transparent;
+}
+#c-volume::-webkit-slider-runnable-track{
+  height:5px;border-radius:2.5px;
+  background:linear-gradient(to right, var(--artist-color, var(--active-green)) var(--vol-pct), #888888 var(--vol-pct));
+}
+#c-volume::-moz-range-track{height:5px;background:#888888;border-radius:2.5px}
+#c-volume::-moz-range-progress{height:5px;background:var(--artist-color, var(--active-green));border-radius:2.5px}
+#c-volume::-webkit-slider-thumb{
+  -webkit-appearance:none;margin-top:-8.42px;
+  width:21.84px;height:21.84px;border-radius:50%;
+  background:var(--artist-color, var(--active-green));border:2px solid var(--artist-color, var(--active-green));
+  transition:transform .15s ease;
+}
+#c-volume:hover::-webkit-slider-thumb{transform:scale(1.15)}
+#c-volume::-moz-range-thumb{
+  width:21.84px;height:21.84px;border-radius:50%;
+  background:var(--artist-color, var(--active-green));border:2px solid var(--artist-color, var(--active-green));
+  transition:transform .15s ease;
+}
+#c-volume:hover::-moz-range-thumb{transform:scale(1.15)}
+
+/* ============================ LIST ============================ */
+#view-list{padding:calc(env(safe-area-inset-top) + 18px) 0 0;overflow:hidden}
+.list-head{padding:0 22px 14px}
+.list-head h2{font-family:var(--font-display);font-weight:600;font-size:14px;letter-spacing:.24em;text-transform:uppercase}
+.list-head p{margin-top:4px;font-size:12px;color:var(--fg-soft)}
+#list-search{
+  width:100%;margin-top:12px;padding:11px 14px;border-radius:999px;
+  border:1.5px solid var(--line);background:rgba(255,255,255,.08);
+  font-size:13px;
+}
+#list-search::placeholder{color:var(--fg-faint)}
+#tracklist{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:20px}
+/* --row-color is set inline per element in renderList() from that artist's
+   own tr.artistColor, so each artist's section shows its own accent
+   instead of one flat color across the whole list */
+.group-header{
+  padding:39px 22px 6px;font-family:var(--font-display);font-weight:600;
+  font-size:30px;letter-spacing:.2em;text-transform:uppercase;color:var(--row-color, var(--fg-soft));
+}
+.track{
+  width:100%;height:35px;display:flex;align-items:center;gap:14px;text-align:left;
+  padding:0 22px;border-bottom:1.5px solid var(--line);box-sizing:border-box;
+  transition:background .5s ease;
+}
+.track:active{background:rgba(124,255,158,.18)}
+.track.playing{background:var(--wash)}
+.track .idx{
+  font-family:var(--font-display);font-size:11px;color:var(--fg-soft);
+  width:24px;flex:0 0 auto;
+  transition:color .5s ease;
+  position:relative;top:2px;
+}
+.track.playing .idx{color:var(--row-color, var(--active-green))}
+.track.playing .t-title{color:var(--row-color, var(--active-green))}
+.track .t-meta{flex:1;min-width:0}
+.track .t-title{
+  font-family:var(--font-title);font-size:24.125px;font-weight:400;
+  word-spacing:.15em;text-transform:uppercase;
+  color:#eeeeee;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  transition:color .5s ease;
+  position:relative;top:2px;
+}
+.track .t-len{font-size:11px;color:var(--fg-soft);flex:0 0 auto;transition:color .5s ease;position:relative;top:2px}
+.track:hover{background:var(--row-color, var(--active-green))}
+.track:hover .idx,.track:hover .t-title,.track:hover .t-len{color:#000000}
+.eq{display:none;gap:2px;align-items:flex-end;height:14px;flex:0 0 auto}
+.track.playing .eq{display:flex}
+.eq i{width:3px;background:var(--row-color, var(--active-green));border-radius:2px;animation:eq .9s ease-in-out infinite}
+.eq i:nth-child(2){animation-delay:.2s}.eq i:nth-child(3){animation-delay:.4s}
+@keyframes eq{0%,100%{height:4px}50%{height:14px}}
+
+/* ============================ INFO ============================ */
+#view-info{padding:calc(env(safe-area-inset-top) + 18px) 22px 0;overflow-y:auto}
+#view-info .logo{width:min(200px,56vw);height:auto;margin:26px auto 26px}
+.info-block{max-width:560px;margin:0 auto 22px}
+.info-block h3{font-family:var(--font-display);font-weight:600;font-size:11px;letter-spacing:.26em;text-transform:uppercase;margin-bottom:8px;
+  display:inline-block;background:var(--object);color:var(--bg);padding:5px 10px;border-radius:6px}
+.info-block p{font-size:14px;line-height:1.7}
+.info-block p.dim{color:var(--fg-soft);font-size:12px}
+
+/* ============================ SYNC STUDIO ============================ */
+#view-sync{padding:calc(env(safe-area-inset-top) + 18px) 22px 0;overflow-y:auto}
+.sync-head h2{font-family:var(--font-display);font-weight:600;font-size:14px;letter-spacing:.24em;text-transform:uppercase}
+.sync-head p{margin:6px 0 16px;font-size:12px;color:var(--fg-soft);line-height:1.6}
+#sync-search{
+  width:100%;margin-bottom:12px;padding:11px 14px;border-radius:999px;
+  border:1.5px solid var(--line);background:rgba(255,255,255,.08);
+  font-size:13px;
+}
+#sync-search::placeholder{color:var(--fg-faint)}
+.sync-tracks{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;max-height:160px;overflow-y:auto}
+.sync-track{
+  font-size:12px;font-weight:700;padding:10px 16px;border-radius:999px;
+  border:1.5px solid var(--line);
+  transition:background .2s,border-color .2s;
+}
+.sync-track:hover{border-color:var(--object)}
+.sync-track:active{background:var(--artist-color, var(--active-green));color:#000000;border-color:var(--artist-color, var(--active-green))}
+.sync-track.sel{background:var(--artist-color, var(--active-green));color:#000000;border-color:var(--artist-color, var(--active-green))}
+#sync-lyrics{
+  width:100%;min-height:140px;resize:vertical;
+  background:rgba(255,255,255,.08);border:1.5px solid var(--line);border-radius:12px;
+  padding:12px;font-size:14px;line-height:1.6;
+}
+#sync-lyrics::placeholder{color:var(--fg-faint)}
+.sync-actions{display:flex;gap:8px;margin:14px 0 24px;flex-wrap:wrap}
+.btn{
+  font-family:var(--font-display);font-weight:600;font-size:11px;letter-spacing:.14em;
+  padding:14px 22px;border-radius:999px;border:1.5px solid var(--fg);
+  transition:background .2s,color .2s;
+}
+.btn:hover:not(:disabled){background:var(--fg);color:var(--bg)}
+.btn:active:not(:disabled){background:var(--artist-color, var(--active-green));color:#000000;border-color:var(--artist-color, var(--active-green))}
+.btn.primary{background:var(--object);color:var(--bg);border-color:var(--object)}
+.btn.primary:hover:not(:disabled){background:var(--object-deep);color:var(--bg)}
+.btn:disabled{opacity:.35}
+/* tapping overlay */
+#tap-ui{position:fixed;inset:0;z-index:55;display:none;flex-direction:column;background:var(--bg)}
+#tap-ui.on{display:flex}
+.tap-top{padding:calc(env(safe-area-inset-top) + 16px) 20px 0;display:flex;justify-content:space-between;align-items:center}
+.tap-top .t{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--fg-soft)}
+.tap-words{flex:0 0 auto;text-align:center;padding:26px 20px 8px}
+#tap-prev{font-size:13px;color:var(--fg-faint);min-height:20px}
+#tap-word{font-family:var(--font-display);font-weight:900;font-size:clamp(30px,9vw,52px);margin:6px 0;color:var(--fg)}
+#tap-next{font-size:14px;color:var(--fg-soft);min-height:22px}
+#tap-count{font-size:11px;color:var(--fg-soft);margin-top:10px;letter-spacing:.14em}
+#tap-zone{
+  flex:1;margin:18px 20px calc(env(safe-area-inset-bottom) + 18px);
+  border:2px dashed var(--fg-faint);border-radius:24px;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-display);font-weight:600;font-size:13px;letter-spacing:.22em;
+  color:var(--fg-soft);user-select:none;touch-action:none;
+}
+#tap-zone:active{background:var(--wash);border-style:solid}
+.tap-side{display:flex;gap:8px;padding:0 20px}
+#sync-out{
+  width:100%;min-height:120px;display:none;
+  background:rgba(255,255,255,.08);border:1.5px solid var(--line);border-radius:12px;
+  padding:12px;font-size:11px;font-family:monospace;margin-bottom:24px;
+}
+
+/* ============================ NAV — tab bar ============================ */
+nav{
+  position:fixed;left:50%;bottom:4px;z-index:50;
+  transform:translateX(-50%);
+  width:calc(100% - 8px);max-width:650px;
+  height:calc(var(--nav-h) + env(safe-area-inset-bottom));
+  padding:0 0 env(safe-area-inset-bottom);
+  display:flex;gap:2px;
+  background:transparent;
+}
+.nav-btn{
+  flex:1;display:flex;align-items:center;justify-content:center;gap:7px;position:relative;
+  background:color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 21%, black) 70%, white);
+  border:none;
+  border-radius:22px 22px 0 0;
+  color:#ffffff;
+  opacity:.81;
+  transition:transform .2s ease,color .1s ease,background .2s ease,opacity .2s ease;
+}
+.nav-btn.active{opacity:1}
+/* hover: icon/text fade green and the tab lifts up - no stroke at all,
+   here or at rest (the currently-active tab stays filled green instead,
+   see .active below) */
+.nav-btn:not(.active):hover{
+  color:var(--artist-color, var(--active-green));transform:translateY(-5px);
+  /* tab background 20% brighter on hover (its rest colour mixed with 20% white) */
+  background:color-mix(in srgb, color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 21%, black) 70%, white) 80%, white);
+}
+.nav-btn svg{width:23px;height:23px;position:relative;z-index:1}
+.nav-btn-word{position:relative;z-index:1}
+#vu-meter{position:relative;z-index:1}
+.nav-btn:active{background:var(--artist-color, var(--active-green));color:#000000;border-color:var(--artist-color, var(--active-green))}
+.nav-btn.active{background:var(--artist-color, var(--active-green));color:#000000;border-color:var(--artist-color, var(--active-green))}
+.nav-btn.hidden{display:none}
+.nav-btn-word{font-family:var(--font-display);font-weight:900;font-size:18.75px;letter-spacing:-.02em}
+
+/* toast */
+#toast{
+  position:fixed;left:50%;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px);
+  transform:translateX(-50%) translateY(10px);z-index:70;
+  background:var(--object);color:var(--bg);
+  font-size:12px;font-weight:400;letter-spacing:.06em;
+  padding:10px 20px;border-radius:999px;
+  opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media (prefers-reduced-motion:reduce){
+  .gate-btn{animation:none}
+  .eq i{animation:none;height:8px}
+}
