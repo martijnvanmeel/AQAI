@@ -1,0 +1,14 @@
+[Unit]
+Description=AQAI Music player
+After=network.target
+
+[Service]
+Type=simple
+User=aqai
+WorkingDirectory=/opt/aqai/player
+ExecStart=/usr/bin/python3 /opt/aqai/player/server.py 8420
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

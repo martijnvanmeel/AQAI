@@ -1,0 +1,6 @@
+# Replace aqaimusic.com with your actual domain.
+# Caddy automatically provisions and renews HTTPS via Let's Encrypt -
+# no certbot, no manual cert config.
+aqaimusic.com, www.aqaimusic.com {
+    reverse_proxy 127.0.0.1:8420
+}
