@@ -11,13 +11,13 @@ GIT_REMOTE="https://github.com/martijnvanmeel/AQAI.git"
 apt-get update
 apt-get install -y python3 rsync git curl debian-keyring debian-archive-keyring apt-transport-https gnupg
 
-# Caddy's official apt repo. If this step fails, the package repo details
-# may have changed - check https://caddyserver.com/docs/install for the
-# current official instructions.
+# Caddy's official apt repo (verified against https://caddyserver.com/docs/install).
 curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
   | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.txt' \
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
   | tee /etc/apt/sources.list.d/caddy-stable.list
+chmod o+r /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+chmod o+r /etc/apt/sources.list.d/caddy-stable.list
 apt-get update
 apt-get install -y caddy
 
