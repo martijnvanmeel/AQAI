@@ -10,43 +10,28 @@ Two things live separately:
 
 ## One-time setup
 
-1. **Register a domain** (aqaimusic.com or whatever you land on) with any
-   registrar (Namecheap, Cloudflare Registrar, Porkbun, etc.) - this is a
-   purchase, so it's on you to do directly with the registrar.
+1. ~~Register a domain~~ — done: **aqaimusic.com**, registered at Hostnet.
 
-2. **Provision a VPS.** Any small Ubuntu box works; this app has zero
-   third-party Python dependencies (stdlib only), so there's nothing to
-   install beyond Python itself. Given the ~11GB (and growing) media
-   library, pick a plan with real disk headroom - 40-50GB+ if you can.
-   Reasonable options:
-   - **DigitalOcean** - easiest UI/docs if this is your first VPS.
-   - **Hetzner** - noticeably cheaper per GB of disk, slightly more
-     hands-on setup.
-   Either works fine with the scripts here.
+2. ~~Provision a VPS~~ — done: Hostnet, 1 vCPU / 2GB RAM / 50GB SSD.
 
-3. **Point DNS at the VPS.** In your registrar's DNS settings, add an
-   `A` record for `aqaimusic.com` (and one for `www`) pointing at the
-   VPS's IP address. This can take a few minutes to a few hours to
+3. ~~Push this code to a git host~~ — done: public repo at
+   **https://github.com/martijnvanmeel/AQAI**.
+
+4. **Point DNS at the VPS.** In Hostnet's DNS management for aqaimusic.com,
+   add an `A` record for `aqaimusic.com` (and one for `www`) pointing at
+   the VPS's IP address. This can take a few minutes to a few hours to
    propagate.
 
-4. **Push this code to a git host** (GitHub is simplest - create a new
-   *private* repo, since it's your unreleased/in-progress code):
-   ```bash
-   cd "AQAI Music/player"
-   git remote add origin git@github.com:YOUR_USERNAME/aqai-player.git
-   git push -u origin main
-   ```
-
-5. **SSH into the VPS** and run the bootstrap script (edit `GIT_REMOTE`
-   in `deploy/setup.sh` first, or pass it inline):
+5. **SSH into the VPS** and run the bootstrap script (already points at
+   the right repo - nothing to edit):
    ```bash
    ssh root@your-vps-ip
-   curl -O https://raw.githubusercontent.com/YOUR_USERNAME/aqai-player/main/deploy/setup.sh
+   curl -O https://raw.githubusercontent.com/martijnvanmeel/AQAI/main/deploy/setup.sh
    bash setup.sh
    ```
-   This installs Python/Caddy, clones your repo to `/opt/aqai/player`,
-   and starts the app as a systemd service (`aqai`) behind Caddy, which
-   automatically provisions HTTPS for your domain.
+   This installs Python/Caddy, clones the repo (public, no auth needed)
+   to `/opt/aqai/player`, and starts the app as a systemd service (`aqai`)
+   behind Caddy, which automatically provisions HTTPS for your domain.
 
 6. **Copy the media library over** (run from your Mac - this first sync
    is the slow part, expect it to take a while depending on your upload

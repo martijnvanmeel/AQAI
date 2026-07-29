@@ -2,12 +2,10 @@
 # One-time bootstrap for a fresh Ubuntu/Debian VPS. Run once, as root
 # (e.g. `sudo bash setup.sh`), after DNS for your domain already points
 # at this server's IP.
-#
-# Before running: edit GIT_REMOTE below to point at your own repo
-# (see deploy/README.md for how to push this code to GitHub first).
 set -euo pipefail
 
-GIT_REMOTE="git@github.com:YOUR_USERNAME/aqai-player.git"
+# public repo -> plain HTTPS clone, no SSH key needed on this VPS at all
+GIT_REMOTE="https://github.com/martijnvanmeel/AQAI.git"
 
 # 1. packages -----------------------------------------------------------
 apt-get update
