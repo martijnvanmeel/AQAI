@@ -144,6 +144,7 @@ body.gate-active::after{display:none}
    wrapper, so #gate-logo3d keeps preserve-3d and its 50px extrusion shows) */
 /* sphere-control toggle: lit in the artist colour while the user is
    steering the sphere with the mouse (auto music-reactive drift otherwise) */
+#btn-sphere-control{position:fixed;top:10px;right:10px;z-index:3}
 #btn-sphere-control.on{background:var(--artist-color, var(--active-green));color:#000000;border-color:var(--artist-color, var(--active-green))}
 .gate-btn{
   font-family:var(--font-display);font-weight:600;font-size:13px;letter-spacing:.2em;
@@ -271,7 +272,7 @@ body.gate-active::after{display:none}
 }
 .util-btns{position:absolute;right:14px;top:50%;transform:translateY(-50%);display:flex;gap:6px}
 .pano-btns{
-  position:absolute;left:14px;top:50%;transform:translateY(-50%);
+  position:absolute;left:14px;top:14px;
   display:flex;align-items:center;gap:6px;z-index:2;
 }
 .pano-btns .util-btn svg{width:12.8px;height:12.8px}
@@ -381,7 +382,7 @@ body.gate-active::after{display:none}
 }
 #lyrics-full.open{display:flex}
 .lf-close{
-  position:absolute;right:40px;top:40px;z-index:2;
+  position:absolute;right:13px;top:13px;z-index:2;
   width:30.4px;height:30.4px;border-radius:11.2px;
   display:flex;align-items:center;justify-content:center;
   color:#000000;border:1.5px solid #aaaaaa;
@@ -417,15 +418,15 @@ body.gate-active::after{display:none}
   display:flex;flex-direction:column;gap:25px; /* 25px cellspace between sentences */
 }
 /* scrollbar: a 15px thumb, horizontally centred under the close button
-   (button at right:40px, width 30.4px → centre 55.2px in from the card
-   edge; a 47.7px transparent right border with padding-box clip keeps the
+   (button at right:13px, width 30.4px → centre 28.2px in from the card
+   edge; a 20.7px transparent right border with padding-box clip keeps the
    15px thumb centred on that same point). Hidden until the user hovers the
    list or scrolls. */
-#lf-list::-webkit-scrollbar{width:62.7px}
+#lf-list::-webkit-scrollbar{width:35.7px}
 #lf-list::-webkit-scrollbar-track{background:transparent}
 #lf-list::-webkit-scrollbar-thumb{
   background:transparent;border-radius:7.5px;
-  border:none;border-right:47.7px solid transparent;background-clip:padding-box;
+  border:none;border-right:20.7px solid transparent;background-clip:padding-box;
   transition:background .2s ease;
 }
 #lf-list:hover::-webkit-scrollbar-thumb,
@@ -466,27 +467,28 @@ body.gate-active::after{display:none}
     transparent 68%);
   filter:blur(16px);
 }
-/* the static stroke that used to sit here has been replaced by the round
-   audio visualiser itself (see #artist-ring-poly below), which now sits
-   right at the photo's edge at rest instead of further out */
-/* second, round audio visualiser: one continuous closed outline connecting
-   60 points around the photo's oval (plain SVG polygon, no CSS
-   mask-composite trickery, which some browsers render unreliably),
-   starting 5px outside the stroke above. Each point's distance from centre
-   tracks its own frequency band's level, so the ring's outline wobbles in
-   and out rather than sprouting separate spikes - see
-   buildRingSpikes()/updateArtistRingVisualiser() in app.js. */
+/* 2px stroke around the photo, from outside: the same profilepic.png
+   silhouette, filled solid and sized 2px larger on every side, sitting
+   just behind the photo so only a 2px rim of it shows around the edge */
+.artist-photo-wrap::after{
+  content:"";position:absolute;inset:-5px;z-index:0;pointer-events:none;
+  background:var(--artist-color, var(--active-green));
+  -webkit-mask-image:url('assets/profilepic.png');-webkit-mask-size:100% 100%;-webkit-mask-repeat:no-repeat;-webkit-mask-position:center;
+  mask-image:url('assets/profilepic.png');mask-size:100% 100%;mask-repeat:no-repeat;mask-position:center;
+}
+/* 8 vertical bars along the top of the photo's edge, evenly spaced by
+   x-position. Each one's thickness (not length) grows from 2px to 8px,
+   driven by the linear wave visualiser's own intensity at the matching
+   x-position - see buildArtistBars()/updateArtistRingVisualiser() in
+   app.js, which also removed the previous full-ring visualiser here. */
 .artist-photo-ring{
   position:absolute;inset:-11px;z-index:0;pointer-events:none;
   width:calc(100% + 22px);height:calc(100% + 22px);
   overflow:visible;
-  /* only the top half (above the photo's centre, i.e. above the song-title
-     device that sits below the photo) is shown */
-  clip-path:inset(0 0 50% 0);
 }
-#artist-ring-poly{
+.artist-bar{
   stroke:var(--artist-color, var(--active-green));
-  stroke-linejoin:round;
+  stroke-linecap:round;
 }
 .artist-photo{
   display:block;width:100%;height:auto;position:relative;z-index:1;
@@ -523,7 +525,7 @@ body.gate-active::after{display:none}
   position:relative;z-index:1;
   min-width:0;max-width:100%;
   display:flex;align-items:center;justify-content:center;gap:8px;
-  border-radius:15px;
+  border-radius:13px;
   padding:5.5px 12px 5.5px 10px; /* another 20px narrower (10px each side) */
   color:#000000;
   transform:scale(.8625); /* 115% of the former .75 */
@@ -595,7 +597,7 @@ body.gate-active::after{display:none}
 .controls-row{
   position:relative;top:25px;
   display:flex;align-items:center;justify-content:center;flex-wrap:wrap;
-  gap:40px;min-height:44px;margin-bottom:14px;
+  gap:25px;min-height:44px;margin-bottom:14px;
   width:80%;margin-left:auto;margin-right:auto;
 }
 /* base .bar-row rule - MUST stay above the responsive overrides below
@@ -672,7 +674,8 @@ body.gate-active::after{display:none}
 .ctl{
   flex:0 0 auto;width:33.6px;height:33.6px;border-radius:11.2px;position:relative;
   display:flex;align-items:center;justify-content:center;
-  color:var(--artist-color, var(--active-green));border:1px solid var(--artist-color, var(--active-green));background:transparent;
+  color:var(--artist-color, var(--active-green));border:1px solid var(--artist-color, var(--active-green));
+  background:rgba(255,255,255,.06);backdrop-filter:blur(8px);
   outline:4px solid transparent;outline-offset:-2px;
   transition:background-color .3s ease,color .3s ease,border-color .3s ease,box-shadow .3s ease;
   box-shadow:0 0 3px rgba(255,255,255,0);
@@ -691,7 +694,8 @@ body.gate-active::after{display:none}
 .ctl.toggle.on:hover{background:var(--artist-color, var(--active-green));border-color:var(--artist-color, var(--active-green));color:#000000;outline-color:var(--artist-color, var(--active-green))}
 .ctl.toggle.on:hover::before{opacity:0}
 
-.bar-row .time{font-family:var(--font-title);font-size:11px;letter-spacing:.06em;color:var(--fg-soft);flex:0 0 auto}
+.bar-row .time{font-family:var(--font-title);font-size:11px;letter-spacing:.06em;color:var(--fg-soft);flex:0 0 auto;position:relative;top:1px}
+#t-cur{left:-5px} /* current position text: also 5px left */
 #bar{
   position:relative;height:26px;flex:1 1 auto;display:flex;align-items:center;cursor:pointer;
   touch-action:none;min-width:0;
@@ -702,8 +706,12 @@ body.gate-active::after{display:none}
   background:var(--artist-color, var(--active-green));
 }
 #bar-knob{
-  position:absolute;width:21.84px;height:21.84px;border-radius:50%;
-  background:var(--artist-color, var(--active-green));left:0%;transform:translateX(-50%);
+  position:absolute;width:19.84px;height:19.84px;border-radius:50%;
+  /* artist-colour outer circle with a small grey (matching the bar) centre dot */
+  background:radial-gradient(circle,
+    #888888 0, #888888 4px,
+    var(--artist-color, var(--active-green)) 4px, var(--artist-color, var(--active-green)) 100%);
+  left:0%;transform:translateX(-50%);
   border:2px solid var(--artist-color, var(--active-green));
   transition:transform .15s ease;
 }
@@ -745,15 +753,21 @@ body.gate-active::after{display:none}
 #c-volume::-moz-range-track{height:5px;background:#888888;border-radius:2.5px}
 #c-volume::-moz-range-progress{height:5px;background:var(--artist-color, var(--active-green));border-radius:2.5px}
 #c-volume::-webkit-slider-thumb{
-  -webkit-appearance:none;margin-top:-8.42px;
-  width:21.84px;height:21.84px;border-radius:50%;
-  background:var(--artist-color, var(--active-green));border:2px solid var(--artist-color, var(--active-green));
+  -webkit-appearance:none;margin-top:-7.42px;
+  width:19.84px;height:19.84px;border-radius:50%;
+  background:radial-gradient(circle,
+    #888888 0, #888888 4px,
+    var(--artist-color, var(--active-green)) 4px, var(--artist-color, var(--active-green)) 100%);
+  border:2px solid var(--artist-color, var(--active-green));
   transition:transform .15s ease;
 }
 #c-volume:hover::-webkit-slider-thumb{transform:scale(1.15)}
 #c-volume::-moz-range-thumb{
-  width:21.84px;height:21.84px;border-radius:50%;
-  background:var(--artist-color, var(--active-green));border:2px solid var(--artist-color, var(--active-green));
+  width:19.84px;height:19.84px;border-radius:50%;
+  background:radial-gradient(circle,
+    #888888 0, #888888 4px,
+    var(--artist-color, var(--active-green)) 4px, var(--artist-color, var(--active-green)) 100%);
+  border:2px solid var(--artist-color, var(--active-green));
   transition:transform .15s ease;
 }
 #c-volume:hover::-moz-range-thumb{transform:scale(1.15)}
@@ -769,7 +783,19 @@ body.gate-active::after{display:none}
   font-size:13px;
 }
 #list-search::placeholder{color:var(--fg-faint)}
-#tracklist{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:20px}
+#tracklist{
+  flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding-bottom:70px; /* 20px + 50px extra requested space */
+  scrollbar-width:none;-ms-overflow-style:none; /* scroll still works, just no visible scrollbar */
+}
+#tracklist::-webkit-scrollbar{display:none;width:0;height:0}
+/* light black gradient stuck to the bottom of the list, fading the last
+   rows out under the nav bar - purely decorative, doesn't block taps */
+#tracklist-gradient{
+  position:absolute;left:0;right:0;bottom:0;height:120px;z-index:1;
+  pointer-events:none;
+  background:linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,.5) 100%);
+}
 /* --row-color is set inline per element in renderList() from that artist's
    own tr.artistColor, so each artist's section shows its own accent
    instead of one flat color across the whole list */
@@ -908,16 +934,16 @@ nav{
   background:color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 21%, black) 70%, white);
   border:none;
   border-radius:22px 22px 0 0;
-  color:#ffffff;
+  color:var(--artist-color, var(--active-green));
   opacity:.81;
   transition:transform .2s ease,color .1s ease,background .2s ease,opacity .2s ease;
 }
 .nav-btn.active{opacity:1}
-/* hover: icon/text fade green and the tab lifts up - no stroke at all,
+/* hover: icon/text turn white and the tab lifts up - no stroke at all,
    here or at rest (the currently-active tab stays filled green instead,
    see .active below) */
 .nav-btn:not(.active):hover{
-  color:var(--artist-color, var(--active-green));transform:translateY(-5px);
+  color:#ffffff;transform:translateY(-5px);
   /* tab background 20% brighter on hover (its rest colour mixed with 20% white) */
   background:color-mix(in srgb, color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 21%, black) 70%, white) 80%, white);
 }

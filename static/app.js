@@ -51,10 +51,13 @@ function themeIndexForTrack(track) {
    panoSphere further down, near the 3D visualizer setup) ---- */
 let PANORAMAS = [];
 let panoManualIndex = -1;
+// reserved for the intro screen only - excluded from the per-track pick,
+// the 5s random rotation, and manual prev/next browsing during playback
+const INTRO_PANO_FILE = "From Klickpin.com- 68749462254-pin-id-68749462254.mp4";
 // test source: Panoramas2 (mix of .mp4 clips and .gif animations), served
 // via /api/panoramas2 + /panorama2/ instead of the original panoramas folder
 fetch("/api/panoramas2").then(r => r.json()).then(data => {
-  PANORAMAS = data.files || [];
+  PANORAMAS = (data.files || []).filter(f => f !== INTRO_PANO_FILE);
   updatePanoLabel();
 }).catch(() => {});
 function setBgVideoForTrack(track) {
@@ -93,7 +96,7 @@ function applyTheme(idx) {
 const AC = window.AudioContext || window.webkitAudioContext;
 let ctx = null, analyser = null, waveAnalyser = null, master = null, freqData = null, waveData = null;
 let cur = 0, playing = false;
-let masterVolume = 0.01; // songs start at 1% volume
+let masterVolume = 1; // songs start at 100% volume
 const audioEls = {};
 
 function initAudio(){
@@ -590,7 +593,7 @@ function buildFullLyrics(){
   let maxWidth = 0;
   flRowEls.forEach(row => { maxWidth = Math.max(maxWidth, row.scrollWidth); });
   const listPaddingX = 46; // #lf-list's own left+right padding (38 left + 8 right) - as tight as the 38px-left/close-button constraints allow
-  const scrollbarW = 62.7; // custom scrollbar channel width (see #lf-list::-webkit-scrollbar)
+  const scrollbarW = 35.7; // custom scrollbar channel width (see #lf-list::-webkit-scrollbar)
   // width = exactly the longest sentence (+ padding + scrollbar), no extra
   overlay.style.width = (maxWidth + listPaddingX + scrollbarW) + "px";
 }
@@ -830,7 +833,6 @@ $("#btn-share").onclick = async () => {
   if (navigator.share){ try { await navigator.share(data); } catch(e){} }
   else if (navigator.clipboard){ await navigator.clipboard.writeText(data.url); toast("Link copied"); }
 };
-$("#btn-info").onclick = () => showView("info");
 
 /* delete this song - moved server-side into a _deleted folder next to
    its own files (not unlinked outright) so a wrong click stays
@@ -980,16 +982,6 @@ $("#m-folder-input").addEventListener("keydown", e => {
 });
 
 /* mute */
-$("#c-mute").onclick = e => {
-  const el = audioEls[cur];
-  const muted = el ? !el.muted : false;
-  Object.values(audioEls).forEach(a => { a.muted = muted; });
-  const btn = e.currentTarget;
-  btn.classList.toggle("muted", muted);
-  btn.classList.toggle("on", !muted);
-  btn.setAttribute("aria-label", muted ? "Unmute" : "Mute");
-  btn.innerHTML = muted ? SOUND_OFF_ICON : SOUND_ON_ICON;
-};
 
 /* volume */
 function paintVolumeFill(el){
@@ -1338,59 +1330,68 @@ function drawWaveCanvas(){
   }
   dctx.restore();
 }
-// second, round audio visualiser: one continuous closed outline through 60
-// points around the photo's oval - each point tracks its own slice of the
-// frequency spectrum (a proper circular EQ), moving out from or back down
-// to the base radius, connected point-to-point into a single wobbling ring
-// (not separate spikes) - updated every frame in animate().
-const RING_POINT_COUNT = 60;
-const RING_CX = 94.53125, RING_CY = 76.0706; // ellipse centre (viewBox units = css px)
-// base radius sits right at the photo's own edge - this ring now replaces
-// the old static stroke entirely, instead of sitting further outside it
-const RING_RX = 83.53125, RING_RY = 65.0706;
-const RING_BASE_LEN = 0; // resting distance (px) beyond the base radius - 0 = hugs the photo edge
-const RING_MAX_LEN = 16; // extra distance (px) at full band intensity
-const ringPoints = [];
-for (let i = 0; i < RING_POINT_COUNT; i++){
-  const theta = (i / RING_POINT_COUNT) * Math.PI * 2;
-  const cosT = Math.cos(theta), sinT = Math.sin(theta);
-  ringPoints.push({
-    cosT, sinT,
-    baseX: RING_CX + RING_RX * cosT, baseY: RING_CY + RING_RY * sinT,
-  });
+// returns the linear wave visualiser's own intensity (0..1) at a given
+// normalized x position (0..1 across its width) - same calc drawWaveCanvas
+// uses for its line thickness, factored out so the profile-photo bars
+// below can react in lockstep with the matching x-position on that line
+function waveIntensityAtU(u){
+  const display = new Array(WAVE_N);
+  for (let i = 0; i < WAVE_N; i++){
+    const env = 0.1 + 0.9 * (1 - Math.abs(i / (WAVE_N - 1) - 0.5) * 2);
+    display[i] = waveCur[i] * env;
+  }
+  return Math.min(1, Math.abs(waveCurveAt(display, u)) * 1.6);
 }
-const artistRingPolyEl = $("#artist-ring-poly");
+// 8 vertical bars along the top of the photo's edge (a stroke divided into
+// bars rather than the previous full ring). Each sits at its own
+// x-position on the photo, fixed thickness, and its LENGTH (10px resting,
+// 20px max) tracks the linear wave visualiser's intensity at that same
+// x-position, converted from this local SVG space to the page and back to
+// the wave canvas's own normalized coordinate each frame.
+const BAR_COUNT = 24;
+const BAR_MIN_LEN = 8, BAR_MAX_LEN = 15; // viewBox units = css px
+const RING_CX = 94.53125, RING_CY = 76.0706; // ellipse centre (viewBox units = css px)
+const RING_RX = 83.53125, RING_RY = 65.0706; // photo's own edge
+const artistBarEls = [];
+(function buildArtistBars(){
+  const g = $("#artist-bars");
+  if (!g) return;
+  for (let i = 0; i < BAR_COUNT; i++){
+    const xFrac = (i + 0.5) / BAR_COUNT; // 0..1 across the photo's width, centred within 8 equal slices
+    const xOffset = (xFrac - 0.5) * 2 * RING_RX;
+    const baseX = RING_CX + xOffset;
+    const baseY = RING_CY - RING_RY * Math.sqrt(Math.max(0, 1 - (xOffset / RING_RX) ** 2));
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("class", "artist-bar");
+    line.setAttribute("x1", baseX.toFixed(2));
+    line.setAttribute("y1", baseY.toFixed(2));
+    line.setAttribute("x2", baseX.toFixed(2));
+    line.setAttribute("y2", (baseY - BAR_MIN_LEN).toFixed(2));
+    line.setAttribute("stroke-width", "3");
+    g.appendChild(line);
+    artistBarEls.push({ el: line, baseX, baseY });
+  }
+})();
 function updateArtistRingVisualiser(){
-  if (!artistRingPolyEl) return;
+  if (!artistBarEls.length) return;
+  const svg = $("#artist-photo-ring");
+  const canvas = $("#wave-canvas");
+  if (!svg || !canvas) return;
   if (!freqData || !playing){
-    artistRingPolyEl.setAttribute("points", ringPoints.map(p => `${p.baseX.toFixed(2)},${p.baseY.toFixed(2)}`).join(" "));
-    artistRingPolyEl.setAttribute("stroke", WAVE_COLOR);
-    artistRingPolyEl.style.opacity = 0.5;
+    artistBarEls.forEach(b => b.el.setAttribute("y2", (b.baseY - BAR_MIN_LEN).toFixed(2)));
     return;
   }
-  const n = freqData.length;
-  // full spectrum sweep: every one of the 60 points gets its own distinct
-  // frequency band, so the whole circle reacts independently (no mirroring/
-  // duplication) - band 0 starts at the bottom point and sweeps clockwise
-  // all the way around
-  const bucketSize = n / RING_POINT_COUNT;
-  let maxBoosted = 0;
-  const coords = new Array(RING_POINT_COUNT);
-  for (let i = 0; i < RING_POINT_COUNT; i++){
-    const band = (i + 45) % RING_POINT_COUNT;
-    const start = Math.floor(band * bucketSize), end = Math.max(start + 1, Math.floor((band + 1) * bucketSize));
-    let sum = 0;
-    for (let k = start; k < end; k++) sum += freqData[k];
-    const raw = (sum / (end - start)) / 255;
-    const boosted = Math.min(1, Math.pow(raw, 0.6) * 2.2); // punchy per-band easing
-    if (boosted > maxBoosted) maxBoosted = boosted;
-    const len = RING_BASE_LEN + boosted * RING_MAX_LEN;
-    const p = ringPoints[i];
-    coords[i] = `${(p.baseX + p.cosT * len).toFixed(2)},${(p.baseY + p.sinT * len).toFixed(2)}`;
-  }
-  artistRingPolyEl.setAttribute("points", coords.join(" "));
-  artistRingPolyEl.setAttribute("stroke", mixWithWhite(WAVE_COLOR, maxBoosted));
-  artistRingPolyEl.style.opacity = (0.6 + 0.4 * maxBoosted).toFixed(2);
+  const svgRect = svg.getBoundingClientRect();
+  const canvasRect = canvas.getBoundingClientRect();
+  if (!svgRect.width || !canvasRect.width) return;
+  const viewBoxW = 189.0625;
+  artistBarEls.forEach(b => {
+    const absoluteX = svgRect.left + (b.baseX / viewBoxW) * svgRect.width;
+    const u = (absoluteX - canvasRect.left) / canvasRect.width;
+    const intensity = waveIntensityAtU(u);
+    const len = BAR_MIN_LEN + intensity * (BAR_MAX_LEN - BAR_MIN_LEN);
+    b.el.setAttribute("y2", (b.baseY - len).toFixed(2));
+  });
 }
 function positionLogo(){
   const logo = document.querySelector(".home-top .logo-text");
@@ -1414,7 +1415,9 @@ function positionArtistPhoto(){
   photo.style.top = "0px";
   const photoRect = photo.getBoundingClientRect();
   const controlsTop = controlsRow.getBoundingClientRect().top;
-  const desiredBottom = controlsTop - 30; // was -60; 30px lower (closer to the controls row)
+  // "full song device" (photo + wave visualiser + title pill, which all
+  // anchor off this photo position) moved 40px up as one group
+  const desiredBottom = controlsTop - 50;
   photo.style.top = (desiredBottom - photoRect.bottom) + "px";
 }
 function positionWaveCanvas(){
@@ -1431,13 +1434,13 @@ function positionWaveCanvas(){
   const height = Math.max(40, Math.min(80, lyricsTop * 0.5)) + 40;
   const photoRect = photo.getBoundingClientRect();
   const centerY = photoRect.top + photoRect.height / 2;
-  const canvasCenterY = centerY + 40 - 15 + 5 + 10; // visualiser nudged 5px back down
+  const canvasCenterY = centerY + 40 - 15 + 5 + 10 - 22; // visualiser (only) nudged 22px up
   const top = canvasCenterY - height / 2;
   canvas.style.top = top + "px";
   canvas.style.height = height + "px";
-  // -30 cancels out centerY's own +30px shift (from the photo moving down),
-  // so the title pill stays put while the photo/visualiser move independently
-  metaRow.style.top = (centerY + 40 + 10 - 30) + "px";
+  // net effect: title pill sits 30px lower than before, independent of
+  // however far the photo (and centerY along with it) has moved
+  metaRow.style.top = (centerY + 30) + "px";
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(canvas.clientWidth * dpr);
   canvas.height = Math.round(height * dpr);
@@ -1495,7 +1498,7 @@ panoMat.onBeforeCompile = shader => {
       // transparent than fully-black (lets 75% of the original brightness
       // through instead of 0%)
       float aqaiScan = step(0.5, fract(vUv.x * 900.0));
-      gl_FragColor.rgb *= mix(mix(0.75, 1.0, aqaiScan), 1.0, uGate);
+      gl_FragColor.rgb *= mix(0.75, 1.0, aqaiScan); // scanlines apply on the intro sphere too
       // vignette baked into the video layer itself: a smooth, continuous
       // blend starting from full brightness at dead center all the way
       // out to the corners (aqaiR2 already holds the squared UV distance
@@ -1504,7 +1507,8 @@ panoMat.onBeforeCompile = shader => {
       gl_FragColor.rgb *= mix(aqaiVignette, 1.0, uGate);
       // overall sphere/background brightness - 30% darker than the
       // original footage, then another 30% darker on top of that (0.7 * 0.7)
-      gl_FragColor.rgb *= mix(0.49, 1.0, uGate);`);
+      // on the music screen; the intro sphere is dimmed to 20% visible
+      gl_FragColor.rgb *= mix(0.49, 0.2, uGate);`);
 };
 // a gently curved patch (not flat): a flat rectangle sized to the
 // camera's native FOV crops during mouse-look (revealing an edge), and
@@ -1629,10 +1633,11 @@ $("#btn-sphere-control").onclick = e => {
 $("#pano-prev").onclick = () => showPanoAt(panoManualIndex - 1);
 $("#pano-next").onclick = () => showPanoAt(panoManualIndex + 1);
 
-// the intro/gate screen shows this specific clip (17.mp4 from the original
-// panoramas folder, served at /panorama/) on the shared panorama sphere until
-// the listener taps in, at which point load() picks a per-track background
-loadPanoFile("17.mp4", "/panorama/");
+// the intro/gate screen shows this specific clip (reserved via
+// INTRO_PANO_FILE, excluded from regular playback rotation) on the shared
+// panorama sphere until the listener taps in, at which point load() picks
+// a per-track background as usual
+loadPanoFile(INTRO_PANO_FILE);
 
 // lets you cull a background you don't like right when you see it - the
 // file is moved server-side into Panoramas2/_removed (not deleted
@@ -1891,7 +1896,7 @@ const GATE_PASSWORD_RESTRICTED = "aqai2026";
 const GATE_PASSWORD_FULL = "aqaimusic";
 // hidden entirely in restricted mode; #btn-sphere-control deliberately isn't
 // here - it stays visible in both modes (it's a view control, not editing)
-const OWNER_ONLY_SELECTORS = ["#pano-btns", "#btn-delete", "#btn-edit-title", "#btn-edit-artist"];
+const OWNER_ONLY_SELECTORS = ["#pano-btns", "#btn-delete"];
 function applyAccessMode(restricted){
   OWNER_ONLY_SELECTORS.forEach(sel => {
     const el = document.querySelector(sel);

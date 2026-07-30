@@ -42,6 +42,10 @@
     <div class="home-top">
       <div class="logo-text">AQAI</div>
       <div class="pano-btns" id="pano-btns">
+        <button class="util-btn util-btn-wide danger" id="btn-delete" aria-label="Delete this song">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+          <span>Delete song</span>
+        </button>
         <button class="util-btn" id="pano-prev" aria-label="Previous background video">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
         </button>
@@ -54,14 +58,9 @@
         </button>
       </div>
       <div class="util-btns">
-        <button class="util-btn util-btn-wide danger" id="btn-delete" aria-label="Delete this song">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/><path d="M10 11v6M14 11v6"/></svg>
-          <span>Delete song</span>
-        </button>
         <button class="util-btn" id="btn-sphere-control" aria-label="Control the sphere with your mouse" aria-pressed="false" title="Control the sphere">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9 2 12l3 3"/><path d="M9 5l3-3 3 3"/><path d="M15 19l-3 3-3-3"/><path d="M19 9l3 3-3 3"/><path d="M2 12h20"/><path d="M12 2v20"/></svg>
         </button>
-        <button class="util-btn" id="btn-info" aria-label="About AQAI">!</button>
       </div>
     </div>
 
@@ -73,7 +72,7 @@
       <div class="artist-photo-wrap">
         <img class="artist-photo" id="artist-photo" src="assets/profilepic.png" alt="">
         <svg class="artist-photo-ring" id="artist-photo-ring" viewBox="0 0 189.0625 152.1412" aria-hidden="true">
-          <polygon id="artist-ring-poly" fill="none" stroke-width="8"></polygon>
+          <g id="artist-bars"></g>
         </svg>
       </div>
       <div class="meta-row">
@@ -117,10 +116,7 @@
             <div id="bar-fill"></div><div id="bar-knob"></div>
           </div>
           <span class="time" id="t-tot">0:00</span>
-          <button class="vol-btn on" id="c-mute" aria-label="Mute">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 8a5 5 0 0 1 0 8"/><path d="M17.7 5a9 9 0 0 1 0 14"/><path d="M6 15H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h2l3.5-4.5A.8.8 0 0 1 11 5v14a.8.8 0 0 1-1.5.5z"/></svg>
-          </button>
-          <input type="range" id="c-volume" min="0" max="1" step="0.01" value="0.01" aria-label="Volume">
+          <input type="range" id="c-volume" min="0" max="1" step="0.01" value="1" aria-label="Volume">
         </div>
         <div class="side-btns" id="side-btns">
           <button class="util-btn util-btn-wide" id="btn-fulllyrics" aria-label="Show full lyrics">
@@ -146,6 +142,7 @@
       <input type="text" id="list-search" placeholder="Search title, folder, tags…">
     </div>
     <div id="tracklist"></div>
+    <div id="tracklist-gradient" aria-hidden="true"></div>
   </section>
 
   <!-- ============ INFO ============ -->
