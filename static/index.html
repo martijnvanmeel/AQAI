@@ -19,7 +19,12 @@
     <div id="gate-logo-tilt">
       <div class="logo3d" id="gate-logo3d" role="img" aria-label="AQAI"></div>
     </div>
-    <div class="gate-actions">
+    <form class="gate-actions" id="gate-password-form">
+      <input class="gate-password-input" id="gate-password-input" type="password" placeholder="PASSWORD" autocomplete="off" aria-label="Password">
+      <button class="gate-btn" type="submit">ENTER</button>
+      <div class="gate-hint gate-password-error" id="gate-password-error">Wrong password</div>
+    </form>
+    <div class="gate-actions" id="gate-actions-main">
       <button class="gate-btn" id="gate-btn">TAP TO LISTEN</button>
       <div class="gate-hint">Sound on &middot; Headphones recommended</div>
     </div>
@@ -47,14 +52,14 @@
         <button class="util-btn danger" id="pano-remove" aria-label="Remove this background video">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/><path d="M10 11v6M14 11v6"/></svg>
         </button>
-        <button class="util-btn" id="btn-sphere-control" aria-label="Control the sphere with your mouse" aria-pressed="false" title="Control the sphere">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9 2 12l3 3"/><path d="M9 5l3-3 3 3"/><path d="M15 19l-3 3-3-3"/><path d="M19 9l3 3-3 3"/><path d="M2 12h20"/><path d="M12 2v20"/></svg>
-        </button>
       </div>
       <div class="util-btns">
         <button class="util-btn util-btn-wide danger" id="btn-delete" aria-label="Delete this song">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/><path d="M10 11v6M14 11v6"/></svg>
           <span>Delete song</span>
+        </button>
+        <button class="util-btn" id="btn-sphere-control" aria-label="Control the sphere with your mouse" aria-pressed="false" title="Control the sphere">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9 2 12l3 3"/><path d="M9 5l3-3 3 3"/><path d="M15 19l-3 3-3-3"/><path d="M19 9l3 3-3 3"/><path d="M2 12h20"/><path d="M12 2v20"/></svg>
         </button>
         <button class="util-btn" id="btn-info" aria-label="About AQAI">!</button>
       </div>
@@ -68,7 +73,7 @@
       <div class="artist-photo-wrap">
         <img class="artist-photo" id="artist-photo" src="assets/profilepic.png" alt="">
         <svg class="artist-photo-ring" id="artist-photo-ring" viewBox="0 0 189.0625 152.1412" aria-hidden="true">
-          <polygon id="artist-ring-poly" fill="none" stroke-width="2"></polygon>
+          <polygon id="artist-ring-poly" fill="none" stroke-width="8"></polygon>
         </svg>
       </div>
       <div class="meta-row">

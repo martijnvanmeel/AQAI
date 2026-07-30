@@ -156,6 +156,75 @@ function seek(t){
   el.currentTime = Math.max(0, Math.min(t, (TRACKS[cur].duration || 0) - 0.05));
   updateUI();
 }
+/* ---- track loading overlay: shown from the moment a track starts
+   loading until its audio can play and its artist photo has finished
+   loading - covers the very first song once the intro gate is dismissed,
+   and every song switch after that. Nav and the top AQAI logo stay 100%
+   visible; everything else dims under a 20%-black scrim. The logo shares
+   a toolbar row with the pano/util buttons (which DO need to dim), and it
+   lives in a nested stacking context that a single z-index overlay can't
+   carve a hole in - so instead three scrim pieces are positioned
+   geometrically around the logo's live bounding rect. Nav is simply left
+   alone: it's already z-index:50, above this overlay's z-index, so it
+   stays visible without any special-casing. */
+const loaderMain = document.createElement("div");
+loaderMain.id = "track-loader";
+const loaderLeft = document.createElement("div");
+loaderLeft.className = "track-loader-piece";
+const loaderRight = document.createElement("div");
+loaderRight.className = "track-loader-piece";
+document.body.append(loaderMain, loaderLeft, loaderRight);
+function positionLoaderPieces(){
+  const logo = document.querySelector(".home-top .logo-text");
+  const panoBtns = document.querySelector("#pano-btns");
+  const utilBtns = document.querySelector(".util-btns");
+  if (!logo || !panoBtns || !utilBtns) return;
+  const logoRect = logo.getBoundingClientRect();
+  const panoRect = panoBtns.getBoundingClientRect();
+  const utilRect = utilBtns.getBoundingClientRect();
+  // .home-top's own box collapses to zero height (every child - logo,
+  // pano-btns, util-btns - is position:absolute, so flexbox auto-sizing
+  // has nothing in-flow to measure) - derive the toolbar band directly
+  // from the children's own rects instead
+  const bandTop = Math.min(logoRect.top, panoRect.top, utilRect.top);
+  const bandBottom = Math.max(logoRect.bottom, panoRect.bottom, utilRect.bottom);
+  loaderMain.style.top = bandBottom + "px";
+  loaderLeft.style.cssText = `top:${bandTop}px;height:${bandBottom - bandTop}px;left:0;width:${Math.max(0, logoRect.left)}px;right:auto;`;
+  loaderRight.style.cssText = `top:${bandTop}px;height:${bandBottom - bandTop}px;left:${logoRect.right}px;right:0;width:auto;`;
+}
+function showLoader(){
+  positionLoaderPieces();
+  loaderMain.classList.add("show");
+  loaderLeft.classList.add("show");
+  loaderRight.classList.add("show");
+}
+function hideLoader(){
+  loaderMain.classList.remove("show");
+  loaderLeft.classList.remove("show");
+  loaderRight.classList.remove("show");
+}
+addEventListener("resize", () => { if (loaderMain.classList.contains("show")) positionLoaderPieces(); });
+function waitForTrackAssets(el, photo){
+  showLoader();
+  let audioReady = el.readyState >= 3; // HAVE_FUTURE_DATA - enough buffered to start playing
+  let photoReady = photo.complete && photo.naturalWidth > 0;
+  const checkDone = () => { if (audioReady && photoReady) hideLoader(); };
+  if (!audioReady){
+    el.addEventListener("canplay", function onCanPlay(){
+      audioReady = true; el.removeEventListener("canplay", onCanPlay); checkDone();
+    });
+  }
+  if (!photoReady){
+    photo.addEventListener("load", function onLoad(){
+      photoReady = true; photo.removeEventListener("load", onLoad); checkDone();
+    });
+    photo.addEventListener("error", function onErr(){
+      photoReady = true; photo.removeEventListener("error", onErr); checkDone();
+    });
+  }
+  checkDone();
+}
+
 function load(i, autoplay = true){
   if (audioEls[cur]) audioEls[cur].pause();
   playing = false;
@@ -163,6 +232,7 @@ function load(i, autoplay = true){
   const el = getAudio(cur);
   el.currentTime = 0; el.playbackRate = 1;
   renderMeta(); renderList();
+  waitForTrackAssets(el, $("#artist-photo"));
   $("#lyric-rows").innerHTML = "";
   lyricRowEls = {};
   lineIdx = -1;
@@ -1275,8 +1345,10 @@ function drawWaveCanvas(){
 // (not separate spikes) - updated every frame in animate().
 const RING_POINT_COUNT = 60;
 const RING_CX = 94.53125, RING_CY = 76.0706; // ellipse centre (viewBox units = css px)
-const RING_RX = 93.53125, RING_RY = 75.0706; // base radius: 5px outside the photo's stroke
-const RING_BASE_LEN = 2; // resting distance (px) beyond the base radius
+// base radius sits right at the photo's own edge - this ring now replaces
+// the old static stroke entirely, instead of sitting further outside it
+const RING_RX = 83.53125, RING_RY = 65.0706;
+const RING_BASE_LEN = 0; // resting distance (px) beyond the base radius - 0 = hugs the photo edge
 const RING_MAX_LEN = 16; // extra distance (px) at full band intensity
 const ringPoints = [];
 for (let i = 0; i < RING_POINT_COUNT; i++){
@@ -1297,20 +1369,15 @@ function updateArtistRingVisualiser(){
     return;
   }
   const n = freqData.length;
-  // mirrored spectrum: both left and right sides of the ring sweep the SAME
-  // bass->treble band sequence outward from the bottom, meeting again at the
-  // top - a symmetric "butterfly" look instead of one band sequence
-  // spinning all the way around
-  const MIRROR_BANDS = RING_POINT_COUNT / 2;
-  const bucketSize = n / MIRROR_BANDS;
+  // full spectrum sweep: every one of the 60 points gets its own distinct
+  // frequency band, so the whole circle reacts independently (no mirroring/
+  // duplication) - band 0 starts at the bottom point and sweeps clockwise
+  // all the way around
+  const bucketSize = n / RING_POINT_COUNT;
   let maxBoosted = 0;
   const coords = new Array(RING_POINT_COUNT);
   for (let i = 0; i < RING_POINT_COUNT; i++){
-    // relabel so j=0 sits at the bottom point (i=15, a quarter turn from
-    // this loop's i=0), then fold left/right onto the same 0..30 band
-    // range - both sides sweep bass(bottom)->treble(top) identically
-    const j = (i + 45) % RING_POINT_COUNT;
-    const band = Math.min(MIRROR_BANDS - 1, Math.min(j, RING_POINT_COUNT - j));
+    const band = (i + 45) % RING_POINT_COUNT;
     const start = Math.floor(band * bucketSize), end = Math.max(start + 1, Math.floor((band + 1) * bucketSize));
     let sum = 0;
     for (let k = start; k < end; k++) sum += freqData[k];
@@ -1347,7 +1414,7 @@ function positionArtistPhoto(){
   photo.style.top = "0px";
   const photoRect = photo.getBoundingClientRect();
   const controlsTop = controlsRow.getBoundingClientRect().top;
-  const desiredBottom = controlsTop - 60;
+  const desiredBottom = controlsTop - 30; // was -60; 30px lower (closer to the controls row)
   photo.style.top = (desiredBottom - photoRect.bottom) + "px";
 }
 function positionWaveCanvas(){
@@ -1368,7 +1435,9 @@ function positionWaveCanvas(){
   const top = canvasCenterY - height / 2;
   canvas.style.top = top + "px";
   canvas.style.height = height + "px";
-  metaRow.style.top = (centerY + 40 + 10) + "px"; // +10: song-title device nudged 10px lower
+  // -30 cancels out centerY's own +30px shift (from the photo moving down),
+  // so the title pill stays put while the photo/visualiser move independently
+  metaRow.style.top = (centerY + 40 + 10 - 30) + "px";
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(canvas.clientWidth * dpr);
   canvas.height = Math.round(height * dpr);
@@ -1805,6 +1874,47 @@ if (gateHintEl){
     span.style.setProperty("--i", i);
     span.textContent = ch === " " ? " " : ch;
     gateHintEl.appendChild(span);
+  });
+}
+
+// intro-screen password gate, for keeping the site out of casual view while
+// still finishing it up. This is a soft, client-side gate only (the actual
+// audio/API files aren't protected by it) - good enough to stop casual
+// visitors, not real access control. Flip GATE_PASSWORD_ENABLED to false
+// (and delete this block + the matching HTML/CSS whenever convenient) to
+// remove the feature entirely once the site is ready to be fully public.
+const GATE_PASSWORD_ENABLED = true;
+// two access levels: the restricted password hides editing controls
+// (background-video prev/next/remove, delete song, rename title/artist),
+// the full password shows everything. Change either string to your own.
+const GATE_PASSWORD_RESTRICTED = "aqai2026";
+const GATE_PASSWORD_FULL = "aqaimusic";
+// hidden entirely in restricted mode; #btn-sphere-control deliberately isn't
+// here - it stays visible in both modes (it's a view control, not editing)
+const OWNER_ONLY_SELECTORS = ["#pano-btns", "#btn-delete", "#btn-edit-title", "#btn-edit-artist"];
+function applyAccessMode(restricted){
+  OWNER_ONLY_SELECTORS.forEach(sel => {
+    const el = document.querySelector(sel);
+    if (el) el.style.display = restricted ? "none" : "";
+  });
+}
+if (!GATE_PASSWORD_ENABLED){
+  $("#gate-password-form").style.display = "none";
+  $("#gate-actions-main").style.display = "flex";
+} else {
+  $("#gate-password-form").addEventListener("submit", e => {
+    e.preventDefault();
+    const input = $("#gate-password-input");
+    const val = input.value;
+    if (val === GATE_PASSWORD_RESTRICTED || val === GATE_PASSWORD_FULL){
+      applyAccessMode(val === GATE_PASSWORD_RESTRICTED);
+      $("#gate-password-form").style.display = "none";
+      $("#gate-actions-main").style.display = "flex";
+    } else {
+      $("#gate-password-error").classList.add("show");
+      input.value = "";
+      input.focus();
+    }
   });
 }
 

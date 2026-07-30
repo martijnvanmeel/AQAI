@@ -174,6 +174,20 @@ body.gate-active::after{display:none}
   80%{color:var(--lyric-yellow)}
   100%{color:var(--fg)}
 }
+/* password gate: hidden by default, shown/hidden via JS based on the
+   GATE_PASSWORD_ENABLED flag near the top of app.js - flip that one flag
+   off to remove the whole feature (reveals #gate-actions-main instead) */
+#gate-actions-main{display:none}
+.gate-password-input{
+  font-family:var(--font-display);font-weight:600;font-size:13px;letter-spacing:.1em;
+  text-align:center;color:var(--fg);background:rgba(255,255,255,.08);
+  border:1.5px solid var(--line);border-radius:999px;
+  padding:16px 28px;width:220px;outline:none;
+}
+.gate-password-input::placeholder{color:var(--fg-soft);letter-spacing:.2em}
+.gate-password-input:focus{border-color:var(--object)}
+.gate-password-error{color:#FF5C5C;display:none}
+.gate-password-error.show{display:block}
 .gate-hint{font-size:11px;color:var(--fg-soft);letter-spacing:.16em;text-transform:uppercase}
 /* same white->yellow->green->blue->green->yellow->white->pause cycle as
    the button, just on text color, slower, and staggered per letter (see
@@ -442,7 +456,7 @@ body.gate-active::after{display:none}
    z-index:0 (lower than .meta-row's 3) keeps it behind the song-title
    pill if the two ever overlap; top is set dynamically in JS by
    positionArtistPhoto() - 60px above the controls row */
-.artist-photo-wrap{position:relative;z-index:0;width:167.0625px;margin:0 auto -5px;transform:translateY(-38px) scale(1.1)}
+.artist-photo-wrap{position:relative;z-index:0;width:167.0625px;margin:0 auto -5px;transform:translateY(-38px) scale(.88)}
 /* soft glow behind the photo, tinted the current track's artist colour */
 .artist-photo-wrap::before{
   content:"";position:absolute;inset:-16%;z-index:0;
@@ -452,19 +466,9 @@ body.gate-active::after{display:none}
     transparent 68%);
   filter:blur(16px);
 }
-/* 2px stroke around the photo: the same profilepic.png silhouette, filled
-   solid and sized 2px larger on every side, sitting just behind the photo
-   so only a 2px rim of it shows around the masked edge */
-.artist-photo-wrap::after{
-  content:"";position:absolute;inset:-4px;z-index:0;pointer-events:none;
-  /* artist-colour stroke: 25% lighter at the top, easing down to the full
-     artist colour at the bottom */
-  background:linear-gradient(to bottom,
-    color-mix(in srgb, var(--artist-color, var(--active-green)) 75%, white) 0%,
-    var(--artist-color, var(--active-green)) 100%);
-  -webkit-mask-image:url('assets/profilepic.png');-webkit-mask-size:100% 100%;-webkit-mask-repeat:no-repeat;-webkit-mask-position:center;
-  mask-image:url('assets/profilepic.png');mask-size:100% 100%;mask-repeat:no-repeat;mask-position:center;
-}
+/* the static stroke that used to sit here has been replaced by the round
+   audio visualiser itself (see #artist-ring-poly below), which now sits
+   right at the photo's edge at rest instead of further out */
 /* second, round audio visualiser: one continuous closed outline connecting
    60 points around the photo's oval (plain SVG polygon, no CSS
    mask-composite trickery, which some browsers render unreliably),
@@ -476,6 +480,9 @@ body.gate-active::after{display:none}
   position:absolute;inset:-11px;z-index:0;pointer-events:none;
   width:calc(100% + 22px);height:calc(100% + 22px);
   overflow:visible;
+  /* only the top half (above the photo's centre, i.e. above the song-title
+     device that sits below the photo) is shown */
+  clip-path:inset(0 0 50% 0);
 }
 #artist-ring-poly{
   stroke:var(--artist-color, var(--active-green));
@@ -872,6 +879,19 @@ body.gate-active::after{display:none}
   background:rgba(255,255,255,.08);border:1.5px solid var(--line);border-radius:12px;
   padding:12px;font-size:11px;font-family:monospace;margin-bottom:24px;
 }
+
+/* track-loading scrim: #track-loader covers everything below the top
+   toolbar (its own top edge is set in JS to the toolbar's bottom edge);
+   the two .track-loader-piece divs cover the toolbar's own left/right
+   halves (pano/util buttons) while leaving a gap for the centred AQAI
+   logo - all three positioned live in JS, see positionLoaderPieces() */
+#track-loader,.track-loader-piece{
+  position:fixed;left:0;right:0;bottom:0;z-index:45;
+  background:rgba(0,0,0,.2);
+  opacity:0;pointer-events:none;
+  transition:opacity .15s ease;
+}
+#track-loader.show,.track-loader-piece.show{opacity:1;pointer-events:auto}
 
 /* ============================ NAV — tab bar ============================ */
 nav{
