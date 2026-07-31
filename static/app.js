@@ -120,7 +120,11 @@ function initAudio(){
 function getAudio(i){
   if (!audioEls[i]){
     const el = new Audio(TRACKS[i].url);
-    el.preload = "metadata";
+    // "auto" (not "metadata") so the browser buffers well ahead of the
+    // playhead instead of the bare minimum - a thin buffer is what causes
+    // the audible stutter/tempo-warble some browsers do to catch back up
+    // after a brief network or server hiccup
+    el.preload = "auto";
     el.crossOrigin = "anonymous";
     el.addEventListener("ended", () => { if (cur === i) next(); });
     el.addEventListener("loadedmetadata", () => {
