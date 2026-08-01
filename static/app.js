@@ -1333,6 +1333,10 @@ const scene = new THREE.Scene();
 // tunnel too, since they share this one camera)
 const camera = new THREE.PerspectiveCamera(68, 1, 0.1, 900);
 camera.position.z = 8.0;
+// in the scene graph (rather than the usual standalone camera) purely so a
+// light can be parked as its child - see roadLight - and still get
+// collected by the renderer's per-scene light pass
+scene.add(camera);
 // lowered while the intro tunnel is up - a lower viewpoint makes the nearby
 // tunnel walls sweep past faster in the visual field, reading as more speed.
 // Kept well under the tunnel's minimum wall radius (see TUNNEL_RADIUS_BASE's
@@ -1986,10 +1990,17 @@ const ROAD_REPEATS = 3;
 const ROAD_WIDTH = 9;
 const ROAD_CHUNK_LENGTH = ROAD_SEG_LENGTH * ROAD_CHUNK_SEGS;
 const ROAD_SPEED = 17;
-const ROAD_CAM_HEIGHT = 2.4; // how far above the road surface the drone camera hovers
+const ROAD_CAM_HEIGHT = 4.5; // how far above the road surface the drone camera hovers
 const ROAD_CUBE_COUNT = 60;
-const ROAD_RGB = [0xff2d55, 0x2dff7a, 0x2d8bff].map(c => new THREE.Color(c)); // neon red, green, blue
-function roadColorForSeg(seg, out){ return out.copy(ROAD_RGB[((seg % 3) + 3) % 3]); }
+// retro synthwave palette: hot pink / sunset orange / teal / violet
+const ROAD_RGB = [0xff3d9e, 0xff8c42, 0x2ee6d6, 0x8a4fff].map(c => new THREE.Color(c));
+function roadColorForSeg(seg, out){ return out.copy(ROAD_RGB[((seg % ROAD_RGB.length) + ROAD_RGB.length) % ROAD_RGB.length]); }
+// the road's width also breathes along its length - integer-multiple sine
+// so it tiles seamlessly across chunk repeats like everything else here
+function roadWidthAt(s){
+  const a = (s / ROAD_CHUNK_SEGS) * Math.PI * 2;
+  return ROAD_WIDTH * (1 + Math.sin(a * 2 + 1) * 0.3);
+}
 // one chunk's worth of road-centerline offsets - integer-multiple sine
 // combos are exactly periodic over ROAD_CHUNK_SEGS samples, so repeats
 // tile with zero seam (same guarantee the tunnel's chunkRadii relies on):
@@ -2014,33 +2025,74 @@ function roadOffsetAt(dist){
   const a = roadChunkOffsets[i0], b = roadChunkOffsets[i1];
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }
-function buildRoadGeometry(){
+// solid asphalt-like surface (no wireframe/grid lines on top anymore) -
+// dark, faintly palette-tinted, softly specular so roadLight (see below)
+// sheens across it as the camera passes; width breathes via roadWidthAt()
+function buildRoadSurfaceGeometry(){
   const totalSegs = ROAD_CHUNK_SEGS * ROAD_REPEATS;
-  const centers = [];
-  for (let s = 0; s <= totalSegs; s++){
-    const off = roadChunkOffsets[s % ROAD_CHUNK_SEGS];
-    centers.push({ x: off.x, y: off.y, z: -s * ROAD_SEG_LENGTH });
-  }
   const positions = [], colors = [];
   const tmpColor = new THREE.Color();
-  const pushSeg = (ax, ay, az, bx, by, bz, seg) => {
-    roadColorForSeg(seg, tmpColor);
-    positions.push(ax, ay, az, bx, by, bz);
-    colors.push(tmpColor.r, tmpColor.g, tmpColor.b, tmpColor.r, tmpColor.g, tmpColor.b);
-  };
-  for (let s = 0; s < totalSegs; s++){
-    const c0 = centers[s], c1 = centers[s + 1];
-    pushSeg(c0.x - ROAD_WIDTH / 2, c0.y, c0.z, c1.x - ROAD_WIDTH / 2, c1.y, c1.z, s); // left edge
-    pushSeg(c0.x + ROAD_WIDTH / 2, c0.y, c0.z, c1.x + ROAD_WIDTH / 2, c1.y, c1.z, s); // right edge
-  }
   for (let s = 0; s <= totalSegs; s++){
-    const c = centers[s];
-    pushSeg(c.x - ROAD_WIDTH / 2, c.y, c.z, c.x + ROAD_WIDTH / 2, c.y, c.z, s); // rung
+    const off = roadChunkOffsets[s % ROAD_CHUNK_SEGS];
+    const half = roadWidthAt(s % ROAD_CHUNK_SEGS) / 2;
+    const z = -s * ROAD_SEG_LENGTH;
+    roadColorForSeg(s, tmpColor).multiplyScalar(0.2);
+    positions.push(off.x - half, off.y, z, off.x + half, off.y, z);
+    colors.push(tmpColor.r, tmpColor.g, tmpColor.b, tmpColor.r, tmpColor.g, tmpColor.b);
+  }
+  const indices = [];
+  for (let s = 0; s < totalSegs; s++){
+    const a = s * 2, b = s * 2 + 1, c = (s + 1) * 2, d = (s + 1) * 2 + 1;
+    indices.push(a, c, b, c, d, b);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
   return geo;
+}
+// distant mountain silhouettes ringing the horizon - two static layers at
+// different depths, so the camera's own weave gives them a slight parallax
+// drift against the starfield behind them
+function buildRoadMountains(group){
+  const layers = [
+    { z: -260, span: 500, peaks: 26, hMin: 24, hMax: 74, color: 0x241040 },
+    { z: -185, span: 380, peaks: 20, hMin: 14, hMax: 44, color: 0x180a2e },
+  ];
+  layers.forEach(L => {
+    const positions = [];
+    const step = (L.span * 2) / L.peaks;
+    for (let i = 0; i < L.peaks; i++){
+      const x0 = -L.span + i * step;
+      const x1 = x0 + step;
+      const peakX = x0 + step * (0.3 + Math.random() * 0.4);
+      const h = L.hMin + Math.random() * (L.hMax - L.hMin);
+      positions.push(x0, -20, L.z, x1, -20, L.z, peakX, h, L.z);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    group.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: L.color, side: THREE.DoubleSide })));
+  });
+}
+// starfield wrapping the whole scene - static in world space, so it
+// parallaxes against the camera's weave; given a very slow roll in
+// animate() so the sky itself feels alive
+function buildRoadStars(){
+  const positions = [], colors = [];
+  const starPalette = [0xffffff, 0xff9ad5, 0x9be8e0, 0xc9b8ff].map(c => new THREE.Color(c));
+  for (let i = 0; i < 700; i++){
+    const x = (Math.random() - 0.5) * 900;
+    const y = Math.random() * 330 - 25;
+    const z = -60 - Math.random() * 500;
+    positions.push(x, y, z);
+    const c = starPalette[i % starPalette.length];
+    colors.push(c.r, c.g, c.b);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  return new THREE.Points(geo, new THREE.PointsMaterial({ size: 1.6, vertexColors: true, sizeAttenuation: true, transparent: true, opacity: 0.9 }));
 }
 // generated once per chunk, then tiled ROAD_REPEATS times at identical
 // relative offsets (like the road grid itself) so the scroll wrap never
@@ -2058,18 +2110,27 @@ function buildRoadCubes(group){
       x: off.x + side * distFromRoad,
       y: off.y + (Math.random() - 0.25) * 11,
       z: localZ,
-      color: ROAD_RGB[i % 3],
-      scale: 0.6 + Math.random() * 1.8,
+      color: ROAD_RGB[i % ROAD_RGB.length],
+      scale: 0.5 + Math.random() * 2.7, // wider size spread
       spin: { x: (Math.random() - 0.5) * 0.6, y: (Math.random() - 0.5) * 0.6 },
+      pulsePhase: Math.random() * Math.PI * 2,
+      pulseSpeed: 0.4 + Math.random() * 0.8,
     });
   }
   const cubes = [];
   for (let rep = 0; rep < ROAD_REPEATS; rep++){
     template.forEach(tpl => {
-      const cube = new THREE.Mesh(boxGeo, new THREE.MeshBasicMaterial({ color: tpl.color, transparent: true, opacity: 0.85 }));
+      // solid, with a soft/diffuse sheen (dim grey specular + low
+      // shininess = broad highlight) rather than a hard glint
+      const cube = new THREE.Mesh(boxGeo, new THREE.MeshPhongMaterial({
+        color: tpl.color, specular: 0x666666, shininess: 18,
+      }));
       cube.scale.setScalar(tpl.scale);
       cube.position.set(tpl.x, tpl.y, tpl.z - rep * ROAD_CHUNK_LENGTH);
       cube.userData.spin = tpl.spin;
+      cube.userData.baseScale = tpl.scale;
+      cube.userData.pulsePhase = tpl.pulsePhase;
+      cube.userData.pulseSpeed = tpl.pulseSpeed;
       group.add(cube);
       cubes.push(cube);
     });
@@ -2077,19 +2138,134 @@ function buildRoadCubes(group){
   return cubes;
 }
 const roadGroup = new THREE.Group();
-const roadLinesMat = new THREE.LineBasicMaterial({ vertexColors: true, blending: THREE.AdditiveBlending, transparent: true });
-roadGroup.add(new THREE.LineSegments(buildRoadGeometry(), roadLinesMat));
+const roadSurfaceMat = new THREE.MeshPhongMaterial({
+  // dim grey specular + low shininess = a broad diffuse sheen, not a glint
+  color: 0xffffff, vertexColors: true, specular: 0x777777, shininess: 14, side: THREE.DoubleSide,
+});
+roadGroup.add(new THREE.Mesh(buildRoadSurfaceGeometry(), roadSurfaceMat));
 const roadCubes = buildRoadCubes(roadGroup);
 roadGroup.visible = false; // only ever shown post-gate, and only for ROAD_ARTIST_NAME - see updateArtistBackground()
 scene.add(roadGroup);
-// swaps the sphere for the road whenever the current track's artist
-// matches; called on every track load (see load()) and once more from the
-// gate handoff, since the very first "current" track is only known then
+// horizon + sky live outside roadGroup so the road's scroll-wrap never
+// makes them jump - they sit still while the road streams past
+const roadScenery = new THREE.Group();
+buildRoadMountains(roadScenery);
+const roadStars = buildRoadStars();
+roadScenery.add(roadStars);
+roadScenery.visible = false;
+scene.add(roadScenery);
+// single fixed "sun" parked over the middle of the scene (not riding the
+// camera anymore) - the diffuse specular sheen everything reflects
+const roadLight = new THREE.PointLight(0xfff0dd, 2.6, 400, 1.8);
+roadLight.position.set(0, 30, -ROAD_CHUNK_LENGTH * 0.5);
+roadLight.visible = false;
+scene.add(roadLight);
+// faint fill so faces turned away from the sun don't go pitch black
+const roadAmbient = new THREE.AmbientLight(0x2a1050, 1.1);
+roadAmbient.visible = false;
+scene.add(roadAmbient);
+const roadClearColor = new THREE.Color();
+
+/* ---------- Aveluna-only mist world: an airy, mysterious flight through
+   fog. Tall spires and arches loom out of a light-blue haze tinted with
+   the artist's own color, soft glowing orbs drift between them, and the
+   camera floats through like a slow drone. Same chunk-tiling scroll trick
+   as the road/tunnel; the fog itself (THREE.FogExp2, only set while this
+   scene is up) is what makes shapes materialize and dissolve. ---------- */
+const MIST_ARTIST_NAME = "Aveluna";
+const MIST_CHUNK_LENGTH = 160;
+const MIST_REPEATS = 3;
+const MIST_SPEED = 7;
+const MIST_SKY = new THREE.Color(0xbfe0f5); // light blue-ish base, artist color mixed in on activation
+function buildMistChunkTemplate(){
+  const items = [];
+  for (let i = 0; i < 15; i++){ // spires
+    items.push({ kind: "spire", x: (Math.random() - 0.5) * 90, y: -14, z: -Math.random() * MIST_CHUNK_LENGTH,
+      h: 16 + Math.random() * 34, r: 1.2 + Math.random() * 3.4 });
+  }
+  for (let i = 0; i < 9; i++){ // orbs
+    items.push({ kind: "orb", x: (Math.random() - 0.5) * 60, y: -2 + Math.random() * 16, z: -Math.random() * MIST_CHUNK_LENGTH,
+      r: 0.5 + Math.random() * 1.1, phase: Math.random() * Math.PI * 2 });
+  }
+  for (let i = 0; i < 2; i++){ // arches
+    items.push({ kind: "arch", x: (Math.random() - 0.5) * 30, y: -6 + Math.random() * 8, z: -Math.random() * MIST_CHUNK_LENGTH,
+      r: 9 + Math.random() * 9 });
+  }
+  return items;
+}
+const mistGroup = new THREE.Group();
+const mistOrbs = [];
+const mistSpireMat = new THREE.MeshPhongMaterial({ color: 0x9fc4e0, specular: 0x445566, shininess: 10 });
+const mistArchMat = new THREE.MeshPhongMaterial({ color: 0xb9d4ea, specular: 0x445566, shininess: 10 });
+{
+  const template = buildMistChunkTemplate();
+  const spireGeo = new THREE.ConeGeometry(1, 1, 7);
+  const orbGeo = new THREE.SphereGeometry(1, 12, 10);
+  const archGeo = new THREE.TorusGeometry(1, 0.09, 8, 40);
+  for (let rep = 0; rep < MIST_REPEATS; rep++){
+    template.forEach(tpl => {
+      let mesh;
+      if (tpl.kind === "spire"){
+        mesh = new THREE.Mesh(spireGeo, mistSpireMat);
+        mesh.scale.set(tpl.r, tpl.h, tpl.r);
+        mesh.position.set(tpl.x, tpl.y + tpl.h / 2, tpl.z - rep * MIST_CHUNK_LENGTH);
+      } else if (tpl.kind === "orb"){
+        mesh = new THREE.Mesh(orbGeo, new THREE.MeshBasicMaterial({ color: 0xeaf6ff, transparent: true, opacity: 0.75 }));
+        mesh.scale.setScalar(tpl.r);
+        mesh.position.set(tpl.x, tpl.y, tpl.z - rep * MIST_CHUNK_LENGTH);
+        mesh.userData.phase = tpl.phase;
+        mesh.userData.baseY = tpl.y;
+        mistOrbs.push(mesh);
+      } else {
+        mesh = new THREE.Mesh(archGeo, mistArchMat);
+        mesh.scale.setScalar(tpl.r);
+        mesh.position.set(tpl.x, tpl.y, tpl.z - rep * MIST_CHUNK_LENGTH);
+      }
+      mistGroup.add(mesh);
+    });
+  }
+}
+mistGroup.visible = false;
+scene.add(mistGroup);
+// soft sky/ground wash - the main light of the airy scene
+const mistHemi = new THREE.HemisphereLight(0xeaf6ff, 0x7d9db8, 1.25);
+mistHemi.visible = false;
+scene.add(mistHemi);
+const mistFog = new THREE.FogExp2(0xbfe0f5, 0.022);
+const mistColor = new THREE.Color();
+
+// swaps the sphere for a per-artist 3D scene: Polaroid gets the synthwave
+// road, Aveluna gets the mist world. Called on every track load (see
+// load()) and once more from the gate handoff, since the very first
+// "current" track is only known then. Also drives the renderer clear
+// color + scene fog to match whichever scene is up.
 function updateArtistBackground(tr){
   const gateActive = document.body.classList.contains("gate-active");
   const wantRoad = !gateActive && !!tr && tr.artist === ROAD_ARTIST_NAME;
+  const wantMist = !gateActive && !!tr && tr.artist === MIST_ARTIST_NAME;
   roadGroup.visible = wantRoad;
-  if (panoMesh) panoMesh.visible = !gateActive && !wantRoad;
+  roadScenery.visible = wantRoad;
+  roadLight.visible = wantRoad;
+  roadAmbient.visible = wantRoad;
+  mistGroup.visible = wantMist;
+  mistHemi.visible = wantMist;
+  if (panoMesh) panoMesh.visible = !gateActive && !wantRoad && !wantMist;
+  if (wantRoad){
+    // deep retro violet with a whisper of the artist color
+    roadClearColor.set(tr.artistColor || "#7CFF9E").lerp(new THREE.Color(0x1d0f3a), 0.75);
+    renderer.setClearColor(roadClearColor, 1);
+    scene.fog = null;
+  } else if (wantMist){
+    // light-blue haze tinted toward the artist's color - clear color and
+    // fog match exactly so the world dissolves seamlessly into the sky
+    mistColor.copy(MIST_SKY).lerp(new THREE.Color(tr.artistColor || "#7FD6FF"), 0.3);
+    mistFog.color.copy(mistColor);
+    renderer.setClearColor(mistColor, 1);
+    scene.fog = mistFog;
+  } else {
+    renderer.setClearColor(0x000000, 0);
+    scene.fog = null;
+  }
 }
 
 panoVideoEl.addEventListener("loadedmetadata", () => { if (currentPanoKind === "video") rebuildPanoMesh(); });
@@ -2249,6 +2425,11 @@ function audioIntensity(){
 
 const gateLogoTiltEl = $("#gate-logo-tilt");
 let camYaw = 0, camPitch = 0;
+// trailing-follow state for the road's drone camera (see roadGroup.visible
+// below) - lerped toward the freshly-sampled road position/bank each
+// frame instead of snapping straight to it, for a smoother, more dynamic
+// swoop through the curves
+let roadCamX = 0, roadCamY = ROAD_CAM_HEIGHT, roadCamBank = 0;
 // timestamp the automatic motion (re)starts from; null forces a fresh
 // "centred, then ease in" ramp the next time auto-drift takes over
 let autoMotionStartT = null;
@@ -2284,14 +2465,13 @@ function animate(t){
     const r = Math.max(0, Math.min(1, (elapsed - 1.0) / 4.0));
     const ramp = r * r * (3 - 2 * r);
     const time = (t || 0) * 0.001;
-    const beat = panoUniforms.uIntensity.value; // smoothed audio level 0..1
     // always start from the centre (mouse-in-the-middle) and ease the drift
     // in - identical to the reset that happens when manual control is
     // switched off. No mouse offset here, so its resting point stays centred.
-    // music sway: long, slow strokes - a wide travel that changes direction
-    // gradually rather than a tight jitter, scaled by the ramp above
-    targetYaw = ramp * (Math.sin(time * 0.25) * 0.42 + Math.sin(time * 1.0) * 0.30 * beat);
-    targetPitch = ramp * (Math.sin(time * 0.19) * 0.26 + Math.cos(time * 1.2) * 0.22 * beat);
+    // Deliberately NOT music-reactive - just the sweet slow Lissajous sweep
+    // on two never-resyncing periods
+    targetYaw = ramp * Math.sin(time * 0.25) * 0.42;
+    targetPitch = ramp * Math.sin(time * 0.19) * 0.26;
     // gentle trailing follow to keep the long strokes smooth
     camSmooth = 0.07;
   }
@@ -2325,18 +2505,44 @@ function animate(t){
     roadGroup.position.z = dist % ROAD_CHUNK_LENGTH;
     const here = roadOffsetAt(dist);
     const ahead = roadOffsetAt(dist + 4);
-    camera.position.x = here.x;
-    camera.position.y = here.y + ROAD_CAM_HEIGHT;
+    const targetBank = -Math.atan2(ahead.x - here.x, 4) * 1.4;
+    // lerped toward the fresh target instead of snapping to it - reads as
+    // a smooth, dynamic swoop through the curves rather than a rigid rail
+    const follow = 0.045;
+    roadCamX += (here.x - roadCamX) * follow;
+    roadCamY += (here.y + ROAD_CAM_HEIGHT - roadCamY) * follow;
+    roadCamBank += (targetBank - roadCamBank) * follow;
+    camera.position.x = roadCamX;
+    camera.position.y = roadCamY;
     // deliberately disconnected from audio/mouse - a fixed drone look-down
     // tilt plus a bank into each turn, driven only by the road's own curve
     camera.rotation.x = -0.28;
     camera.rotation.y = 0;
-    camera.rotation.z = -Math.atan2(ahead.x - here.x, 4) * 1.4;
-    roadCubes.forEach(c => { c.rotation.x += c.userData.spin.x * 0.016; c.rotation.y += c.userData.spin.y * 0.016; });
+    camera.rotation.z = roadCamBank;
+    roadCubes.forEach(c => {
+      c.rotation.x += c.userData.spin.x * 0.016;
+      c.rotation.y += c.userData.spin.y * 0.016;
+      c.scale.setScalar(c.userData.baseScale * (1 + Math.sin(nowSec * c.userData.pulseSpeed + c.userData.pulsePhase) * 0.13));
+    });
+    roadStars.rotation.z = nowSec * 0.004; // barely-perceptible sky roll
+  } else if (mistGroup.visible){
+    // airy drone float: slow forward scroll plus a gentle three-axis sway,
+    // nothing sharp anywhere
+    const nowSec = (t || 0) * 0.001;
+    mistGroup.position.z = (nowSec * MIST_SPEED) % MIST_CHUNK_LENGTH;
+    camera.position.x = Math.sin(nowSec * 0.16) * 4;
+    camera.position.y = 1.5 + Math.sin(nowSec * 0.11 + 1) * 2.2;
+    camera.rotation.x = Math.sin(nowSec * 0.13 + 2) * 0.05;
+    camera.rotation.y = Math.sin(nowSec * 0.09) * 0.08;
+    camera.rotation.z = Math.sin(nowSec * 0.07 + 4) * 0.03;
+    mistOrbs.forEach(o => {
+      o.position.y = o.userData.baseY + Math.sin(nowSec * 0.5 + o.userData.phase) * 1.4;
+      o.material.opacity = 0.55 + Math.sin(nowSec * 0.8 + o.userData.phase) * 0.2;
+    });
   } else {
-    // only the road branch above ever touches these two - reset them so a
-    // track change away from the road doesn't leave the sphere/tunnel view
-    // stuck mid-turn
+    // only the scene branches above ever touch these - reset them so a
+    // track change away from a 3D scene doesn't leave the sphere/tunnel
+    // view stuck mid-turn
     camera.position.x = 0;
     camera.rotation.z = 0;
     camera.position.y = tunnelGroup.visible ? -1.1 : 0;
