@@ -607,6 +607,10 @@ body.gate-active::after{display:none}
 .bar-row{
   display:flex;align-items:center;justify-content:center;gap:10px;
   flex:1 1 auto;max-width:75%;min-width:0;
+  /* only meaningful while it shares a row with .transport/.side-btns (not
+     wrapped to its own line) - matches their -15px so all three stay
+     vertically aligned; cancelled below once it wraps onto its own row */
+  position:relative;top:-15px;
 }
 .transport{display:flex;align-items:center;gap:8px;position:relative;top:-15px}
 .transport-center{display:flex;align-items:center;gap:8px}
@@ -630,7 +634,7 @@ body.gate-active::after{display:none}
      side-btns sitting right of the transport controls */
   .transport{order:1}
   .side-btns{order:2;margin-left:20px}
-  .bar-row{order:3;flex-basis:100%;width:100%;max-width:100%;flex-wrap:wrap;justify-content:center}
+  .bar-row{order:3;flex-basis:100%;width:100%;max-width:100%;flex-wrap:wrap;justify-content:center;top:0}
   /* same size as the plain icon buttons (download/share) instead of the
      wider text pill, so all three side buttons match */
   #btn-fulllyrics{width:30.4px;padding:0}
@@ -693,7 +697,7 @@ body.gate-active::after{display:none}
 .ctl:active{background:var(--artist-color, var(--active-green));color:#000000;border-color:var(--artist-color, var(--active-green))}
 .ctl svg{width:15.2px;height:15.2px;position:relative;z-index:1}
 .ctl.toggle.on{color:#000000;background:var(--artist-color, var(--active-green));border-color:var(--artist-color, var(--active-green));box-shadow:0 8px 22px rgba(0,0,0,.4)}
-.ctl.toggle.on:hover{background:var(--artist-color, var(--active-green));border-color:var(--artist-color, var(--active-green));color:#000000;outline-color:var(--artist-color, var(--active-green))}
+.ctl.toggle.on:hover{background:#ffffff;border-color:#ffffff;color:#000000;box-shadow:0 0 3px rgba(255,255,255,.2)}
 .ctl.toggle.on:hover::before{opacity:0}
 
 .bar-row .time{font-family:var(--font-title);font-size:11px;letter-spacing:.06em;color:var(--fg-soft);flex:0 0 auto;position:relative;top:1px}
