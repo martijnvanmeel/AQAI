@@ -243,6 +243,8 @@ body.gate-active #grid-overlay{display:block}
 /* Polaroid road sky: the WebGL canvas clears transparent there, revealing
    this gradient - a little brighter near the horizon, darker up top */
 body.scene-road #stage{background:linear-gradient(to top, #282153 0%, #131034 55%, #0a0618 100%)}
+/* Aveluna sky: dark blue low, fading to black at the top */
+body.scene-mist #stage{background:linear-gradient(to top, #101a3e 0%, #060a1c 55%, #000000 100%)}
 /* full-screen tint in the current track's artist color, sitting right on
    top of the 3D sphere/background video (z-index:0) but below every
    other overlay/UI layer (z-index:1+) - color set per-track in

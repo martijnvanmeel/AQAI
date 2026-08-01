@@ -2399,9 +2399,11 @@ const mistGroup = new THREE.Group();
     const cv = document.createElement("canvas");
     cv.width = cv.height = 128;
     const cx = cv.getContext("2d");
+    // soft but with a firmer core - blurred only at the rim
     const g = cx.createRadialGradient(64, 64, 2, 64, 64, 62);
-    g.addColorStop(0, "rgba(255,255,255,0.85)");
-    g.addColorStop(0.4, "rgba(255,255,255,0.5)");
+    g.addColorStop(0, "rgba(255,255,255,0.9)");
+    g.addColorStop(0.55, "rgba(255,255,255,0.68)");
+    g.addColorStop(0.85, "rgba(255,255,255,0.2)");
     g.addColorStop(1, "rgba(255,255,255,0)");
     cx.fillStyle = g;
     cx.fillRect(0, 0, 128, 128);
@@ -2415,13 +2417,13 @@ const mistGroup = new THREE.Group();
     { size: 10, positions: [], colors: [] },
     { size: 16, positions: [], colors: [] },
   ];
-  const FLOCKS = 14;
+  const FLOCKS = 22;
   for (let rep = 0; rep < MIST_REPEATS; rep++){
     for (let fi = 0; fi < FLOCKS; fi++){
       const fx = (h(fi, 1) - 0.5) * 340;
       const fy = (h(fi, 2) - 0.5) * 150;
       const fz = -h(fi, 3) * MIST_CHUNK_LENGTH - rep * MIST_CHUNK_LENGTH;
-      const count = 4 + Math.floor(h(fi, 4) * 5);
+      const count = 16 + Math.floor(h(fi, 4) * 18); // 4x denser flocks
       for (let bi = 0; bi < count; bi++){
         const bucket = ballBuckets[Math.floor(h(fi * 41 + bi, 5) * 4) % 4];
         bucket.positions.push(
@@ -2646,9 +2648,10 @@ function updateArtistBackground(tr){
   // vertical-grid overlay shows over every 3D environment (see styles.css;
   // the intro tunnel is covered by its own body.gate-active selector)
   document.body.classList.toggle("scene-3d", wantRoad || wantMist || wantMaze);
-  // the road scene renders over a CSS gradient sky (see body.scene-road
-  // #stage in styles.css) - brighter low, fading darker toward the top
+  // road and mist scenes render over CSS gradient skies (see
+  // body.scene-road / body.scene-mist #stage in styles.css)
   document.body.classList.toggle("scene-road", wantRoad);
+  document.body.classList.toggle("scene-mist", wantMist);
   // tighter lens in every constructed environment (incl. the intro
   // tunnel) = a more zoomed, cinematic framing; only the plain video
   // sphere keeps the natural 1x lens
@@ -2663,11 +2666,11 @@ function updateArtistBackground(tr){
     roadFog.color.set(0x120821);
     scene.fog = roadFog;
   } else if (wantMist){
-    // the reference art's deep indigo night - clear color and fog match
-    // exactly so far clouds dissolve seamlessly into the sky
-    mistColor.copy(MIST_SKY);
-    mistFog.color.copy(mistColor);
-    renderer.setClearColor(mistColor, 1);
+    // transparent clear: the sky is a CSS gradient behind the canvas
+    // (body.scene-mist #stage), dark blue low fading to black up top; the
+    // haze fades far objects toward a matching deep blue-black
+    renderer.setClearColor(0x000000, 0);
+    mistFog.color.set(0x0c1330);
     scene.fog = mistFog;
   } else if (wantMaze){
     // near-black warm brown: the corridor's far end vanishes into it
@@ -3019,8 +3022,11 @@ function animate(t){
     mistCamBank += (-Math.atan2(ahead.x - here.x, 14) * 0.8 + Math.sin(nowSec * 0.025 + 5) * 0.16 - mistCamBank) * follow;
     camera.position.x = mistCamX;
     camera.position.y = mistCamY;
-    camera.rotation.x = mistCamPitch;
-    camera.rotation.y = mistCamYaw;
+    // a very slow wander swings the gaze all the way around over minutes -
+    // sometimes looking sideways, up, down, even fully backward - layered
+    // over the path-follow sways
+    camera.rotation.x = mistCamPitch + Math.sin(nowSec * 0.017 + 2) * 0.5;
+    camera.rotation.y = mistCamYaw + Math.sin(nowSec * 0.013) * 2.6;
     // sways on all three axes plus a slow continuous barrel roll (~2.7min
     // per revolution) - the camera is always rotating around every axis
     camera.rotation.z = mistCamBank + cameraRollOffset + nowSec * (Math.PI * 2 / 160);
