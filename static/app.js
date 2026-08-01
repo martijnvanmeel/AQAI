@@ -340,7 +340,7 @@ function rowBaseHeight(row){
 function inactiveScaleForDepth(depth){
   return DEPTH_SCALES[depth - 1];
 }
-const LYRIC_LINE_MAX_CHARS = 20;
+const LYRIC_LINE_MAX_CHARS = 17;
 const LYRIC_GAP_BLANK = 3; // silence longer than this gets its own blank sentence
 const LYRIC_GAP_COLOR = "#0A1830"; // dark blue the last sentence fades to during a silence gap, instead of vanishing
 // re-flows each original sentence's words into fresh display lines of
