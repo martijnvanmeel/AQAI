@@ -1341,7 +1341,13 @@ scene.add(camera);
 // tunnel walls sweep past faster in the visual field, reading as more speed.
 // Kept well under the tunnel's minimum wall radius (see TUNNEL_RADIUS_BASE's
 // Math.max(1.8, ...) clamp below) so the camera always stays inside it.
+// Also pushed deeper into the tube (z -8 instead of the music screen's 8)
+// so the rock walls fully surround the view; both restored on gate exit.
 camera.position.y = document.body.classList.contains("gate-active") ? -1.1 : 0;
+camera.position.z = document.body.classList.contains("gate-active") ? -8 : 8;
+// tighter intro lens from the very first frame (updateArtistBackground
+// re-derives the per-scene zoom on every track/gate change after this)
+camera.zoom = document.body.classList.contains("gate-active") ? 1.3 : 1;
 
 /* ---------- background panorama: the selected clip mapped onto a curved
    patch centered in front of the camera - sized to the video's own aspect
@@ -2012,7 +2018,7 @@ scene.add(tunnelLight);
 const ROAD_ARTIST_NAME = "Polaroid";
 const ROAD_CHUNK_LENGTH = 220;  // world units of one seamlessly-tiling terrain strip
 const ROAD_REPEATS = 3;
-const ROAD_SPEED = 14;
+const ROAD_SPEED = 9;
 const ROAD_HALF_WIDTH = 2.5;    // road corridor half-width (50% of the old road)
 const ROAD_CAM_HEIGHT = 4.6;    // comfortably above the road at all times
 const ROAD_COLS = 36;           // terrain grid resolution across (x)
@@ -2248,24 +2254,33 @@ function buildRoadStars(){
 const roadFloaters = [];
 function buildRoadFloaters(group){
   const sphereGeo = new THREE.SphereGeometry(1, 16, 12);
-  // one red, one green, one blue material rotation, each with a matching
-  // brighter wireframe overlay - the "light strokes" over the glass ball
+  // outline-only spheres: the inner mesh writes depth but no color (an
+  // invisible occluder), so the slightly-larger back-face shell shows as
+  // just a thin silhouette ring in the ball's color - no fill at all
   const rgb = [0xff4455, 0x3fe07a, 0x3f7aff];
-  const fillMats = rgb.map(c => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.3, depthWrite: false }));
-  const strokeMats = rgb.map(c => new THREE.MeshBasicMaterial({ color: new THREE.Color(c).lerp(new THREE.Color(0xffffff), 0.55),
-    wireframe: true, transparent: true, opacity: 0.28, depthWrite: false }));
-  const PER_CHUNK = 6;
+  const occluderMat = new THREE.MeshBasicMaterial({ colorWrite: false });
+  const outlineMats = rgb.map(c => new THREE.MeshBasicMaterial({ color: c,
+    side: THREE.BackSide, transparent: true, opacity: 0.95, depthWrite: false }));
+  const PER_CHUNK = 10;
   for (let rep = 0; rep < ROAD_REPEATS; rep++){
     for (let i = 0; i < PER_CHUNK; i++){
       const d = roadHash(i * 17, i * 41) * ROAD_CHUNK_LENGTH;
       const center = roadCenterAt(d);
-      const side = (i % 2 === 0 ? 1 : -1) * (6 + roadHash(i, 3) * 14);
-      const s = new THREE.Mesh(sphereGeo, fillMats[i % 3]);
-      s.add(new THREE.Mesh(sphereGeo, strokeMats[i % 3]));
-      s.scale.setScalar(0.8 + roadHash(i, 5) * 1.4);
-      s.position.set(center.x + side, center.y + 3 + roadHash(i, 7) * 6, -(d + rep * ROAD_CHUNK_LENGTH));
-      s.userData.baseY = s.position.y;
-      s.userData.phase = roadHash(i, 9) * Math.PI * 2;
+      // anywhere from hugging the road edge to far out over the terrain
+      const side = (i % 2 === 0 ? 1 : -1) * (3 + roadHash(i, 3) * 30);
+      const s = new THREE.Mesh(sphereGeo, occluderMat);
+      const outline = new THREE.Mesh(sphereGeo, outlineMats[i % 3]);
+      outline.scale.setScalar(1.025); // thin shell = ~1px rim at typical distance
+      s.add(outline);
+      s.scale.setScalar(0.5 + roadHash(i, 5) * 2.8); // wide size spread
+      s.position.set(center.x + side, center.y + 0.8, -(d + rep * ROAD_CHUNK_LENGTH));
+      // rises from just above the valley floor, easing in (slow lift-off,
+      // then accelerating upward), and loops back to the bottom - see the
+      // roadFloaters update in animate()
+      s.userData.startY = center.y + 0.8;
+      s.userData.rise = 8 + roadHash(i, 7) * 6;
+      s.userData.period = 22 + roadHash(i, 9) * 18; // seconds per full rise
+      s.userData.phase = roadHash(i, 11);
       s.frustumCulled = false;
       group.add(s);
       roadFloaters.push(s);
@@ -2321,10 +2336,11 @@ const mistPuffTexture = (() => {
   return new THREE.CanvasTexture(cv);
 })();
 // reference palette: coral/pink tops, warm glowing cores, cool undersides.
-// Dimmed, because the puffs blend additively and stack up toward bright
-const MIST_TOPS = [0xff9a8a, 0xffa8c0, 0xf5a087].map(c => new THREE.Color(c).multiplyScalar(0.5));
-const MIST_CORES = [0xffc25e, 0xffdd7a, 0xff9a5e].map(c => new THREE.Color(c).multiplyScalar(0.55));
-const MIST_UNDER = [0x7de8c8, 0x9aa8ff, 0x86c8f0, 0xb49aff].map(c => new THREE.Color(c).multiplyScalar(0.45));
+// Dimmed hard, because the puffs blend additively and stack up toward
+// bright - these read as a dark, moody glow rather than pastel
+const MIST_TOPS = [0xff9a8a, 0xffa8c0, 0xf5a087].map(c => new THREE.Color(c).multiplyScalar(0.26));
+const MIST_CORES = [0xffc25e, 0xffdd7a, 0xff9a5e].map(c => new THREE.Color(c).multiplyScalar(0.3));
+const MIST_UNDER = [0x7de8c8, 0x9aa8ff, 0x86c8f0, 0xb49aff].map(c => new THREE.Color(c).multiplyScalar(0.22));
 const mistGroup = new THREE.Group();
 {
   // hash-driven template (no Math.random) so every tile is an exact copy -
@@ -2336,16 +2352,16 @@ const mistGroup = new THREE.Group();
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
   const CLUSTERS = 16;
   const buckets = [
-    { size: 15, positions: [], colors: [] },
-    { size: 23, positions: [], colors: [] },
-    { size: 32, positions: [], colors: [] },
+    { size: 26, positions: [], colors: [] },
+    { size: 38, positions: [], colors: [] },
+    { size: 52, positions: [], colors: [] },
   ];
   for (let rep = 0; rep < MIST_REPEATS; rep++){
     for (let ci = 0; ci < CLUSTERS; ci++){
-      // the whole field sits from the flight path's midline downward -
-      // the camera looks down over a screen-filling floor of cloud
+      // the whole field sits low, from the view's midline downward - the
+      // camera looks down over a screen-filling floor of dark cloud
       const cx0 = (h(ci, 1) - 0.5) * 260;
-      const cy0 = -11 + h(ci, 2) * 7;
+      const cy0 = -16 + h(ci, 2) * 6;
       const cz0 = -h(ci, 3) * MIST_CHUNK_LENGTH;
       const puffs = 9 + Math.floor(h(ci, 4) * 7);
       for (let pi = 0; pi < puffs; pi++){
@@ -2392,11 +2408,12 @@ const mistColor = new THREE.Color();
    reference's vanishing point. Same chunk-tiling scroll as the other
    worlds; the camera drifts and rotates through the open middle. ---------- */
 const DT_ARTIST_NAME = "Downtown";
-const DT_CHUNK_LENGTH = 90;
+const DT_SCALE = 6;    // the whole world is 6x the original corridor
+const DT_CHUNK_LENGTH = 90 * DT_SCALE;
 const DT_REPEATS = 3;
-const DT_SPEED = 4.5; // slow glide
-const DT_HALF_W = 9;   // corridor half-width
-const DT_HALF_H = 6.5; // corridor half-height
+const DT_SPEED = 13;   // brisker to match the bigger space, still a glide
+const DT_HALF_W = 9 * DT_SCALE;   // corridor half-width
+const DT_HALF_H = 6.5 * DT_SCALE; // corridor half-height
 // warm base palette, deliberately kept mid-to-dark ("not too light");
 // tinted toward the artist's own color on activation - see dtMats below
 const DT_BASE_COLORS = [0x6e4420, 0x8a5a2c, 0x9c6428, 0x4a2f18, 0x7a3c1e, 0x5c3a22].map(c => new THREE.Color(c));
@@ -2417,9 +2434,9 @@ const downtownGroup = new THREE.Group();
     for (let i = 0; i < SLABS; i++){
       const side = Math.floor(h(i, 1) * 4); // 0 left, 1 right, 2 floor, 3 ceiling
       const z = -h(i, 2) * DT_CHUNK_LENGTH - rep * DT_CHUNK_LENGTH;
-      const depth = 2 + h(i, 3) * 7;        // how long along the corridor
-      const thickness = 0.6 + h(i, 4) * 1.3;
-      const protrusion = 1 + h(i, 5) * 5;   // how far it juts into the corridor
+      const depth = (2 + h(i, 3) * 7) * DT_SCALE;        // how long along the corridor
+      const thickness = (0.6 + h(i, 4) * 1.3) * DT_SCALE;
+      const protrusion = (1 + h(i, 5) * 5) * DT_SCALE;   // how far it juts into the corridor
       const along = (h(i, 6) - 0.5) * 2;    // position along the wall's free axis
       // roughly one slab in five glows with the music - those get their
       // own material clone so their emissive can pulse independently
@@ -2428,10 +2445,10 @@ const downtownGroup = new THREE.Group();
       const slab = new THREE.Mesh(boxGeo, mat);
       if (side === 0 || side === 1){
         slab.scale.set(protrusion, thickness, depth);
-        slab.position.set((side === 0 ? -1 : 1) * (DT_HALF_W - protrusion / 2), along * (DT_HALF_H - 1), z);
+        slab.position.set((side === 0 ? -1 : 1) * (DT_HALF_W - protrusion / 2), along * (DT_HALF_H - DT_SCALE), z);
       } else {
-        slab.scale.set(thickness + 2 + h(i, 7) * 5, protrusion, depth);
-        slab.position.set(along * (DT_HALF_W - 2), (side === 2 ? -1 : 1) * (DT_HALF_H - protrusion / 2), z);
+        slab.scale.set((thickness / DT_SCALE + 2 + h(i, 7) * 5) * DT_SCALE, protrusion, depth);
+        slab.position.set(along * (DT_HALF_W - 2 * DT_SCALE), (side === 2 ? -1 : 1) * (DT_HALF_H - protrusion / 2), z);
       }
       if (reactive){
         slab.userData.pulsePhase = h(i, 9) * Math.PI * 2;
@@ -2467,14 +2484,14 @@ downtownGroup.visible = false;
 scene.add(downtownGroup);
 // warm light near the camera - the corridor darkens with distance, like
 // the reference's vanishing point; plus a dim warm ambient fill
-const downtownLight = new THREE.PointLight(0xffd9a0, 1.3, 70, 1.8);
-downtownLight.position.set(0, 2, 2);
+const downtownLight = new THREE.PointLight(0xffd9a0, 1.6, 70 * DT_SCALE, 1.8);
+downtownLight.position.set(0, 2 * DT_SCALE, 2);
 downtownLight.visible = false;
 scene.add(downtownLight);
 const downtownAmbient = new THREE.AmbientLight(0x2a180c, 0.9);
 downtownAmbient.visible = false;
 scene.add(downtownAmbient);
-const downtownFog = new THREE.FogExp2(0x120a05, 0.02);
+const downtownFog = new THREE.FogExp2(0x120a05, 0.02 / DT_SCALE);
 
 // swaps the sphere for a per-artist 3D scene: Polaroid gets the synthwave
 // road, Aveluna gets the mist world. Called on every track load (see
@@ -2496,8 +2513,10 @@ function updateArtistBackground(tr){
   // vertical-grid overlay shows over every 3D environment (see styles.css;
   // the intro tunnel is covered by its own body.gate-active selector)
   document.body.classList.toggle("scene-3d", wantRoad || wantMist || wantMaze);
-  // tighter lens over the road = a more zoomed, cinematic drone framing
-  camera.zoom = wantRoad ? 1.35 : 1;
+  // tighter lens in every constructed environment (incl. the intro
+  // tunnel) = a more zoomed, cinematic framing; only the plain video
+  // sphere keeps the natural 1x lens
+  camera.zoom = gateActive ? 1.3 : wantRoad ? 1.6 : (wantMist || wantMaze) ? 1.35 : 1;
   camera.updateProjectionMatrix();
   if (wantRoad){
     // deep retro purple-black night sky (darkened), plus a haze that
@@ -2763,16 +2782,16 @@ function animate(t){
     const ahead = roadCenterAt(scroll - 8 + 14);
     // long lookahead + a soft follow factor + slow low-amplitude sways =
     // unhurried, stylish glides instead of abrupt corrections
-    const follow = 0.028;
-    roadCamX += (here.x + Math.sin(nowSec * 0.09) * 1.6 - roadCamX) * follow;
-    roadCamY += (here.y + ROAD_CAM_HEIGHT + Math.sin(nowSec * 0.07 + 1) * 1.0 - roadCamY) * follow;
+    const follow = 0.02;
+    roadCamX += (here.x + Math.sin(nowSec * 0.055) * 1.6 - roadCamX) * follow;
+    roadCamY += (here.y + ROAD_CAM_HEIGHT + Math.sin(nowSec * 0.045 + 1) * 1.0 - roadCamY) * follow;
     // hard floor: whatever the sway/lerp is doing, never sink below the
     // road surface under the camera
     roadCamY = Math.max(roadCamY, here.y + 2.6);
     // look into the curve/hill ahead, with a slow scanning sway on top
-    roadCamYaw += (-Math.atan2(ahead.x - here.x, 14) * 0.6 + Math.sin(nowSec * 0.05) * 0.05 - roadCamYaw) * follow;
-    roadCamPitch += (Math.atan2(ahead.y - here.y, 14) * 0.45 - 0.05 + Math.sin(nowSec * 0.045 + 3) * 0.03 - roadCamPitch) * follow;
-    roadCamBank += (-Math.atan2(ahead.x - here.x, 14) * 0.8 + Math.sin(nowSec * 0.04 + 5) * 0.025 - roadCamBank) * follow;
+    roadCamYaw += (-Math.atan2(ahead.x - here.x, 14) * 0.6 + Math.sin(nowSec * 0.032) * 0.05 - roadCamYaw) * follow;
+    roadCamPitch += (Math.atan2(ahead.y - here.y, 14) * 0.45 - 0.05 + Math.sin(nowSec * 0.028 + 3) * 0.03 - roadCamPitch) * follow;
+    roadCamBank += (-Math.atan2(ahead.x - here.x, 14) * 0.8 + Math.sin(nowSec * 0.025 + 5) * 0.025 - roadCamBank) * follow;
     camera.position.x = roadCamX;
     camera.position.y = roadCamY;
     camera.rotation.x = roadCamPitch;
@@ -2780,8 +2799,12 @@ function animate(t){
     camera.rotation.z = roadCamBank;
     // stars stream from the far back toward (and past) the camera
     roadStars.position.z = (nowSec * ROAD_STAR_SPEED) % ROAD_STAR_DEPTH;
-    // translucent spheres bob slowly on their own phases
-    roadFloaters.forEach(s => { s.position.y = s.userData.baseY + Math.sin(nowSec * 0.3 + s.userData.phase) * 1.3; });
+    // translucent spheres rise slowly from the valley floor: p*p is the
+    // ease-in (gentle lift-off, accelerating upward), looping per period
+    roadFloaters.forEach(s => {
+      const p = ((nowSec / s.userData.period) + s.userData.phase) % 1;
+      s.position.y = s.userData.startY + p * p * s.userData.rise;
+    });
   } else if (mistGroup.visible){
     // slow, endless drone flight over the cloud field: forward scroll
     // wraps seamlessly forever, and the camera drifts through every axis
@@ -2795,15 +2818,16 @@ function animate(t){
     camera.rotation.y = Math.sin(nowSec * 0.031) * 0.16;
     camera.rotation.z = Math.sin(nowSec * 0.043 + 4) * 0.05;
   } else if (downtownGroup.visible){
-    // slow glide down the block maze, drifting and rotating through the
-    // open middle - sway amplitudes stay well inside the slabs' reach
+    // wide-roaming glide through the big block maze: sweeping left/right/
+    // up/down travel plus all three rotations, still clear of the slabs'
+    // deepest reach into the corridor
     const nowSec = (t || 0) * 0.001;
     downtownGroup.position.z = (nowSec * DT_SPEED) % DT_CHUNK_LENGTH;
-    camera.position.x = Math.sin(nowSec * 0.05) * 1.8;
-    camera.position.y = Math.sin(nowSec * 0.042 + 1) * 1.6;
-    camera.rotation.x = Math.sin(nowSec * 0.036 + 2) * 0.08;
-    camera.rotation.y = Math.sin(nowSec * 0.03) * 0.14;
-    camera.rotation.z = Math.sin(nowSec * 0.04 + 4) * 0.1;
+    camera.position.x = Math.sin(nowSec * 0.05) * 14 + Math.sin(nowSec * 0.021 + 3) * 6;
+    camera.position.y = Math.sin(nowSec * 0.042 + 1) * 11 + Math.sin(nowSec * 0.017) * 5;
+    camera.rotation.x = Math.sin(nowSec * 0.036 + 2) * 0.1;
+    camera.rotation.y = Math.sin(nowSec * 0.03) * 0.22;
+    camera.rotation.z = Math.sin(nowSec * 0.04 + 4) * 0.12;
     // the reactive slabs breathe with the music (uIntensity is the same
     // smoothed audio level the sphere shader uses), each on its own phase
     const beat = panoUniforms.uIntensity.value;
@@ -3003,6 +3027,7 @@ $("#gate-btn").onclick = () => {
   tunnelGroup.visible = false; // intro-only tunnel hands off to the sphere (or the Polaroid road)
   tunnelLight.visible = false;
   camera.position.y = 0; // undo the tunnel's lowered viewpoint for the sphere's mouse-look
+  camera.position.z = 8; // undo the tunnel's deeper placement too
   updateArtistBackground(TRACKS[cur]);
   // .home-top/#lyrics/#wave-canvas were all display:none behind the gate,
   // so the very first positionWaveCanvas() (run from the initial resize()
