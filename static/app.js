@@ -248,6 +248,7 @@ function load(i, autoplay = true){
   if (fullLyricsOpen) buildFullLyrics();
   applyTheme(themeIndexForTrack(TRACKS[cur]));
   setBgVideoForTrack(TRACKS[cur]);
+  updateArtistBackground(TRACKS[cur]);
   if (autoplay) play(); else syncButtons();
 }
 function next(){ load(cur + 1); }
@@ -1721,8 +1722,9 @@ function rebuildPanoMesh(){
   panoMesh = new THREE.Mesh(buildPanoGeometry(aspect), panoMat);
   panoMesh.rotation.y = PANO_YAW_CENTER;
   // the sphere is reserved for the music screen - the intro shows the rock
-  // tunnel instead (see tunnelGroup below)
-  panoMesh.visible = !document.body.classList.contains("gate-active");
+  // tunnel instead (see tunnelGroup below), and Polaroid tracks show the
+  // synthwave road instead (see roadGroup/updateArtistBackground below)
+  panoMesh.visible = !document.body.classList.contains("gate-active") && !roadGroup.visible;
   scene.add(panoMesh);
   computePanoDistRange(panoMesh);
 }
@@ -1964,6 +1966,129 @@ const tunnelLight = new THREE.PointLight(0xffffff, 2.4, 70, 2);
 tunnelLight.position.set(0, 0, 7.5);
 tunnelLight.visible = document.body.classList.contains("gate-active");
 scene.add(tunnelLight);
+
+/* ---------- Polaroid-only synthwave road: replaces the sphere (never the
+   intro tunnel, which always wins during the gate regardless of which
+   track happens to be loaded underneath) whenever the current track's
+   artist is ROAD_ARTIST_NAME. A neon RGB grid road that curves left/right
+   and dips down/up in smooth, seamlessly-looping curves (same "one
+   randomized chunk, tiled and scrolled" trick as tunnelGroup), with a
+   drone-close camera that banks into the turns to follow it, and floating
+   RGB cubes scattered alongside - see updateArtistBackground() for the
+   swap and the roadGroup.visible branch in animate() for the camera. */
+const ROAD_ARTIST_NAME = "Polaroid";
+const ROAD_SEG_LENGTH = 6;
+const ROAD_CHUNK_SEGS = 24;
+const ROAD_REPEATS = 3;
+const ROAD_WIDTH = 9;
+const ROAD_CHUNK_LENGTH = ROAD_SEG_LENGTH * ROAD_CHUNK_SEGS;
+const ROAD_SPEED = 17;
+const ROAD_CAM_HEIGHT = 2.4; // how far above the road surface the drone camera hovers
+const ROAD_CUBE_COUNT = 60;
+const ROAD_RGB = [0xff2d55, 0x2dff7a, 0x2d8bff].map(c => new THREE.Color(c)); // neon red, green, blue
+function roadColorForSeg(seg, out){ return out.copy(ROAD_RGB[((seg % 3) + 3) % 3]); }
+// one chunk's worth of road-centerline offsets - integer-multiple sine
+// combos are exactly periodic over ROAD_CHUNK_SEGS samples, so repeats
+// tile with zero seam (same guarantee the tunnel's chunkRadii relies on):
+// curves left/right in x, dips/rises in y
+const roadChunkOffsets = [];
+for (let s = 0; s < ROAD_CHUNK_SEGS; s++){
+  const a = (s / ROAD_CHUNK_SEGS) * Math.PI * 2;
+  roadChunkOffsets.push({
+    x: Math.sin(a * 2) * 6 + Math.sin(a * 5) * 2,
+    y: Math.sin(a) * 6.5 + Math.sin(a * 3) * 2.6,
+  });
+}
+// continuous sampler (not limited to segment boundaries) used both to build
+// the road geometry and, every frame, to figure out where the drone camera
+// should currently be sitting
+function roadOffsetAt(dist){
+  const wrapped = ((dist % ROAD_CHUNK_LENGTH) + ROAD_CHUNK_LENGTH) % ROAD_CHUNK_LENGTH;
+  const segF = wrapped / ROAD_SEG_LENGTH;
+  const i0 = Math.floor(segF) % ROAD_CHUNK_SEGS;
+  const i1 = (i0 + 1) % ROAD_CHUNK_SEGS;
+  const t = segF - Math.floor(segF);
+  const a = roadChunkOffsets[i0], b = roadChunkOffsets[i1];
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+}
+function buildRoadGeometry(){
+  const totalSegs = ROAD_CHUNK_SEGS * ROAD_REPEATS;
+  const centers = [];
+  for (let s = 0; s <= totalSegs; s++){
+    const off = roadChunkOffsets[s % ROAD_CHUNK_SEGS];
+    centers.push({ x: off.x, y: off.y, z: -s * ROAD_SEG_LENGTH });
+  }
+  const positions = [], colors = [];
+  const tmpColor = new THREE.Color();
+  const pushSeg = (ax, ay, az, bx, by, bz, seg) => {
+    roadColorForSeg(seg, tmpColor);
+    positions.push(ax, ay, az, bx, by, bz);
+    colors.push(tmpColor.r, tmpColor.g, tmpColor.b, tmpColor.r, tmpColor.g, tmpColor.b);
+  };
+  for (let s = 0; s < totalSegs; s++){
+    const c0 = centers[s], c1 = centers[s + 1];
+    pushSeg(c0.x - ROAD_WIDTH / 2, c0.y, c0.z, c1.x - ROAD_WIDTH / 2, c1.y, c1.z, s); // left edge
+    pushSeg(c0.x + ROAD_WIDTH / 2, c0.y, c0.z, c1.x + ROAD_WIDTH / 2, c1.y, c1.z, s); // right edge
+  }
+  for (let s = 0; s <= totalSegs; s++){
+    const c = centers[s];
+    pushSeg(c.x - ROAD_WIDTH / 2, c.y, c.z, c.x + ROAD_WIDTH / 2, c.y, c.z, s); // rung
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  return geo;
+}
+// generated once per chunk, then tiled ROAD_REPEATS times at identical
+// relative offsets (like the road grid itself) so the scroll wrap never
+// causes the cube field to visibly jump
+function buildRoadCubes(group){
+  const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+  const perChunk = Math.round(ROAD_CUBE_COUNT / ROAD_REPEATS);
+  const template = [];
+  for (let i = 0; i < perChunk; i++){
+    const side = Math.random() < 0.5 ? -1 : 1;
+    const distFromRoad = ROAD_WIDTH / 2 + 3 + Math.random() * 14;
+    const localZ = -Math.random() * ROAD_CHUNK_LENGTH;
+    const off = roadChunkOffsets[Math.floor(-localZ / ROAD_SEG_LENGTH) % ROAD_CHUNK_SEGS];
+    template.push({
+      x: off.x + side * distFromRoad,
+      y: off.y + (Math.random() - 0.25) * 11,
+      z: localZ,
+      color: ROAD_RGB[i % 3],
+      scale: 0.6 + Math.random() * 1.8,
+      spin: { x: (Math.random() - 0.5) * 0.6, y: (Math.random() - 0.5) * 0.6 },
+    });
+  }
+  const cubes = [];
+  for (let rep = 0; rep < ROAD_REPEATS; rep++){
+    template.forEach(tpl => {
+      const cube = new THREE.Mesh(boxGeo, new THREE.MeshBasicMaterial({ color: tpl.color, transparent: true, opacity: 0.85 }));
+      cube.scale.setScalar(tpl.scale);
+      cube.position.set(tpl.x, tpl.y, tpl.z - rep * ROAD_CHUNK_LENGTH);
+      cube.userData.spin = tpl.spin;
+      group.add(cube);
+      cubes.push(cube);
+    });
+  }
+  return cubes;
+}
+const roadGroup = new THREE.Group();
+const roadLinesMat = new THREE.LineBasicMaterial({ vertexColors: true, blending: THREE.AdditiveBlending, transparent: true });
+roadGroup.add(new THREE.LineSegments(buildRoadGeometry(), roadLinesMat));
+const roadCubes = buildRoadCubes(roadGroup);
+roadGroup.visible = false; // only ever shown post-gate, and only for ROAD_ARTIST_NAME - see updateArtistBackground()
+scene.add(roadGroup);
+// swaps the sphere for the road whenever the current track's artist
+// matches; called on every track load (see load()) and once more from the
+// gate handoff, since the very first "current" track is only known then
+function updateArtistBackground(tr){
+  const gateActive = document.body.classList.contains("gate-active");
+  const wantRoad = !gateActive && !!tr && tr.artist === ROAD_ARTIST_NAME;
+  roadGroup.visible = wantRoad;
+  if (panoMesh) panoMesh.visible = !gateActive && !wantRoad;
+}
+
 panoVideoEl.addEventListener("loadedmetadata", () => { if (currentPanoKind === "video") rebuildPanoMesh(); });
 panoGifImg.addEventListener("load", () => {
   panoGifCanvas.width = panoGifImg.naturalWidth;
@@ -2188,6 +2313,32 @@ function animate(t){
     tunnelGroup.rotation.z = (nowSec / 9) * Math.PI * 2;
   }
 
+  if (roadGroup.visible){
+    // drone-follow: the camera itself weaves/dips to match the road's own
+    // curve instead of the usual mouse-look drift (overridden below), while
+    // the road geometry scrolls toward it exactly like the tunnel does
+    const nowSec = (t || 0) * 0.001;
+    const dist = nowSec * ROAD_SPEED;
+    roadGroup.position.z = dist % ROAD_CHUNK_LENGTH;
+    const here = roadOffsetAt(dist);
+    const ahead = roadOffsetAt(dist + 4);
+    camera.position.x = here.x;
+    camera.position.y = here.y + ROAD_CAM_HEIGHT;
+    // deliberately disconnected from audio/mouse - a fixed drone look-down
+    // tilt plus a bank into each turn, driven only by the road's own curve
+    camera.rotation.x = -0.28;
+    camera.rotation.y = 0;
+    camera.rotation.z = -Math.atan2(ahead.x - here.x, 4) * 1.4;
+    roadCubes.forEach(c => { c.rotation.x += c.userData.spin.x * 0.016; c.rotation.y += c.userData.spin.y * 0.016; });
+  } else {
+    // only the road branch above ever touches these two - reset them so a
+    // track change away from the road doesn't leave the sphere/tunnel view
+    // stuck mid-turn
+    camera.position.x = 0;
+    camera.rotation.z = 0;
+    camera.position.y = tunnelGroup.visible ? -1.1 : 0;
+  }
+
   if (currentPanoKind === "video"){
     if (panoVideoEl.readyState >= panoVideoEl.HAVE_CURRENT_DATA) panoTexture.needsUpdate = true;
   } else if (currentPanoKind === "gif" && panoGifCanvas.width){
@@ -2361,10 +2512,10 @@ $("#gate-btn").onclick = () => {
   $("#gate").classList.add("hidden");
   document.body.classList.remove("gate-active");
   panoUniforms.uGate.value = 0; // restore the sphere's shader effects for the music screen
-  tunnelGroup.visible = false; // intro-only tunnel hands off to the sphere
+  tunnelGroup.visible = false; // intro-only tunnel hands off to the sphere (or the Polaroid road)
   tunnelLight.visible = false;
   camera.position.y = 0; // undo the tunnel's lowered viewpoint for the sphere's mouse-look
-  if (panoMesh) panoMesh.visible = true;
+  updateArtistBackground(TRACKS[cur]);
   // .home-top/#lyrics/#wave-canvas were all display:none behind the gate,
   // so the very first positionWaveCanvas() (run from the initial resize()
   // at boot) measured zero-size rects - redo it now that they're visible
