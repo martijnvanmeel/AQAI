@@ -2021,6 +2021,23 @@ $("#btn-sphere-control").onclick = e => {
 $("#pano-prev").onclick = () => showPanoAt(panoManualIndex - 1);
 $("#pano-next").onclick = () => showPanoAt(panoManualIndex + 1);
 
+/* fullscreen toggle - top-left corner, mirrors #btn-sphere-control's
+   top-right spacing. Icon/aria state follows the real fullscreen state
+   (via fullscreenchange) rather than being flipped optimistically, so it
+   stays correct even if the browser exits fullscreen on its own (Escape key) */
+function updateFullscreenBtn(){
+  const on = !!document.fullscreenElement;
+  const btn = $("#btn-fullscreen");
+  btn.classList.toggle("on", on);
+  btn.setAttribute("aria-pressed", on ? "true" : "false");
+  btn.setAttribute("aria-label", on ? "Exit fullscreen" : "Enter fullscreen");
+}
+$("#btn-fullscreen").onclick = () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen().catch(() => toast("Fullscreen isn't available"));
+};
+document.addEventListener("fullscreenchange", updateFullscreenBtn);
+
 // the intro/gate screen shows this specific clip (reserved via
 // INTRO_PANO_FILE, excluded from regular playback rotation) on the shared
 // panorama sphere until the listener taps in, at which point load() picks

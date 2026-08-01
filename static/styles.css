@@ -146,6 +146,15 @@ body.gate-active::after{display:none}
    steering the sphere with the mouse (auto music-reactive drift otherwise) */
 #btn-sphere-control{position:fixed;top:10px;right:10px;z-index:3}
 #btn-sphere-control.on{background:var(--artist-color, var(--active-green));color:#000000;border-color:var(--artist-color, var(--active-green))}
+/* fullscreen toggle - same fixed top-corner spacing as #btn-sphere-control,
+   mirrored to the left. Shows the "enter fullscreen" (expand) icon while
+   off, swaps to "exit fullscreen" (compress) once .on - see the
+   fullscreenchange listener in app.js */
+#btn-fullscreen{position:fixed;top:10px;left:10px;z-index:3}
+#btn-fullscreen.on{background:var(--artist-color, var(--active-green));color:#000000;border-color:var(--artist-color, var(--active-green))}
+#btn-fullscreen .fs-icon-on{display:none}
+#btn-fullscreen.on .fs-icon-off{display:none}
+#btn-fullscreen.on .fs-icon-on{display:block}
 .gate-btn{
   font-family:var(--font-display);font-weight:600;font-size:13px;letter-spacing:.2em;
   color:var(--bg);background:var(--object);
@@ -461,9 +470,10 @@ body.gate-active::after{display:none}
   font-family:var(--font-title);font-weight:400;text-transform:none;white-space:normal;
   /* the old single-line-only line-height (calc(0.3375em - 1.25px), well
      under the font's own glyph height) made a wrapped second line overlap
-     the first once white-space allowed wrapping - 1.3 give a wrapped row
-     room to breathe while still reading tight on the common single-line case */
-  font-size:clamp(16.5px,4.4vw,24.2px);line-height:1.3;
+     the first once white-space allowed wrapping - 1.3em gives a wrapped row
+     room to breathe while still reading tight on the common single-line case;
+     5px shaved back off on top of that */
+  font-size:clamp(16.5px,4.4vw,24.2px);line-height:calc(1.3em - 5px);
   padding:1px 0;
   color:#000000;
   transition:color .25s ease;
