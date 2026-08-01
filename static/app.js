@@ -2200,9 +2200,14 @@ const roadPoolTexture = (() => {
   return new THREE.CanvasTexture(cv);
 })();
 const roadBallPulses = []; // {ball, pool, phase} - gentle pulse in animate()
+// shared ball material, kept as named refs so animate() can fade the red
+// toward white with the music level
+const roadBallMat = new THREE.MeshBasicMaterial({ color: 0xff4038 });
+const ROAD_BALL_RED = new THREE.Color(0xff4038);
+const ROAD_BALL_WHITE = new THREE.Color(0xffffff);
 function buildRoadBalls(group){
   const ballGeo = new THREE.SphereGeometry(0.26, 12, 10);
-  const ballMat = new THREE.MeshBasicMaterial({ color: 0xff4038 });
+  const ballMat = roadBallMat;
   const poolMat = new THREE.MeshBasicMaterial({ map: roadPoolTexture, transparent: true,
     blending: THREE.AdditiveBlending, depthWrite: false });
   const poolGeo = new THREE.PlaneGeometry(9, 9);
@@ -2938,12 +2943,15 @@ function animate(t){
     // the road itself brightens up to 25% with the music (uIntensity is
     // the same smoothed audio level the other visualisers use)
     if (roadStripMat) roadStripMat.color.setScalar(1 + panoUniforms.uIntensity.value * 0.25);
-    // red balls and their cast-light pools breathe gently, each on its own phase
+    // red balls and their cast-light pools breathe gently, each on its own
+    // phase - and the balls themselves fade from red toward white as the
+    // music gets louder
     roadBallPulses.forEach(p => {
       const s = 1 + Math.sin(nowSec * 1.4 + p.phase) * 0.12;
       p.ball.scale.setScalar(s);
       p.pool.scale.setScalar(s);
     });
+    roadBallMat.color.copy(ROAD_BALL_RED).lerp(ROAD_BALL_WHITE, Math.min(1, panoUniforms.uIntensity.value * 1.2));
   } else if (mistGroup.visible){
     // endless drone flight THROUGH the cloud field, in the same style as
     // the Polaroid road: the camera lerp-follows an invisible curving
