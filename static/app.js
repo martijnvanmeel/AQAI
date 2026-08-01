@@ -557,7 +557,6 @@ let flBuiltForTrack = -1;
 function buildFullLyrics(){
   const tr = TRACKS[cur];
   const list = $("#lf-list");
-  const overlay = $("#lyrics-full");
   list.innerHTML = "";
   flRowEls = [];
   flBuiltForTrack = cur;
@@ -571,35 +570,113 @@ function buildFullLyrics(){
   // sentence plus the head of the next). Rebuild whole sentences by
   // streaming every word and starting a fresh sentence at each capitalised
   // word (that's where an original lyric line began) - except "I" and its
-  // contractions (I'm/I've/I'll/I'd), which are always capitalised.
+  // contractions (I'm/I've/I'll/I'd), which are always capitalised. Kept as
+  // the full {w,t} objects (not just the text) so an edit can reuse the
+  // original per-word timestamps - see beginEditLyricRow().
   const allWords = [];
-  tr.lines.forEach(L => (L.words || []).forEach(w => allWords.push(w.w)));
+  tr.lines.forEach(L => (L.words || []).forEach(w => allWords.push(w)));
   const sentences = [];
   allWords.forEach((w, i) => {
-    const startsNewSentence = i > 0 && /^[A-Z]/.test(w) && !/^I(?:'|$)/.test(w);
+    const startsNewSentence = i > 0 && /^[A-Z]/.test(w.w) && !/^I(?:'|$)/.test(w.w);
     if (startsNewSentence || !sentences.length) sentences.push([]);
     sentences[sentences.length - 1].push(w);
   });
   sentences.forEach(words => {
     const row = document.createElement("div");
     row.className = "lf-row";
-    row.innerHTML = words.map(w => `<span class="w">${w}</span>`).join("");
+    row.innerHTML = words.map(w => `<span class="w">${w.w}</span>`).join("");
+    row._words = words;
+    row.addEventListener("click", () => beginEditLyricRow(row));
     list.appendChild(row);
     flRowEls.push(row);
   });
 
-  // the card is sized off the widest sentence instead of a fixed
-  // percentage, so every line renders in full on one line at its
-  // natural size, with 20% of that width added as breathing room on
-  // each side - this can make the card wider than the screen itself,
-  // which is intentional (see #lyrics-full-backdrop for the full-screen
-  // dimming layer behind it)
+  resizeLyricsFullCard();
+}
+// the card is sized off the widest sentence instead of a fixed percentage,
+// so every line renders in full on one line at its natural size - but never
+// wider than the viewport minus a 10px margin on each side (#lyrics-full is
+// centered via left:50%/translateX(-50%), so capping the width alone keeps
+// that 10px gap symmetric). A sentence wider than that available space
+// wraps onto extra lines within its own row instead (see .lf-row's
+// white-space:normal) rather than overflowing past the screen edge.
+// Re-run after an edit too, since the edited row's own width can change.
+function resizeLyricsFullCard(){
+  const overlay = $("#lyrics-full");
   let maxWidth = 0;
   flRowEls.forEach(row => { maxWidth = Math.max(maxWidth, row.scrollWidth); });
   const listPaddingX = 46; // #lf-list's own left+right padding (38 left + 8 right) - as tight as the 38px-left/close-button constraints allow
   const scrollbarW = 35.7; // custom scrollbar channel width (see #lf-list::-webkit-scrollbar)
-  // width = exactly the longest sentence (+ padding + scrollbar), no extra
-  overlay.style.width = (maxWidth + listPaddingX + scrollbarW) + "px";
+  const viewportCap = window.innerWidth - 20; // 10px clear on each side, always
+  overlay.style.width = Math.min(maxWidth + listPaddingX + scrollbarW, viewportCap) + "px";
+}
+/* click-to-edit a sentence (local-only, see EDITABLE/#lf-list.editable):
+   swaps the row's word spans for a plain input pre-filled with its text;
+   blur/Enter saves, Escape cancels back to the original. If the edited
+   word count matches the original, every word keeps its own original
+   timestamp (a typo fix stays perfectly in sync); otherwise the new words
+   are spread evenly across the sentence's own original time span. */
+let lyricRowEditCancelled = false;
+let lyricRowSaveInFlight = false;
+function beginEditLyricRow(row){
+  if (!$("#lf-list").classList.contains("editable") || lyricRowSaveInFlight) return;
+  if (row.querySelector("input")) return;
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "lf-row-edit-input";
+  input.value = row._words.map(w => w.w).join(" ");
+  row.textContent = "";
+  row.appendChild(input);
+  input.focus();
+  input.select();
+  input.addEventListener("blur", () => commitEditLyricRow(row, input));
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter"){ e.preventDefault(); e.target.blur(); }
+    else if (e.key === "Escape"){ lyricRowEditCancelled = true; e.target.blur(); }
+  });
+}
+function renderLyricRowWords(row){
+  row.innerHTML = row._words.map(w => `<span class="w">${w.w}</span>`).join("");
+}
+function commitEditLyricRow(row, input){
+  const cancelled = lyricRowEditCancelled;
+  lyricRowEditCancelled = false;
+  const newText = input.value.trim();
+  const originalText = row._words.map(w => w.w).join(" ");
+  if (cancelled || !newText || newText === originalText){
+    renderLyricRowWords(row);
+    return;
+  }
+  const newWords = newText.split(/\s+/).filter(Boolean);
+  const origWords = row._words;
+  if (newWords.length === origWords.length){
+    row._words = newWords.map((w, i) => ({ w, t: origWords[i].t }));
+  } else {
+    const rowIdx = flRowEls.indexOf(row);
+    const nextRow = flRowEls[rowIdx + 1];
+    const start = origWords[0].t;
+    const end = nextRow ? nextRow._words[0].t : origWords[origWords.length - 1].t + 1.5;
+    const per = Math.max(0.3, end - start) / newWords.length;
+    row._words = newWords.map((w, i) => ({ w, t: +(start + i * per).toFixed(2) }));
+  }
+  renderLyricRowWords(row);
+  resizeLyricsFullCard();
+  saveEditedLyrics();
+}
+function saveEditedLyrics(){
+  const tr = TRACKS[cur];
+  if (!tr) return;
+  const lines = flRowEls.map(row => ({ words: row._words }));
+  tr.lines = lines;
+  tr._displayLines = null; // force computeDisplayLines() to re-wrap from the edited words
+  lyricRowSaveInFlight = true;
+  fetch(`/api/sync/${tr.id}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ lines }),
+  }).then(() => toast("Lyrics saved"))
+    .catch(() => toast("Could not save lyrics"))
+    .finally(() => { lyricRowSaveInFlight = false; });
 }
 function updateFullLyrics(li, tt, tr){
   // the full-lyrics overlay shows plain text only - no active-line
@@ -651,7 +728,7 @@ function closeFullLyrics(){
   $("#lyrics-full-backdrop").classList.remove("open");
   $("#lyrics").style.visibility = "";
 }
-addEventListener("resize", () => { if (fullLyricsOpen) positionLyricsFull(); positionBgGradient(); });
+addEventListener("resize", () => { if (fullLyricsOpen){ resizeLyricsFullCard(); positionLyricsFull(); } positionBgGradient(); });
 $("#btn-fulllyrics").onclick = () => fullLyricsOpen ? closeFullLyrics() : openFullLyrics();
 $("#lf-close").onclick = closeFullLyrics;
 // reveal the lyrics scrollbar only while the user is actively scrolling
@@ -898,6 +975,7 @@ async function saveTitle(tr, title){
       tr.title = title;
       renderMeta();
       renderList();
+      if (fullLyricsOpen) $("#lf-title").textContent = title;
       toast("Song renamed");
     } else {
       toast(data.error || "Could not rename song");
@@ -950,6 +1028,7 @@ async function saveArtist(tr, name){
       TRACKS.forEach(t => { if (t.folder === tr.folder) t.artist = name; });
       renderMeta();
       renderList();
+      if (fullLyricsOpen) $("#lf-folder").textContent = name;
       toast("Artist renamed");
     } else {
       toast(data.error || "Could not rename artist");
@@ -984,6 +1063,61 @@ $("#m-folder-input").addEventListener("keydown", e => {
   if (e.key === "Enter"){ e.preventDefault(); e.target.blur(); }
   else if (e.key === "Escape"){ artistEditCancelled = true; e.target.blur(); }
 });
+
+/* same rename pattern again, but on the lyrics-full overlay's own header -
+   the main .meta row sits behind the overlay's backdrop while it's open, so
+   its pencils/input aren't usable from in here; these are a separate pair
+   of pencils/inputs wired to the exact same saveTitle()/saveArtist() calls
+   so the two views never drift out of sync */
+function lfBeginEditTitle(){
+  const tr = TRACKS[cur];
+  if (!tr || renameInFlight) return;
+  const input = $("#lf-title-input");
+  input.value = tr.title;
+  $(".lf-meta").classList.add("editing-title");
+  input.focus();
+  input.select();
+}
+let lfTitleEditCancelled = false;
+function lfCommitEditTitle(){
+  $(".lf-meta").classList.remove("editing-title");
+  if (lfTitleEditCancelled){ lfTitleEditCancelled = false; return; }
+  const tr = TRACKS[cur];
+  const title = $("#lf-title-input").value.trim();
+  if (!tr || !title || title === tr.title) return;
+  saveTitle(tr, title);
+}
+$("#lf-btn-edit-title").onclick = lfBeginEditTitle;
+$("#lf-title-input").addEventListener("blur", lfCommitEditTitle);
+$("#lf-title-input").addEventListener("keydown", e => {
+  if (e.key === "Enter"){ e.preventDefault(); e.target.blur(); }
+  else if (e.key === "Escape"){ lfTitleEditCancelled = true; e.target.blur(); }
+});
+function lfBeginEditArtist(){
+  const tr = TRACKS[cur];
+  if (!tr || renameInFlight) return;
+  const input = $("#lf-folder-input");
+  input.value = tr.artist;
+  $(".lf-meta").classList.add("editing-artist");
+  input.focus();
+  input.select();
+}
+let lfArtistEditCancelled = false;
+function lfCommitEditArtist(){
+  $(".lf-meta").classList.remove("editing-artist");
+  if (lfArtistEditCancelled){ lfArtistEditCancelled = false; return; }
+  const tr = TRACKS[cur];
+  const name = $("#lf-folder-input").value.trim();
+  if (!tr || !name || name === tr.artist) return;
+  saveArtist(tr, name);
+}
+$("#lf-btn-edit-artist").onclick = lfBeginEditArtist;
+$("#lf-folder-input").addEventListener("blur", lfCommitEditArtist);
+$("#lf-folder-input").addEventListener("keydown", e => {
+  if (e.key === "Enter"){ e.preventDefault(); e.target.blur(); }
+  else if (e.key === "Escape"){ lfArtistEditCancelled = true; e.target.blur(); }
+});
+$("#lf-btn-delete").onclick = () => { closeFullLyrics(); deleteCurrentSong(); };
 
 /* mute */
 
@@ -1190,7 +1324,10 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 stage.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 900);
+// wider FOV than a typical 50deg lens - the curved sphere/pano patch reads
+// with noticeably more depth/perspective as a result (affects the intro
+// tunnel too, since they share this one camera)
+const camera = new THREE.PerspectiveCamera(68, 1, 0.1, 900);
 camera.position.z = 8.0;
 // lowered while the intro tunnel is up - a lower viewpoint makes the nearby
 // tunnel walls sweep past faster in the visual field, reading as more speed.
@@ -1514,10 +1651,11 @@ panoMat.onBeforeCompile = shader => {
       // from center, 0 at the middle up to ~0.5 at a corner)
       float aqaiVignette = clamp(1.0 - smoothstep(0.0, 0.5, aqaiR2) * 0.984375, 0.0, 1.0);
       gl_FragColor.rgb *= mix(aqaiVignette, 1.0, uGate);
-      // overall sphere/background brightness - 30% darker than the
-      // original footage, then another 30% darker on top of that (0.7 * 0.7)
-      // on the music screen; the intro sphere is dimmed to 20% visible
-      gl_FragColor.rgb *= mix(0.49, 0.2, uGate);`);
+      // overall sphere/background brightness on the music screen - less
+      // heavily dimmed than before (was 0.49) so the video reads clearly
+      // instead of muddy; the intro sphere is unused now (see tunnelGroup)
+      // but its 0.2 dim is kept as-is in case uGate is ever driven again
+      gl_FragColor.rgb *= mix(0.78, 0.2, uGate);`);
 };
 // a gently curved patch (not flat): a flat rectangle sized to the
 // camera's native FOV crops during mouse-look (revealing an edge), and
@@ -2066,6 +2204,8 @@ fetch("/api/tracks").then(r => r.json()).then(data => {
     _lyricsLoaded: false,
   }));
   $("#info-count").textContent = TRACKS.length;
+  EDITABLE = !!data.editable;
+  updateEditControlsVisibility();
   renderMeta(); renderList(); syncButtons();
   ensureLyricsLoaded(cur);
   if (TRACKS.length) applyTheme(themeIndexForTrack(TRACKS[cur]));
@@ -2156,12 +2296,29 @@ const GATE_PASSWORD_RESTRICTED = "aqai2026";
 const GATE_PASSWORD_FULL = "aqaimusic";
 // hidden entirely in restricted mode; #btn-sphere-control deliberately isn't
 // here - it stays visible in both modes (it's a view control, not editing)
-const OWNER_ONLY_SELECTORS = ["#pano-btns", "#btn-delete"];
-function applyAccessMode(restricted){
+const OWNER_ONLY_SELECTORS = [
+  "#pano-btns", "#btn-delete", "#btn-edit-title", "#btn-edit-artist", "#lf-edit-btns",
+];
+// true only when the server confirms this request never crossed the public
+// reverse proxy (see "editable" on /api/tracks and _is_public_request() in
+// server.py) - the real boundary; the restricted password above is just a
+// convenience toggle for viewing the restricted look while running locally.
+// Editing controls (rename/delete/lyrics) need BOTH: locally-served AND not
+// in restricted mode.
+let EDITABLE = false;
+let restrictedMode = false;
+function updateEditControlsVisibility(){
+  const hide = restrictedMode || !EDITABLE;
   OWNER_ONLY_SELECTORS.forEach(sel => {
     const el = document.querySelector(sel);
-    if (el) el.style.display = restricted ? "none" : "";
+    if (el) el.style.display = hide ? "none" : "";
   });
+  const lfList = $("#lf-list");
+  if (lfList) lfList.classList.toggle("editable", !hide);
+}
+function applyAccessMode(restricted){
+  restrictedMode = restricted;
+  updateEditControlsVisibility();
 }
 if (!GATE_PASSWORD_ENABLED){
   $("#gate-password-form").style.display = "none";

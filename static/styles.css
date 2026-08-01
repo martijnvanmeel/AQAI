@@ -357,6 +357,9 @@ body.gate-active::after{display:none}
 }
 .lyric-row.near .w{opacity:.285}
 .lyric-row.active-row .w{color:color-mix(in srgb, var(--artist-color, var(--active-green)) 70%, black);opacity:1}
+@media (max-width:640px){
+  #lyrics{transform:translateY(calc(-50% - 110px)) scale(1.5)}
+}
 
 /* full lyrics overlay */
 /* a floating vertical card over the Home screen: sits 40px below the
@@ -407,6 +410,29 @@ body.gate-active::after{display:none}
 .lf-title{font-family:var(--font-title);font-weight:700;font-size:31.2px;text-transform:uppercase;color:color-mix(in srgb, var(--artist-color, var(--active-green)) 75%, black)}
 .lf-by{font-family:var(--font-title);font-weight:400;font-size:21.84px;text-transform:uppercase;color:#666666}
 .lf-sub{font-family:var(--font-title);font-weight:400;font-size:31.2px;text-transform:uppercase;color:color-mix(in srgb, var(--artist-color, var(--active-green)) 75%, black)}
+/* rename-in-place on the overlay itself - same pattern as .title-edit-input
+   on the main player (see beginEditTitle()/commitEditTitle()), sized to
+   match .lf-title/.lf-sub instead of the smaller .meta pill text */
+.lf-edit-input{
+  display:none;
+  font-family:var(--font-title);font-weight:700;font-size:31.2px;text-transform:uppercase;
+  min-width:0;width:min(50vw,360px);
+  color:#000000;
+  background:transparent;border:none;border-bottom:1.5px solid var(--artist-color, var(--active-green));outline:none;
+  padding:0;
+}
+.lf-meta.editing-title #lf-title{display:none}
+.lf-meta.editing-title #lf-title-input{display:inline-block}
+.lf-meta.editing-title #lf-btn-edit-title{display:none}
+.lf-meta.editing-artist #lf-folder{display:none}
+.lf-meta.editing-artist #lf-folder-input{display:inline-block}
+.lf-meta.editing-artist #lf-btn-edit-artist{display:none}
+/* owner-only cluster (rename pencils + delete) - hidden entirely unless
+   the server says this request is local AND the gate password wasn't the
+   restricted one (see EDITABLE/updateEditControlsVisibility() in app.js) */
+.lf-edit-btns{display:flex;align-items:center;gap:6px;margin-left:auto}
+.lf-edit-btns .util-btn{width:26px;height:26px;border-radius:9px}
+.lf-edit-btns .util-btn svg{width:13px;height:13px}
 #lf-list{
   flex:1;overflow-y:auto;padding:20px 8px 20px 38px; /* text nudged 2px left */
   /* 20px top padding keeps the first line (tight line-height) from being
@@ -432,8 +458,12 @@ body.gate-active::after{display:none}
 #lf-list:hover::-webkit-scrollbar-thumb,
 #lf-list.scrolling::-webkit-scrollbar-thumb{background:#d9d9d9}
 .lf-row{
-  font-family:var(--font-title);font-weight:400;text-transform:none;white-space:nowrap;
-  font-size:clamp(16.5px,4.4vw,24.2px);line-height:calc(0.3375em - 1.25px);
+  font-family:var(--font-title);font-weight:400;text-transform:none;white-space:normal;
+  /* the old single-line-only line-height (calc(0.3375em - 1.25px), well
+     under the font's own glyph height) made a wrapped second line overlap
+     the first once white-space allowed wrapping - 1.3 give a wrapped row
+     room to breathe while still reading tight on the common single-line case */
+  font-size:clamp(16.5px,4.4vw,24.2px);line-height:1.3;
   padding:1px 0;
   color:#000000;
   transition:color .25s ease;
@@ -443,6 +473,16 @@ body.gate-active::after{display:none}
   color:inherit;
 }
 .lf-row.current{color:var(--lyric-active)}
+/* editable lyrics (local-only, see EDITABLE in app.js): rows get a subtle
+   hover affordance, click-to-edit swaps the row's text for a plain input
+   sized/styled to match (see beginEditLyricRow()/commitEditLyricRow()) */
+#lf-list.editable .lf-row{cursor:pointer;border-radius:6px;transition:background-color .15s ease,color .25s ease}
+#lf-list.editable .lf-row:hover{background:rgba(0,0,0,.06)}
+.lf-row-edit-input{
+  font:inherit;color:inherit;text-transform:inherit;
+  width:100%;background:transparent;border:none;border-bottom:1.5px solid var(--artist-color, var(--active-green));outline:none;
+  padding:1px 0;
+}
 .lf-gap{height:22px}
 
 /* bottom player block */
@@ -639,6 +679,8 @@ body.gate-active::after{display:none}
      wider text pill, so all three side buttons match */
   #btn-fulllyrics{width:30.4px;padding:0}
   #btn-fulllyrics span{display:none}
+  /* 80% of the full-size photo (167.0625px * 1.32 scale) */
+  .artist-photo-wrap{transform:translateY(-43px) scale(1.056)}
 }
 
 /* true mobile: exactly 15px from the actual screen edge (not the wider

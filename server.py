@@ -389,7 +389,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == "/api/tracks":
             tracks = refresh_index()
             public = [{k: v for k, v in t.items() if k not in ("_path", "_karaoke_path", "_meta_path")} for t in tracks]
-            self._send_json({"tracks": public})
+            # same local-vs-public boundary the POST edit endpoints already
+            # enforce (see _is_public_request) - told to the client so it can
+            # hide rename/delete/lyrics-edit controls it can't actually use
+            self._send_json({"tracks": public, "editable": not self._is_public_request()})
             return
 
         if path == "/api/panoramas":
