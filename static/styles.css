@@ -229,6 +229,17 @@ body.gate-active::after{display:none}
 /* ============================ HOME ============================ */
 #view-home{overflow:hidden}
 #stage{position:fixed;inset:0;z-index:0}
+/* the 3D environments' screen treatment: instead of the sphere's shader-
+   baked CRT scanlines, a plain vertical grid of 1px lines at 50% alpha
+   over the whole stage. Shown only while a 3D scene is up - the per-artist
+   worlds (body.scene-3d, toggled in updateArtistBackground()) and the
+   intro tunnel (body.gate-active) */
+#grid-overlay{
+  position:fixed;inset:0;z-index:1;pointer-events:none;display:none;
+  background:repeating-linear-gradient(90deg, rgba(0,0,0,.5) 0 1px, transparent 1px 4px);
+}
+body.scene-3d #grid-overlay,
+body.gate-active #grid-overlay{display:block}
 /* full-screen tint in the current track's artist color, sitting right on
    top of the 3D sphere/background video (z-index:0) but below every
    other overlay/UI layer (z-index:1+) - color set per-track in
