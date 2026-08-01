@@ -1333,9 +1333,9 @@ const scene = new THREE.Scene();
 // tunnel too, since they share this one camera)
 const camera = new THREE.PerspectiveCamera(68, 1, 0.1, 900);
 camera.position.z = 8.0;
-// in the scene graph (rather than the usual standalone camera) purely so a
-// light can be parked as its child - see roadLight - and still get
-// collected by the renderer's per-scene light pass
+// in the scene graph (rather than the usual standalone camera) so any
+// future camera-child objects (lights, HUD meshes) get collected by the
+// renderer's per-scene pass; currently nothing rides it, and it's harmless
 scene.add(camera);
 // lowered while the intro tunnel is up - a lower viewpoint makes the nearby
 // tunnel walls sweep past faster in the visual field, reading as more speed.
@@ -1974,196 +1974,204 @@ tunnelLight.position.set(0, 0, 7.5);
 tunnelLight.visible = document.body.classList.contains("gate-active");
 scene.add(tunnelLight);
 
-/* ---------- Polaroid-only synthwave road: replaces the sphere (never the
-   intro tunnel, which always wins during the gate regardless of which
-   track happens to be loaded underneath) whenever the current track's
-   artist is ROAD_ARTIST_NAME. A neon RGB grid road that curves left/right
-   and dips down/up in smooth, seamlessly-looping curves (same "one
-   randomized chunk, tiled and scrolled" trick as tunnelGroup), with a
-   drone-close camera that banks into the turns to follow it, and floating
-   RGB cubes scattered alongside - see updateArtistBackground() for the
-   swap and the roadGroup.visible branch in animate() for the camera. */
+/* ---------- Polaroid-only outrun world: replaces the sphere (never the
+   intro tunnel, which always wins during the gate) whenever the current
+   track's artist is ROAD_ARTIST_NAME. Modeled on classic synthwave album
+   art: a big striped retro sun on the horizon inside a pink glow, a
+   deep-purple starry sky, wireframe terrain ridges with glowing node dots
+   rising on both sides of a flat valley, and a straight pink grid road
+   running dead-center into the sun. The terrain+road scroll toward the
+   camera with the same seamless chunk-tiling trick as the tunnel; sun,
+   glow and stars sit still on the horizon. ---------- */
 const ROAD_ARTIST_NAME = "Polaroid";
-const ROAD_SEG_LENGTH = 6;
-const ROAD_CHUNK_SEGS = 24;
+const ROAD_CHUNK_LENGTH = 220;  // world units of one seamlessly-tiling terrain strip
 const ROAD_REPEATS = 3;
-const ROAD_WIDTH = 9;
-const ROAD_CHUNK_LENGTH = ROAD_SEG_LENGTH * ROAD_CHUNK_SEGS;
-const ROAD_SPEED = 17;
-const ROAD_CAM_HEIGHT = 4.5; // how far above the road surface the drone camera hovers
-const ROAD_CUBE_COUNT = 60;
-// retro synthwave palette: hot pink / sunset orange / teal / violet
-const ROAD_RGB = [0xff3d9e, 0xff8c42, 0x2ee6d6, 0x8a4fff].map(c => new THREE.Color(c));
-function roadColorForSeg(seg, out){ return out.copy(ROAD_RGB[((seg % ROAD_RGB.length) + ROAD_RGB.length) % ROAD_RGB.length]); }
-// the road's width also breathes along its length - integer-multiple sine
-// so it tiles seamlessly across chunk repeats like everything else here
-function roadWidthAt(s){
-  const a = (s / ROAD_CHUNK_SEGS) * Math.PI * 2;
-  return ROAD_WIDTH * (1 + Math.sin(a * 2 + 1) * 0.3);
+const ROAD_SPEED = 26;
+const ROAD_HALF_WIDTH = 5;      // the pink road corridor's half-width
+const ROAD_CAM_HEIGHT = 3.1;
+const ROAD_COLS = 36;           // terrain grid resolution across (x)
+const ROAD_ROWS = 44;           // terrain grid rows per chunk (z)
+// palette lifted from the reference art
+const ROAD_PINK = new THREE.Color(0xff2d8a);
+const ROAD_TEAL = new THREE.Color(0x35e0c8);
+const ROAD_PURPLE = new THREE.Color(0x8a4fff);
+// deterministic per-vertex jitter, periodic across chunk repeats because
+// it's keyed on (col, row-within-chunk) rather than absolute position
+function roadHash(ix, iz){
+  const s = Math.sin(ix * 127.1 + (iz % ROAD_ROWS) * 311.7) * 43758.5453;
+  return s - Math.floor(s);
 }
-// one chunk's worth of road-centerline offsets - integer-multiple sine
-// combos are exactly periodic over ROAD_CHUNK_SEGS samples, so repeats
-// tile with zero seam (same guarantee the tunnel's chunkRadii relies on):
-// curves left/right in x, dips/rises in y
-const roadChunkOffsets = [];
-for (let s = 0; s < ROAD_CHUNK_SEGS; s++){
-  const a = (s / ROAD_CHUNK_SEGS) * Math.PI * 2;
-  roadChunkOffsets.push({
-    x: Math.sin(a * 2) * 6 + Math.sin(a * 5) * 2,
-    y: Math.sin(a) * 6.5 + Math.sin(a * 3) * 2.6,
-  });
+// terrain height: dead flat through the road corridor, ridges building up
+// with distance from it; sine terms use integer multiples of the chunk
+// period so every chunk repeat tiles seamlessly
+function roadTerrainHeight(x, iz){
+  const corridor = Math.max(0, Math.abs(x) - ROAD_HALF_WIDTH - 2.5);
+  if (corridor === 0) return 0;
+  const a = ((iz % ROAD_ROWS) / ROAD_ROWS) * Math.PI * 2;
+  const ridge = 0.75
+    + Math.sin(a * 3 + x * 0.11) * 0.3
+    + Math.sin(a * 7 + x * 0.05) * 0.18
+    + roadHash(Math.round(x * 2), iz) * 0.45;
+  return Math.min(30, corridor * 0.62 * ridge);
 }
-// continuous sampler (not limited to segment boundaries) used both to build
-// the road geometry and, every frame, to figure out where the drone camera
-// should currently be sitting
-function roadOffsetAt(dist){
-  const wrapped = ((dist % ROAD_CHUNK_LENGTH) + ROAD_CHUNK_LENGTH) % ROAD_CHUNK_LENGTH;
-  const segF = wrapped / ROAD_SEG_LENGTH;
-  const i0 = Math.floor(segF) % ROAD_CHUNK_SEGS;
-  const i1 = (i0 + 1) % ROAD_CHUNK_SEGS;
-  const t = segF - Math.floor(segF);
-  const a = roadChunkOffsets[i0], b = roadChunkOffsets[i1];
-  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
-}
-// solid asphalt-like surface (no wireframe/grid lines on top anymore) -
-// dark, faintly palette-tinted, softly specular so roadLight (see below)
-// sheens across it as the camera passes; width breathes via roadWidthAt()
-function buildRoadSurfaceGeometry(){
-  const totalSegs = ROAD_CHUNK_SEGS * ROAD_REPEATS;
-  const positions = [], colors = [];
+// wireframe terrain: a dark solid surface (occludes lines behind ridges),
+// glowing grid lines over it, and a small dot at every node - the classic
+// outrun-terrain look from the reference stills
+function buildRoadTerrain(group){
+  const totalRows = ROAD_ROWS * ROAD_REPEATS;
+  const xAt = c => (c / (ROAD_COLS - 1) - 0.5) * 170;
+  const vertY = [], vertPos = [];
+  for (let r = 0; r <= totalRows; r++){
+    for (let c = 0; c < ROAD_COLS; c++){
+      const x = xAt(c);
+      const y = -0.35 + roadTerrainHeight(x, r); // grid sits a hair under the road strip
+      vertY.push(y);
+      vertPos.push(x, y, -r * (ROAD_CHUNK_LENGTH / ROAD_ROWS));
+    }
+  }
+  const vi = (r, c) => r * ROAD_COLS + c;
+  // solid underlay
+  const solidIdx = [];
+  for (let r = 0; r < totalRows; r++){
+    for (let c = 0; c < ROAD_COLS - 1; c++){
+      const a = vi(r, c), b = vi(r, c + 1), d = vi(r + 1, c), e = vi(r + 1, c + 1);
+      solidIdx.push(a, d, b, b, d, e);
+    }
+  }
+  const solidGeo = new THREE.BufferGeometry();
+  solidGeo.setAttribute("position", new THREE.Float32BufferAttribute(vertPos, 3));
+  solidGeo.setIndex(solidIdx);
+  group.add(new THREE.Mesh(solidGeo, new THREE.MeshBasicMaterial({ color: 0x140823, side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 })));
+  // grid lines, colored teal on the heights fading toward purple-pink low
+  const linePos = [], lineCol = [];
   const tmpColor = new THREE.Color();
-  for (let s = 0; s <= totalSegs; s++){
-    const off = roadChunkOffsets[s % ROAD_CHUNK_SEGS];
-    const half = roadWidthAt(s % ROAD_CHUNK_SEGS) / 2;
-    const z = -s * ROAD_SEG_LENGTH;
-    roadColorForSeg(s, tmpColor).multiplyScalar(0.2);
-    positions.push(off.x - half, off.y, z, off.x + half, off.y, z);
-    colors.push(tmpColor.r, tmpColor.g, tmpColor.b, tmpColor.r, tmpColor.g, tmpColor.b);
-  }
-  const indices = [];
-  for (let s = 0; s < totalSegs; s++){
-    const a = s * 2, b = s * 2 + 1, c = (s + 1) * 2, d = (s + 1) * 2 + 1;
-    indices.push(a, c, b, c, d, b);
-  }
+  const pushVert = (r, c) => {
+    const i = vi(r, c);
+    linePos.push(vertPos[i * 3], vertPos[i * 3 + 1], vertPos[i * 3 + 2]);
+    tmpColor.copy(ROAD_PURPLE).lerp(ROAD_TEAL, Math.min(1, vertY[i] / 14));
+    lineCol.push(tmpColor.r, tmpColor.g, tmpColor.b);
+  };
+  for (let r = 0; r <= totalRows; r++) for (let c = 0; c < ROAD_COLS - 1; c++){ pushVert(r, c); pushVert(r, c + 1); }
+  for (let c = 0; c < ROAD_COLS; c++) for (let r = 0; r < totalRows; r++){ pushVert(r, c); pushVert(r + 1, c); }
+  const lineGeo = new THREE.BufferGeometry();
+  lineGeo.setAttribute("position", new THREE.Float32BufferAttribute(linePos, 3));
+  lineGeo.setAttribute("color", new THREE.Float32BufferAttribute(lineCol, 3));
+  group.add(new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.85 })));
+  // glowing node dots at every grid vertex
+  const dotGeo = new THREE.BufferGeometry();
+  dotGeo.setAttribute("position", new THREE.Float32BufferAttribute(vertPos.slice(), 3));
+  group.add(new THREE.Points(dotGeo, new THREE.PointsMaterial({ color: 0xeafffa, size: 0.9, sizeAttenuation: true,
+    transparent: true, opacity: 0.8 })));
+}
+// the straight pink road: dark solid strip + hot-pink grid (edges, lane
+// lines, rungs) converging into the sun purely by perspective
+function buildRoadStrip(group){
+  const totalLen = ROAD_CHUNK_LENGTH * ROAD_REPEATS;
+  const solidGeo = new THREE.PlaneGeometry(ROAD_HALF_WIDTH * 2, totalLen);
+  solidGeo.rotateX(-Math.PI / 2);
+  solidGeo.translate(0, 0, -totalLen / 2);
+  group.add(new THREE.Mesh(solidGeo, new THREE.MeshBasicMaterial({ color: 0x2b0a1e })));
+  const positions = [];
+  const RUNG_STEP = ROAD_CHUNK_LENGTH / ROAD_ROWS * 2;
+  for (let z = 0; z <= totalLen; z += RUNG_STEP) positions.push(-ROAD_HALF_WIDTH, 0.02, -z, ROAD_HALF_WIDTH, 0.02, -z);
+  [-ROAD_HALF_WIDTH, -ROAD_HALF_WIDTH / 2, 0, ROAD_HALF_WIDTH / 2, ROAD_HALF_WIDTH].forEach(x => {
+    positions.push(x, 0.02, 0, x, 0.02, -totalLen);
+  });
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-  geo.setIndex(indices);
-  geo.computeVertexNormals();
-  return geo;
+  group.add(new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: ROAD_PINK, transparent: true, opacity: 0.95,
+    blending: THREE.AdditiveBlending })));
 }
-// distant mountain silhouettes ringing the horizon - two static layers at
-// different depths, so the camera's own weave gives them a slight parallax
-// drift against the starfield behind them
-function buildRoadMountains(group){
-  const layers = [
-    { z: -260, span: 500, peaks: 26, hMin: 24, hMax: 74, color: 0x241040 },
-    { z: -185, span: 380, peaks: 20, hMin: 14, hMax: 44, color: 0x180a2e },
-  ];
-  layers.forEach(L => {
-    const positions = [];
-    const step = (L.span * 2) / L.peaks;
-    for (let i = 0; i < L.peaks; i++){
-      const x0 = -L.span + i * step;
-      const x1 = x0 + step;
-      const peakX = x0 + step * (0.3 + Math.random() * 0.4);
-      const h = L.hMin + Math.random() * (L.hMax - L.hMin);
-      positions.push(x0, -20, L.z, x1, -20, L.z, peakX, h, L.z);
+// the big striped retro sun: canvas-drawn gradient disc with widening
+// horizontal gaps toward the bottom, on a plane at the far horizon
+function buildRoadSun(){
+  const S = 512;
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = S;
+  const cx = cv.getContext("2d");
+  const grad = cx.createLinearGradient(0, S * 0.08, 0, S * 0.92);
+  grad.addColorStop(0, "#ffe45e");
+  grad.addColorStop(0.45, "#ff9a3d");
+  grad.addColorStop(1, "#ff2d8a");
+  cx.fillStyle = grad;
+  cx.beginPath();
+  cx.arc(S / 2, S / 2, S * 0.42, 0, Math.PI * 2);
+  cx.fill();
+  // stripe gaps: none up top, widening toward the bottom edge
+  cx.globalCompositeOperation = "destination-out";
+  let y = S * 0.52, gap = S * 0.012;
+  while (y < S * 0.92){
+    cx.fillRect(0, y, S, gap);
+    y += gap + S * 0.052;
+    gap *= 1.45;
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false });
+  mat.fog = false; // horizon dressing must not be eaten by the scene fog
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(95, 95), mat);
+  mesh.position.set(0, 24, -300);
+  return mesh;
+}
+// soft additive glow behind/around the sun - the bright sunset band that
+// bleeds across the whole horizon in the reference stills
+function buildRoadGlow(){
+  const cv = document.createElement("canvas");
+  cv.width = 512; cv.height = 256;
+  const cx = cv.getContext("2d");
+  const g = cx.createRadialGradient(256, 128, 8, 256, 128, 250);
+  g.addColorStop(0, "rgba(255,244,230,0.95)");
+  g.addColorStop(0.25, "rgba(255,120,150,0.55)");
+  g.addColorStop(0.6, "rgba(255,45,138,0.22)");
+  g.addColorStop(1, "rgba(255,45,138,0)");
+  cx.fillStyle = g;
+  cx.fillRect(0, 0, 512, 256);
+  const mat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true,
+    blending: THREE.AdditiveBlending, depthWrite: false });
+  mat.fog = false;
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(560, 240), mat);
+  mesh.position.set(0, 16, -308);
+  return mesh;
+}
+// starfield: mostly bright blues and whites (plus a few warm sparks), two
+// size classes so a handful of stars read as the big flares in the refs
+function buildRoadStars(){
+  const mk = (count, size, palette) => {
+    const positions = [], colors = [];
+    for (let i = 0; i < count; i++){
+      positions.push((Math.random() - 0.5) * 900, Math.random() * 320 - 10, -120 - Math.random() * 320);
+      const c = palette[i % palette.length];
+      colors.push(c.r, c.g, c.b);
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    group.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: L.color, side: THREE.DoubleSide })));
-  });
-}
-// starfield wrapping the whole scene - static in world space, so it
-// parallaxes against the camera's weave; given a very slow roll in
-// animate() so the sky itself feels alive
-function buildRoadStars(){
-  const positions = [], colors = [];
-  const starPalette = [0xffffff, 0xff9ad5, 0x9be8e0, 0xc9b8ff].map(c => new THREE.Color(c));
-  for (let i = 0; i < 700; i++){
-    const x = (Math.random() - 0.5) * 900;
-    const y = Math.random() * 330 - 25;
-    const z = -60 - Math.random() * 500;
-    positions.push(x, y, z);
-    const c = starPalette[i % starPalette.length];
-    colors.push(c.r, c.g, c.b);
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-  return new THREE.Points(geo, new THREE.PointsMaterial({ size: 1.6, vertexColors: true, sizeAttenuation: true, transparent: true, opacity: 0.9 }));
-}
-// generated once per chunk, then tiled ROAD_REPEATS times at identical
-// relative offsets (like the road grid itself) so the scroll wrap never
-// causes the cube field to visibly jump
-function buildRoadCubes(group){
-  const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-  const perChunk = Math.round(ROAD_CUBE_COUNT / ROAD_REPEATS);
-  const template = [];
-  for (let i = 0; i < perChunk; i++){
-    const side = Math.random() < 0.5 ? -1 : 1;
-    const distFromRoad = ROAD_WIDTH / 2 + 3 + Math.random() * 14;
-    const localZ = -Math.random() * ROAD_CHUNK_LENGTH;
-    const off = roadChunkOffsets[Math.floor(-localZ / ROAD_SEG_LENGTH) % ROAD_CHUNK_SEGS];
-    template.push({
-      x: off.x + side * distFromRoad,
-      y: off.y + (Math.random() - 0.25) * 11,
-      z: localZ,
-      color: ROAD_RGB[i % ROAD_RGB.length],
-      scale: 0.5 + Math.random() * 2.7, // wider size spread
-      spin: { x: (Math.random() - 0.5) * 0.6, y: (Math.random() - 0.5) * 0.6 },
-      pulsePhase: Math.random() * Math.PI * 2,
-      pulseSpeed: 0.4 + Math.random() * 0.8,
-    });
-  }
-  const cubes = [];
-  for (let rep = 0; rep < ROAD_REPEATS; rep++){
-    template.forEach(tpl => {
-      // solid, with a soft/diffuse sheen (dim grey specular + low
-      // shininess = broad highlight) rather than a hard glint
-      const cube = new THREE.Mesh(boxGeo, new THREE.MeshPhongMaterial({
-        color: tpl.color, specular: 0x666666, shininess: 18,
-      }));
-      cube.scale.setScalar(tpl.scale);
-      cube.position.set(tpl.x, tpl.y, tpl.z - rep * ROAD_CHUNK_LENGTH);
-      cube.userData.spin = tpl.spin;
-      cube.userData.baseScale = tpl.scale;
-      cube.userData.pulsePhase = tpl.pulsePhase;
-      cube.userData.pulseSpeed = tpl.pulseSpeed;
-      group.add(cube);
-      cubes.push(cube);
-    });
-  }
-  return cubes;
+    geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+    const mat = new THREE.PointsMaterial({ size, vertexColors: true, sizeAttenuation: true, transparent: true, opacity: 0.95 });
+    mat.fog = false;
+    return new THREE.Points(geo, mat);
+  };
+  const blues = [0x66c8ff, 0xffffff, 0x9be8ff, 0xffd2e8].map(c => new THREE.Color(c));
+  const group = new THREE.Group();
+  group.add(mk(520, 1.5, blues));
+  group.add(mk(26, 4.6, blues)); // the handful of big bright flares
+  return group;
 }
 const roadGroup = new THREE.Group();
-const roadSurfaceMat = new THREE.MeshPhongMaterial({
-  // dim grey specular + low shininess = a broad diffuse sheen, not a glint
-  color: 0xffffff, vertexColors: true, specular: 0x777777, shininess: 14, side: THREE.DoubleSide,
-});
-roadGroup.add(new THREE.Mesh(buildRoadSurfaceGeometry(), roadSurfaceMat));
-const roadCubes = buildRoadCubes(roadGroup);
+buildRoadTerrain(roadGroup);
+buildRoadStrip(roadGroup);
 roadGroup.visible = false; // only ever shown post-gate, and only for ROAD_ARTIST_NAME - see updateArtistBackground()
 scene.add(roadGroup);
 // horizon + sky live outside roadGroup so the road's scroll-wrap never
-// makes them jump - they sit still while the road streams past
+// makes them jump - they sit still while the terrain streams past
 const roadScenery = new THREE.Group();
-buildRoadMountains(roadScenery);
+roadScenery.add(buildRoadSun());
+roadScenery.add(buildRoadGlow());
 const roadStars = buildRoadStars();
 roadScenery.add(roadStars);
 roadScenery.visible = false;
 scene.add(roadScenery);
-// single fixed "sun" parked over the middle of the scene (not riding the
-// camera anymore) - the diffuse specular sheen everything reflects
-const roadLight = new THREE.PointLight(0xfff0dd, 2.6, 400, 1.8);
-roadLight.position.set(0, 30, -ROAD_CHUNK_LENGTH * 0.5);
-roadLight.visible = false;
-scene.add(roadLight);
-// faint fill so faces turned away from the sun don't go pitch black
-const roadAmbient = new THREE.AmbientLight(0x2a1050, 1.1);
-roadAmbient.visible = false;
-scene.add(roadAmbient);
+// gentle purple haze pulling the far terrain into the horizon glow
+const roadFog = new THREE.FogExp2(0x1c0c30, 0.0048);
 const roadClearColor = new THREE.Color();
 
 /* ---------- Aveluna-only mist world: an airy, mysterious flight through
@@ -2245,16 +2253,15 @@ function updateArtistBackground(tr){
   const wantMist = !gateActive && !!tr && tr.artist === MIST_ARTIST_NAME;
   roadGroup.visible = wantRoad;
   roadScenery.visible = wantRoad;
-  roadLight.visible = wantRoad;
-  roadAmbient.visible = wantRoad;
   mistGroup.visible = wantMist;
   mistHemi.visible = wantMist;
   if (panoMesh) panoMesh.visible = !gateActive && !wantRoad && !wantMist;
   if (wantRoad){
-    // deep retro violet with a whisper of the artist color
-    roadClearColor.set(tr.artistColor || "#7CFF9E").lerp(new THREE.Color(0x1d0f3a), 0.75);
+    // deep retro purple-black sky, plus a haze that melts the far terrain
+    // into the horizon glow
+    roadClearColor.set(0x160a26);
     renderer.setClearColor(roadClearColor, 1);
-    scene.fog = null;
+    scene.fog = roadFog;
   } else if (wantMist){
     // light-blue haze tinted toward the artist's color - clear color and
     // fog match exactly so the world dissolves seamlessly into the sky
@@ -2425,11 +2432,6 @@ function audioIntensity(){
 
 const gateLogoTiltEl = $("#gate-logo-tilt");
 let camYaw = 0, camPitch = 0;
-// trailing-follow state for the road's drone camera (see roadGroup.visible
-// below) - lerped toward the freshly-sampled road position/bank each
-// frame instead of snapping straight to it, for a smoother, more dynamic
-// swoop through the curves
-let roadCamX = 0, roadCamY = ROAD_CAM_HEIGHT, roadCamBank = 0;
 // timestamp the automatic motion (re)starts from; null forces a fresh
 // "centred, then ease in" ramp the next time auto-drift takes over
 let autoMotionStartT = null;
@@ -2497,33 +2499,17 @@ function animate(t){
   }
 
   if (roadGroup.visible){
-    // drone-follow: the camera itself weaves/dips to match the road's own
-    // curve instead of the usual mouse-look drift (overridden below), while
-    // the road geometry scrolls toward it exactly like the tunnel does
+    // straight run into the sun: the terrain/road strip streams toward
+    // the camera (seamless chunk wrap) while the camera itself stays on
+    // the road's center line with just a soft hover-bob and sway -
+    // deliberately disconnected from audio and mouse
     const nowSec = (t || 0) * 0.001;
-    const dist = nowSec * ROAD_SPEED;
-    roadGroup.position.z = dist % ROAD_CHUNK_LENGTH;
-    const here = roadOffsetAt(dist);
-    const ahead = roadOffsetAt(dist + 4);
-    const targetBank = -Math.atan2(ahead.x - here.x, 4) * 1.4;
-    // lerped toward the fresh target instead of snapping to it - reads as
-    // a smooth, dynamic swoop through the curves rather than a rigid rail
-    const follow = 0.045;
-    roadCamX += (here.x - roadCamX) * follow;
-    roadCamY += (here.y + ROAD_CAM_HEIGHT - roadCamY) * follow;
-    roadCamBank += (targetBank - roadCamBank) * follow;
-    camera.position.x = roadCamX;
-    camera.position.y = roadCamY;
-    // deliberately disconnected from audio/mouse - a fixed drone look-down
-    // tilt plus a bank into each turn, driven only by the road's own curve
-    camera.rotation.x = -0.28;
+    roadGroup.position.z = (nowSec * ROAD_SPEED) % ROAD_CHUNK_LENGTH;
+    camera.position.x = Math.sin(nowSec * 0.1) * 1.2;
+    camera.position.y = ROAD_CAM_HEIGHT + Math.sin(nowSec * 0.23) * 0.35;
+    camera.rotation.x = -0.02;
     camera.rotation.y = 0;
-    camera.rotation.z = roadCamBank;
-    roadCubes.forEach(c => {
-      c.rotation.x += c.userData.spin.x * 0.016;
-      c.rotation.y += c.userData.spin.y * 0.016;
-      c.scale.setScalar(c.userData.baseScale * (1 + Math.sin(nowSec * c.userData.pulseSpeed + c.userData.pulsePhase) * 0.13));
-    });
+    camera.rotation.z = Math.sin(nowSec * 0.13) * 0.02;
     roadStars.rotation.z = nowSec * 0.004; // barely-perceptible sky roll
   } else if (mistGroup.visible){
     // airy drone float: slow forward scroll plus a gentle three-axis sway,
