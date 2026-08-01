@@ -2137,6 +2137,8 @@ function buildRoadTerrain(group){
 // track's real artistColor is known
 let roadStripGeo = null;
 let roadStripMat = null;
+let roadEdgeGeos = [];
+let roadEdgeMat = null;
 function retintRoadStrip(artistColor){
   if (!roadStripGeo) return;
   const totalRows = ROAD_ROWS * ROAD_REPEATS;
@@ -2150,8 +2152,11 @@ function retintRoadStrip(artistColor){
     tmpColor.copy(cA).lerp(cB, (Math.sin(a) + 1) / 2);
     attr.setXYZ(r * 2, tmpColor.r, tmpColor.g, tmpColor.b);
     attr.setXYZ(r * 2 + 1, tmpColor.r, tmpColor.g, tmpColor.b);
+    // edge lines carry the same gradient at 2x the road's brightness
+    roadEdgeGeos.forEach(geo => geo.attributes.color.setXYZ(r, tmpColor.r * 2, tmpColor.g * 2, tmpColor.b * 2));
   }
   attr.needsUpdate = true;
+  roadEdgeGeos.forEach(geo => { geo.attributes.color.needsUpdate = true; });
 }
 function buildRoadStrip(group){
   const totalRows = ROAD_ROWS * ROAD_REPEATS;
@@ -2170,11 +2175,27 @@ function buildRoadStrip(group){
   roadStripGeo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   roadStripGeo.setAttribute("color", new THREE.Float32BufferAttribute(new Float32Array((totalRows + 1) * 6), 3));
   roadStripGeo.setIndex(indices);
-  retintRoadStrip("#7ED957"); // sensible default until a track is active
   // material kept as a named ref: its color multiplies the vertex-color
   // gradient, and animate() drives it 1.0 -> 1.25 with the music level
   roadStripMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
   group.add(new THREE.Mesh(roadStripGeo, roadStripMat));
+  // edge lines hugging both sides of the ribbon: same gradient at 2x the
+  // road's brightness (colors set in retintRoadStrip), and their material
+  // multiplier surges much harder with the music than the road itself
+  roadEdgeMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true });
+  roadEdgeGeos = [-1, 1].map(sideSign => {
+    const edgePositions = [];
+    for (let r = 0; r <= totalRows; r++){
+      const center = roadCenterAt(r * ROAD_SEG);
+      edgePositions.push(center.x + sideSign * ROAD_HALF_WIDTH, center.y + 0.05, -r * ROAD_SEG);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(edgePositions, 3));
+    geo.setAttribute("color", new THREE.Float32BufferAttribute(new Float32Array((totalRows + 1) * 3), 3));
+    group.add(new THREE.Line(geo, roadEdgeMat));
+    return geo;
+  });
+  retintRoadStrip("#7ED957"); // sensible default (incl. edges) until a track is active
 }
 // little glowing red balls hovering over the road edge, each "casting"
 // light as an additive radial pool on the road surface beneath it (the
@@ -2329,7 +2350,7 @@ let roadCamX = 0, roadCamY = ROAD_CAM_HEIGHT, roadCamYaw = 0, roadCamPitch = 0, 
 const MIST_ARTIST_NAME = "Aveluna";
 const MIST_CHUNK_LENGTH = 240;
 const MIST_REPEATS = 3;
-const MIST_SPEED = 4; // slow, floaty
+const MIST_SPEED = 8; // floaty, but with real forward motion
 const MIST_SKY = new THREE.Color(0x241d5c); // the reference's deep indigo
 // soft round puff - the one texture every cloud sprite shares
 const mistPuffTexture = (() => {
@@ -2347,9 +2368,11 @@ const mistPuffTexture = (() => {
 // reference palette: coral/pink tops, warm glowing cores, cool undersides.
 // Dimmed hard, because the puffs blend additively and stack up toward
 // bright - these read as a dark, moody glow rather than pastel
-const MIST_TOPS = [0xff9a8a, 0xffa8c0, 0xf5a087].map(c => new THREE.Color(c).multiplyScalar(0.26));
-const MIST_CORES = [0xffc25e, 0xffdd7a, 0xff9a5e].map(c => new THREE.Color(c).multiplyScalar(0.3));
-const MIST_UNDER = [0x7de8c8, 0x9aa8ff, 0x86c8f0, 0xb49aff].map(c => new THREE.Color(c).multiplyScalar(0.22));
+// (dimmed very hard: the huge puffs overlap massively, and additive
+// stacking would otherwise blow out to pure white)
+const MIST_TOPS = [0xff9a8a, 0xffa8c0, 0xf5a087].map(c => new THREE.Color(c).multiplyScalar(0.1));
+const MIST_CORES = [0xffc25e, 0xffdd7a, 0xff9a5e].map(c => new THREE.Color(c).multiplyScalar(0.12));
+const MIST_UNDER = [0x7de8c8, 0x9aa8ff, 0x86c8f0, 0xb49aff].map(c => new THREE.Color(c).multiplyScalar(0.085));
 const mistGroup = new THREE.Group();
 {
   // hash-driven template (no Math.random) so every tile is an exact copy -
@@ -2359,24 +2382,28 @@ const mistGroup = new THREE.Group();
   // the road stars which use this same proven Points pipeline), additive
   // so overlap just builds glow and needs no depth sorting.
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
-  const CLUSTERS = 16;
+  const CLUSTERS = 20;
   const buckets = [
-    { size: 26, positions: [], colors: [] },
-    { size: 38, positions: [], colors: [] },
-    { size: 52, positions: [], colors: [] },
+    { size: 280, positions: [], colors: [] },
+    { size: 406, positions: [], colors: [] },
+    { size: 546, positions: [], colors: [] },
   ];
   for (let rep = 0; rep < MIST_REPEATS; rep++){
     for (let ci = 0; ci < CLUSTERS; ci++){
       // the whole field sits low, from the view's midline downward - the
-      // camera looks down over a screen-filling floor of dark cloud
-      const cx0 = (h(ci, 1) - 0.5) * 260;
+      // camera looks down over a screen-filling floor of dark cloud.
+      // Spread very wide with few puffs per cluster, so the huge puffs
+      // still leave real open sky between cloud masses
+      const cx0 = (h(ci, 1) - 0.5) * 700;
       const cy0 = -16 + h(ci, 2) * 6;
       const cz0 = -h(ci, 3) * MIST_CHUNK_LENGTH;
-      const puffs = 9 + Math.floor(h(ci, 4) * 7);
+      const puffs = 4 + Math.floor(h(ci, 4) * 4);
       for (let pi = 0; pi < puffs; pi++){
-        const dx = (h(ci * 31 + pi, 5) - 0.5) * 38;
-        const dy = (h(ci * 31 + pi, 6) - 0.35) * 10; // flattened field: wider than tall
-        const dz = (h(ci * 31 + pi, 7) - 0.5) * 28;
+        // offsets scaled to the huge puff size, so a cluster reads as a
+        // sprawling cloud mass instead of one white-hot stacked blob
+        const dx = (h(ci * 31 + pi, 5) - 0.5) * 280;
+        const dy = (h(ci * 31 + pi, 6) - 0.35) * 60; // flattened field: wider than tall
+        const dz = (h(ci * 31 + pi, 7) - 0.5) * 220;
         // color by height in the cluster: cool underside, coral middle,
         // and the occasional warm glowing core puff at the heart
         let color;
@@ -2407,6 +2434,18 @@ scene.add(mistGroup);
 // indigo haze so the far clouds sink into the night sky
 const mistFog = new THREE.FogExp2(0x241d5c, 0.006);
 const mistColor = new THREE.Color();
+// invisible flight path through the cloud field - same integer-multiple
+// periodic construction as roadCenterAt(), so the drone camera can follow
+// and bank into it exactly like the Polaroid scene's flight
+function mistPathAt(dist){
+  const a = (dist / MIST_CHUNK_LENGTH) * Math.PI * 2;
+  return {
+    x: Math.sin(a * 2) * 10 + Math.sin(a * 5 + 1) * 4,
+    y: Math.sin(a * 3) * 1.6 + Math.sin(a + 2) * 2.2,
+  };
+}
+// trailing-follow state for the cloud drone (mirrors roadCam*)
+let mistCamX = 0, mistCamY = 5, mistCamYaw = 0, mistCamPitch = 0, mistCamBank = 0;
 
 /* ---------- Downtown-only block maze: an endless flight through a huge
    geometric corridor built from stacked rectangular slabs and beams
@@ -2818,20 +2857,32 @@ function animate(t){
       s.userData.outlineMat.opacity = Math.min(1, Math.min(p / 0.15, (1 - p) / 0.15)) * 0.95;
     });
     // the road itself brightens up to 25% with the music (uIntensity is
-    // the same smoothed audio level the other visualisers use)
+    // the same smoothed audio level the other visualisers use), and the
+    // edge lines - already 2x the road's brightness - surge much harder
     if (roadStripMat) roadStripMat.color.setScalar(1 + panoUniforms.uIntensity.value * 0.25);
+    if (roadEdgeMat) roadEdgeMat.color.setScalar(1 + panoUniforms.uIntensity.value * 1.5);
   } else if (mistGroup.visible){
-    // slow, endless drone flight over the cloud field: forward scroll
-    // wraps seamlessly forever, and the camera drifts through every axis
-    // (position sweeps + all three rotations) on long, never-resyncing
-    // sine periods, staying above the cloud tops
+    // endless drone flight over the cloud field, in the same style as the
+    // Polaroid road: the camera lerp-follows an invisible curving path,
+    // looks and banks into the curve ahead, with slow sways layered on
+    // top. Base pitch is much shallower than before, sitting the horizon
+    // visibly lower in frame
     const nowSec = (t || 0) * 0.001;
-    mistGroup.position.z = (nowSec * MIST_SPEED) % MIST_CHUNK_LENGTH;
-    camera.position.x = Math.sin(nowSec * 0.05) * 9;
-    camera.position.y = 5 + Math.sin(nowSec * 0.04 + 1) * 2.2;
-    camera.rotation.x = -0.3 + Math.sin(nowSec * 0.037 + 2) * 0.05;
-    camera.rotation.y = Math.sin(nowSec * 0.031) * 0.16;
-    camera.rotation.z = Math.sin(nowSec * 0.043 + 4) * 0.05;
+    const scroll = nowSec * MIST_SPEED;
+    mistGroup.position.z = scroll % MIST_CHUNK_LENGTH;
+    const here = mistPathAt(scroll - 8);
+    const ahead = mistPathAt(scroll - 8 + 14);
+    const follow = 0.02;
+    mistCamX += (here.x + Math.sin(nowSec * 0.055) * 2 - mistCamX) * follow;
+    mistCamY += (5 + here.y + Math.sin(nowSec * 0.045 + 1) * 1.5 - mistCamY) * follow;
+    mistCamYaw += (-Math.atan2(ahead.x - here.x, 14) * 0.6 + Math.sin(nowSec * 0.032) * 0.05 - mistCamYaw) * follow;
+    mistCamPitch += (Math.atan2(ahead.y - here.y, 14) * 0.45 - 0.1 + Math.sin(nowSec * 0.028 + 3) * 0.03 - mistCamPitch) * follow;
+    mistCamBank += (-Math.atan2(ahead.x - here.x, 14) * 0.8 + Math.sin(nowSec * 0.025 + 5) * 0.025 - mistCamBank) * follow;
+    camera.position.x = mistCamX;
+    camera.position.y = mistCamY;
+    camera.rotation.x = mistCamPitch;
+    camera.rotation.y = mistCamYaw;
+    camera.rotation.z = mistCamBank;
   } else if (downtownGroup.visible){
     // wide-roaming glide through the big block maze: sweeping left/right/
     // up/down travel plus all three rotations, still clear of the slabs'
