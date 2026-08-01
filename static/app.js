@@ -1839,6 +1839,7 @@ function buildTunnelFatLineMaterial(){
       uniform vec2 uResolution;
       uniform float uLineWidth;
       varying vec3 vColor;
+      varying float vTunnelFadeDist;
       // identical proximity-grow math to applyTunnelProximityGrow() below,
       // kept in sync by hand since this material isn't a built-in one
       vec3 tunnelGrow( vec3 p, vec4 mv ){
@@ -1850,6 +1851,7 @@ function buildTunnelFatLineMaterial(){
       void main(){
         vColor = color;
         vec4 mvSelf = modelViewMatrix * vec4( position, 1.0 );
+        vTunnelFadeDist = -mvSelf.z;
         vec4 mvOther = modelViewMatrix * vec4( aOther, 1.0 );
         vec4 clipSelf = projectionMatrix * modelViewMatrix * vec4( tunnelGrow( position, mvSelf ), 1.0 );
         vec4 clipOther = projectionMatrix * modelViewMatrix * vec4( tunnelGrow( aOther, mvOther ), 1.0 );
@@ -1864,25 +1866,44 @@ function buildTunnelFatLineMaterial(){
     `,
     fragmentShader: `
       varying vec3 vColor;
-      void main(){ gl_FragColor = vec4( vColor, 1.0 ); }
+      varying float vTunnelFadeDist;
+      void main(){
+        // same distance fade as applyTunnelProximityGrow(): the deeper
+        // into the tunnel, the darker AND more transparent it gets
+        float tunnelFade = 1.0 - smoothstep( 35.0, 130.0, vTunnelFadeDist );
+        gl_FragColor = vec4( vColor * tunnelFade, tunnelFade );
+      }
     `,
+    transparent: true,
   });
 }
 // grows the tunnel walls (and, via the same injection on the line/point
 // materials, the wireframe + connection dots) outward the closer they get
-// to the camera - purely a function of the live modelViewMatrix, so it
-// tracks the scroll/rotation already applied to tunnelGroup with no extra
-// per-frame JS work needed
+// to the camera, and fades everything out with depth - the further down
+// the tunnel a fragment sits, the darker and more transparent it renders,
+// so the far end dissolves into the dark. Purely a function of the live
+// modelViewMatrix, so it tracks the scroll/rotation already applied to
+// tunnelGroup with no extra per-frame JS work needed
 function applyTunnelProximityGrow(material){
+  material.transparent = true;
   material.onBeforeCompile = (shader) => {
-    shader.vertexShader = shader.vertexShader
+    shader.vertexShader = "varying float vTunnelFadeDist;\n" + shader.vertexShader
       .replace(
         "#include <begin_vertex>",
         `#include <begin_vertex>
         vec4 tGrowMv = modelViewMatrix * vec4( transformed, 1.0 );
         float tGrowDist = -tGrowMv.z;
+        vTunnelFadeDist = tGrowDist;
         float tGrowAmt = smoothstep( 42.0, 3.0, tGrowDist ) * 0.28;
         transformed.xy *= ( 1.0 + tGrowAmt );`
+      );
+    shader.fragmentShader = "varying float vTunnelFadeDist;\n" + shader.fragmentShader
+      .replace(
+        "#include <fog_fragment>",
+        `#include <fog_fragment>
+        float tunnelFade = 1.0 - smoothstep( 35.0, 130.0, vTunnelFadeDist );
+        gl_FragColor.rgb *= tunnelFade;
+        gl_FragColor.a *= tunnelFade;`
       );
   };
 }
