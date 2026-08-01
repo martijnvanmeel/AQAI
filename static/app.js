@@ -2200,11 +2200,7 @@ const roadPoolTexture = (() => {
   return new THREE.CanvasTexture(cv);
 })();
 const roadBallPulses = []; // {ball, pool, phase} - gentle pulse in animate()
-// shared ball material, kept as named refs so animate() can fade the red
-// toward white with the music level
-const roadBallMat = new THREE.MeshBasicMaterial({ color: 0xff4038 });
-const ROAD_BALL_RED = new THREE.Color(0xff4038);
-const ROAD_BALL_WHITE = new THREE.Color(0xffffff);
+const roadBallMat = new THREE.MeshBasicMaterial({ color: 0xff4038 }); // always red
 function buildRoadBalls(group){
   const ballGeo = new THREE.SphereGeometry(0.26, 12, 10);
   const ballMat = roadBallMat;
@@ -2322,7 +2318,7 @@ roadScenery.add(roadStars);
 roadScenery.visible = false;
 scene.add(roadScenery);
 // gentle purple haze melting the far terrain into the night
-const roadFog = new THREE.FogExp2(0x120821, 0.0052);
+const roadFog = new THREE.FogExp2(0x101334, 0.0052);
 const roadClearColor = new THREE.Color();
 // trailing-follow state for the drone camera - everything lerps toward
 // freshly-sampled road targets, so the flight reads as elegant sweeps
@@ -2606,11 +2602,12 @@ function updateArtistBackground(tr){
   camera.zoom = gateActive ? 1.3 : wantRoad ? 1.6 : (wantMist || wantMaze) ? 1.35 : 1;
   camera.updateProjectionMatrix();
   if (wantRoad){
-    // deep retro purple-black night sky (darkened), plus a haze that
-    // melts the far terrain into the dark
+    // night sky: a lighter blue base pulled toward the artist's green,
+    // plus a matching haze that melts the far terrain into it
     retintRoadStrip(tr.artistColor);
-    roadClearColor.set(0x0f0719);
+    roadClearColor.set(0x16183f).lerp(new THREE.Color(tr.artistColor || "#7ED957"), 0.22);
     renderer.setClearColor(roadClearColor, 1);
+    roadFog.color.copy(roadClearColor).multiplyScalar(0.85);
     scene.fog = roadFog;
   } else if (wantMist){
     // the reference art's deep indigo night - clear color and fog match
@@ -2943,15 +2940,15 @@ function animate(t){
     // the road itself brightens up to 25% with the music (uIntensity is
     // the same smoothed audio level the other visualisers use)
     if (roadStripMat) roadStripMat.color.setScalar(1 + panoUniforms.uIntensity.value * 0.25);
-    // red balls and their cast-light pools breathe gently, each on its own
-    // phase - and the balls themselves fade from red toward white as the
-    // music gets louder
+    // red balls and their cast-light pools stay red, but their SIZE reacts
+    // to the music like the audio visualisers - swelling with the level on
+    // top of a gentle idle breathing, each on its own phase
+    const ballBeat = panoUniforms.uIntensity.value;
     roadBallPulses.forEach(p => {
-      const s = 1 + Math.sin(nowSec * 1.4 + p.phase) * 0.12;
+      const s = (1 + Math.sin(nowSec * 1.4 + p.phase) * 0.08) * (1 + ballBeat * 0.9);
       p.ball.scale.setScalar(s);
       p.pool.scale.setScalar(s);
     });
-    roadBallMat.color.copy(ROAD_BALL_RED).lerp(ROAD_BALL_WHITE, Math.min(1, panoUniforms.uIntensity.value * 1.2));
   } else if (mistGroup.visible){
     // endless drone flight THROUGH the cloud field, in the same style as
     // the Polaroid road: the camera lerp-follows an invisible curving
@@ -2966,12 +2963,13 @@ function animate(t){
     // generous sways on every axis - the drone wanders far off the path
     // line and rolls/looks all around while following it
     mistCamX += (here.x + Math.sin(nowSec * 0.055) * 12 - mistCamX) * follow;
-    mistCamY += (here.y + Math.sin(nowSec * 0.045 + 1) * 9 - mistCamY) * follow;
+    mistCamY += (18 + here.y + Math.sin(nowSec * 0.045 + 1) * 7 - mistCamY) * follow;
     mistCamYaw += (-Math.atan2(ahead.x - here.x, 14) * 0.6 + Math.sin(nowSec * 0.032) * 0.3 - mistCamYaw) * follow;
-    // slight upward base pitch parks the cloud horizon in the lower part
-    // of the frame, safely under the karaoke lyrics viewer, while the
-    // circle field still streams past and through the camera
-    mistCamPitch += (Math.atan2(ahead.y - here.y, 14) * 0.45 + 0.15 + Math.sin(nowSec * 0.028 + 3) * 0.14 - mistCamPitch) * follow;
+    // riding well above the disc field with a near-level gaze: the cloud
+    // horizon sits at mid-frame (under the karaoke viewer), and as discs
+    // approach they pass beneath the camera - sliding from the middle of
+    // the screen down and out the bottom
+    mistCamPitch += (Math.atan2(ahead.y - here.y, 14) * 0.45 + 0.02 + Math.sin(nowSec * 0.028 + 3) * 0.1 - mistCamPitch) * follow;
     mistCamBank += (-Math.atan2(ahead.x - here.x, 14) * 0.8 + Math.sin(nowSec * 0.025 + 5) * 0.16 - mistCamBank) * follow;
     camera.position.x = mistCamX;
     camera.position.y = mistCamY;
