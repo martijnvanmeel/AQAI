@@ -2021,8 +2021,8 @@ const ROAD_REPEATS = 3;
 const ROAD_SPEED = 9;
 const ROAD_HALF_WIDTH = 2.5;    // road corridor half-width (50% of the old road)
 const ROAD_CAM_HEIGHT = 4.6;    // comfortably above the road at all times
-const ROAD_COLS = 36;           // terrain grid resolution across (x)
-const ROAD_ROWS = 44;           // terrain grid rows per chunk (z)
+const ROAD_COLS = 72;           // terrain grid resolution across (x) - 2x detail
+const ROAD_ROWS = 88;           // terrain grid rows per chunk (z) - 2x detail
 // palette lifted from the reference art
 const ROAD_TEAL = new THREE.Color(0x35e0c8);
 const ROAD_PURPLE = new THREE.Color(0x8a4fff);
@@ -2137,8 +2137,6 @@ function buildRoadTerrain(group){
 // track's real artistColor is known
 let roadStripGeo = null;
 let roadStripMat = null;
-let roadEdgeGeos = [];
-let roadEdgeMat = null;
 function retintRoadStrip(artistColor){
   if (!roadStripGeo) return;
   const totalRows = ROAD_ROWS * ROAD_REPEATS;
@@ -2152,17 +2150,8 @@ function retintRoadStrip(artistColor){
     tmpColor.copy(cA).lerp(cB, (Math.sin(a) + 1) / 2);
     attr.setXYZ(r * 2, tmpColor.r, tmpColor.g, tmpColor.b);
     attr.setXYZ(r * 2 + 1, tmpColor.r, tmpColor.g, tmpColor.b);
-    // edge ribbons carry the same gradient at 2x the road's brightness;
-    // their quad layout has 4 verts per segment - verts 0/1 belong to row
-    // s, verts 2/3 to row s+1 (see the builder in buildRoadStrip)
-    roadEdgeGeos.forEach(geo => {
-      const ec = geo.attributes.color;
-      if (r < totalRows){ ec.setXYZ(r * 4, tmpColor.r * 2, tmpColor.g * 2, tmpColor.b * 2); ec.setXYZ(r * 4 + 1, tmpColor.r * 2, tmpColor.g * 2, tmpColor.b * 2); }
-      if (r > 0){ ec.setXYZ((r - 1) * 4 + 2, tmpColor.r * 2, tmpColor.g * 2, tmpColor.b * 2); ec.setXYZ((r - 1) * 4 + 3, tmpColor.r * 2, tmpColor.g * 2, tmpColor.b * 2); }
-    });
   }
   attr.needsUpdate = true;
-  roadEdgeGeos.forEach(geo => { geo.attributes.color.needsUpdate = true; });
 }
 function buildRoadStrip(group){
   const totalRows = ROAD_ROWS * ROAD_REPEATS;
@@ -2185,76 +2174,7 @@ function buildRoadStrip(group){
   // gradient, and animate() drives it 1.0 -> 1.25 with the music level
   roadStripMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
   group.add(new THREE.Mesh(roadStripGeo, roadStripMat));
-  // edge lines hugging both sides of the ribbon: 3px screen-space ribbon
-  // quads (plain GL lines ignore linewidth - same technique as the tunnel
-  // wireframe), carrying the gradient at 2x the road's brightness, glowing
-  // additively and surging with the music via the uBeat uniform
-  roadEdgeMat = new THREE.ShaderMaterial({
-    uniforms: { uResolution: { value: tunnelLineResolution }, uLineWidth: { value: 3 }, uBeat: { value: 1 } },
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    vertexShader: `
-      attribute vec3 aOther;
-      attribute float aSide;
-      attribute vec3 color;
-      uniform vec2 uResolution;
-      uniform float uLineWidth;
-      varying vec3 vColor;
-      varying float vDist;
-      void main(){
-        vColor = color;
-        vec4 mvSelf = modelViewMatrix * vec4( position, 1.0 );
-        vDist = -mvSelf.z;
-        vec4 clipSelf = projectionMatrix * mvSelf;
-        vec4 clipOther = projectionMatrix * ( modelViewMatrix * vec4( aOther, 1.0 ) );
-        vec2 screenSelf = clipSelf.xy / clipSelf.w * uResolution;
-        vec2 screenOther = clipOther.xy / clipOther.w * uResolution;
-        vec2 dir = normalize( screenOther - screenSelf + 1e-4 );
-        vec2 normal = vec2( -dir.y, dir.x );
-        clipSelf.xy += ( normal * ( uLineWidth * 0.5 ) * aSide / uResolution ) * clipSelf.w;
-        gl_Position = clipSelf;
-      }
-    `,
-    fragmentShader: `
-      uniform float uBeat;
-      varying vec3 vColor;
-      varying float vDist;
-      void main(){
-        // hand-rolled distance fade standing in for the scene fog (custom
-        // shaders don't get three's fog injection)
-        float fade = 1.0 - smoothstep( 80.0, 260.0, vDist );
-        gl_FragColor = vec4( vColor * uBeat * fade, fade );
-      }
-    `,
-  });
-  roadEdgeGeos = [-1, 1].map(sideSign => {
-    const positionsE = [], others = [], sides = [];
-    const rowPoint = r => {
-      const center = roadCenterAt(r * ROAD_SEG);
-      return [center.x + sideSign * ROAD_HALF_WIDTH, center.y + 0.05, -r * ROAD_SEG];
-    };
-    const indicesE = [];
-    for (let s = 0; s < totalRows; s++){
-      const a = rowPoint(s), b = rowPoint(s + 1);
-      positionsE.push(...a, ...a, ...b, ...b);
-      others.push(...b, ...b, ...a, ...a);
-      sides.push(-1, 1, -1, 1);
-      const base = s * 4;
-      indicesE.push(base, base + 2, base + 1, base + 2, base + 3, base + 1);
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.Float32BufferAttribute(positionsE, 3));
-    geo.setAttribute("aOther", new THREE.Float32BufferAttribute(others, 3));
-    geo.setAttribute("aSide", new THREE.Float32BufferAttribute(sides, 1));
-    geo.setAttribute("color", new THREE.Float32BufferAttribute(new Float32Array(totalRows * 4 * 3), 3));
-    geo.setIndex(indicesE);
-    const mesh = new THREE.Mesh(geo, roadEdgeMat);
-    mesh.frustumCulled = false;
-    group.add(mesh);
-    return geo;
-  });
-  retintRoadStrip("#7ED957"); // sensible default (incl. edges) until a track is active
+  retintRoadStrip("#7ED957"); // sensible default until a track is active
 }
 // little glowing red balls hovering over the road edge, each "casting"
 // light as an additive radial pool on the road surface beneath it (the
@@ -2441,7 +2361,7 @@ const mistGroup = new THREE.Group();
   // the road stars which use this same proven Points pipeline), additive
   // so overlap just builds glow and needs no depth sorting.
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
-  const CLUSTERS = 20;
+  const CLUSTERS = 28;
   const buckets = [
     { size: 280, positions: [], colors: [] },
     { size: 406, positions: [], colors: [] },
@@ -2480,8 +2400,9 @@ const mistGroup = new THREE.Group();
     geo.setAttribute("position", new THREE.Float32BufferAttribute(b.positions, 3));
     geo.setAttribute("color", new THREE.Float32BufferAttribute(b.colors, 3));
     const points = new THREE.Points(geo, new THREE.PointsMaterial({ size: b.size, sizeAttenuation: true,
-      map: mistPuffTexture, vertexColors: true, transparent: true, opacity: 0.85,
+      map: mistPuffTexture, vertexColors: true, transparent: true, opacity: 0.16,
       depthWrite: false, blending: THREE.AdditiveBlending }));
+    points.userData.baseSize = b.size; // for the grow/shrink pulse in animate()
     // puffs must not pop out while still partly on screen - only vanish
     // once they're genuinely behind the camera
     points.frustumCulled = false;
@@ -2591,11 +2512,11 @@ downtownGroup.visible = false;
 scene.add(downtownGroup);
 // warm light near the camera - the corridor darkens with distance, like
 // the reference's vanishing point; plus a dim warm ambient fill
-const downtownLight = new THREE.PointLight(0xffd9a0, 1.6, 70 * DT_SCALE, 1.8);
+const downtownLight = new THREE.PointLight(0xffd9a0, 1.2, 70 * DT_SCALE, 1.8);
 downtownLight.position.set(0, 2 * DT_SCALE, 2);
 downtownLight.visible = false;
 scene.add(downtownLight);
-const downtownAmbient = new THREE.AmbientLight(0x2a180c, 0.9);
+const downtownAmbient = new THREE.AmbientLight(0x2a180c, 0.68);
 downtownAmbient.visible = false;
 scene.add(downtownAmbient);
 const downtownFog = new THREE.FogExp2(0x120a05, 0.02 / DT_SCALE);
@@ -2810,6 +2731,38 @@ let camYaw = 0, camPitch = 0;
 // timestamp the automatic motion (re)starts from; null forces a fresh
 // "centred, then ease in" ramp the next time auto-drift takes over
 let autoMotionStartT = null;
+
+/* ---------- flight controls (all scenes): hold ArrowUp to speed forward,
+   ArrowDown to fly backwards, ArrowLeft/ArrowRight to rotate the scene
+   counter-/clockwise. Every scene scrolls from the shared accumulated
+   flightDist (advanced by the smoothed speed factor each frame) instead
+   of raw clock time, which is what makes variable/reverse speed possible
+   without any scene-visible seam. ---------- */
+const flightKeys = { up: false, down: false, left: false, right: false };
+let flightSpeedFactor = 1; // smoothed: 1 cruise, up to 2.6 boosted, -1.2 reverse
+let flightDist = 0;        // accumulated "seconds of cruise flight" all scenes scroll from
+let cameraRollOffset = 0;  // steered roll applied on top of every scene's own bank
+let flightRollRate = 0;    // smoothed roll velocity, so key presses ease in/out
+let lastAnimT = null;
+// safe wrap for scroll offsets - flightDist can go negative while reversing
+function wrapScroll(v, m){ return ((v % m) + m) % m; }
+addEventListener("keydown", e => {
+  const el = document.activeElement;
+  if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+  if (e.key === "ArrowUp") flightKeys.up = true;
+  else if (e.key === "ArrowDown") flightKeys.down = true;
+  else if (e.key === "ArrowLeft") flightKeys.left = true;
+  else if (e.key === "ArrowRight") flightKeys.right = true;
+  else return;
+  e.preventDefault();
+});
+addEventListener("keyup", e => {
+  if (e.key === "ArrowUp") flightKeys.up = false;
+  else if (e.key === "ArrowDown") flightKeys.down = false;
+  else if (e.key === "ArrowLeft") flightKeys.left = false;
+  else if (e.key === "ArrowRight") flightKeys.right = false;
+});
+
 function animate(t){
   requestAnimationFrame(animate);
   if (analyser && playing) analyser.getByteFrequencyData(freqData);
@@ -2818,6 +2771,19 @@ function animate(t){
   drawWaveCanvas();
   panoUniforms.uIntensity.value += (audioIntensity() - panoUniforms.uIntensity.value) * 0.15;
   updateArtistRingVisualiser();
+  // flight controls: advance the shared scroll clock by the (smoothed)
+  // speed factor, and integrate the steered scene roll
+  const dtSec = lastAnimT === null ? 0.016 : Math.min(0.1, ((t || 0) - lastAnimT) * 0.001);
+  lastAnimT = t || 0;
+  // both the speed factor and the roll rate ease toward their key-driven
+  // targets rather than jumping, so a press ramps in and a release ramps
+  // out - motion stays smooth at both ends
+  const speedTarget = flightKeys.up ? 2.6 : flightKeys.down ? -1.2 : 1;
+  flightSpeedFactor += (speedTarget - flightSpeedFactor) * 0.035;
+  flightDist += dtSec * flightSpeedFactor;
+  const rollTarget = flightKeys.left ? -0.9 : flightKeys.right ? 0.9 : 0;
+  flightRollRate += (rollTarget - flightRollRate) * 0.04;
+  cameraRollOffset += flightRollRate * dtSec;
   // logo no longer scales with music intensity - fixed size, just its
   // own CSS centering (see positionLogo())
 
@@ -2868,7 +2834,7 @@ function animate(t){
     const nowSec = (t || 0) * 0.001;
     // scrolled by exactly one chunk-length wraps seamlessly, since chunk 2
     // is an identical copy of chunk 1 (see buildTunnelGeometry)
-    tunnelGroup.position.z = (nowSec * TUNNEL_SPEED) % TUNNEL_CHUNK_LENGTH;
+    tunnelGroup.position.z = wrapScroll(flightDist * TUNNEL_SPEED, TUNNEL_CHUNK_LENGTH);
     // same 9s period as the intro logo's own CSS spin (logo3dSpin)
     tunnelGroup.rotation.z = (nowSec / 9) * Math.PI * 2;
   }
@@ -2881,8 +2847,8 @@ function animate(t){
     // adds slow orbital sweeps in every direction on top, all lerped so
     // each move is an elegant glide
     const nowSec = (t || 0) * 0.001;
-    const scroll = nowSec * ROAD_SPEED;
-    roadGroup.position.z = scroll % ROAD_CHUNK_LENGTH;
+    const scroll = flightDist * ROAD_SPEED;
+    roadGroup.position.z = wrapScroll(scroll, ROAD_CHUNK_LENGTH);
     // the centerline point at the camera's own world z (camera sits at
     // z=8; road point d renders at world z = scroll - d)
     const here = roadCenterAt(scroll - 8);
@@ -2903,9 +2869,9 @@ function animate(t){
     camera.position.y = roadCamY;
     camera.rotation.x = roadCamPitch;
     camera.rotation.y = roadCamYaw;
-    camera.rotation.z = roadCamBank;
+    camera.rotation.z = roadCamBank + cameraRollOffset;
     // stars stream from the far back toward (and past) the camera
-    roadStars.position.z = (nowSec * ROAD_STAR_SPEED) % ROAD_STAR_DEPTH;
+    roadStars.position.z = wrapScroll(flightDist * ROAD_STAR_SPEED, ROAD_STAR_DEPTH);
     // outline spheres rise slowly from just above the field: p*p is the
     // ease-in (gentle lift-off, accelerating upward). Each cycle fades in
     // over its first 15% and out over its last 15%, so a sphere appears
@@ -2916,53 +2882,56 @@ function animate(t){
       s.userData.outlineMat.opacity = Math.min(1, Math.min(p / 0.15, (1 - p) / 0.15)) * 0.95;
     });
     // the road itself brightens up to 25% with the music (uIntensity is
-    // the same smoothed audio level the other visualisers use), and the
-    // edge ribbons - already 2x the road's brightness - glow much harder
+    // the same smoothed audio level the other visualisers use)
     if (roadStripMat) roadStripMat.color.setScalar(1 + panoUniforms.uIntensity.value * 0.25);
-    if (roadEdgeMat) roadEdgeMat.uniforms.uBeat.value = 1 + panoUniforms.uIntensity.value * 1.5;
   } else if (mistGroup.visible){
     // endless drone flight THROUGH the cloud field, in the same style as
     // the Polaroid road: the camera lerp-follows an invisible curving
     // path at cloud level - masses loom past on every side rather than
     // sliding by underneath - looking and banking into the curve ahead
     const nowSec = (t || 0) * 0.001;
-    const scroll = nowSec * MIST_SPEED;
-    mistGroup.position.z = scroll % MIST_CHUNK_LENGTH;
+    const scroll = flightDist * MIST_SPEED;
+    mistGroup.position.z = wrapScroll(scroll, MIST_CHUNK_LENGTH);
     const here = mistPathAt(scroll - 8);
     const ahead = mistPathAt(scroll - 8 + 14);
     const follow = 0.02;
     // generous sways on every axis - the drone wanders far off the path
     // line and rolls/looks all around while following it
-    mistCamX += (here.x + Math.sin(nowSec * 0.055) * 8 - mistCamX) * follow;
-    mistCamY += (-10 + here.y + Math.sin(nowSec * 0.045 + 1) * 6 - mistCamY) * follow;
-    mistCamYaw += (-Math.atan2(ahead.x - here.x, 14) * 0.6 + Math.sin(nowSec * 0.032) * 0.22 - mistCamYaw) * follow;
+    mistCamX += (here.x + Math.sin(nowSec * 0.055) * 12 - mistCamX) * follow;
+    mistCamY += (-10 + here.y + Math.sin(nowSec * 0.045 + 1) * 9 - mistCamY) * follow;
+    mistCamYaw += (-Math.atan2(ahead.x - here.x, 14) * 0.6 + Math.sin(nowSec * 0.032) * 0.3 - mistCamYaw) * follow;
     // base pitch tilted up ~0.2rad (~200px at this zoom/viewport): the
     // whole cloudscape sits that much lower in the frame
-    mistCamPitch += (Math.atan2(ahead.y - here.y, 14) * 0.45 + 0.18 + Math.sin(nowSec * 0.028 + 3) * 0.1 - mistCamPitch) * follow;
-    mistCamBank += (-Math.atan2(ahead.x - here.x, 14) * 0.8 + Math.sin(nowSec * 0.025 + 5) * 0.12 - mistCamBank) * follow;
+    mistCamPitch += (Math.atan2(ahead.y - here.y, 14) * 0.45 + 0.18 + Math.sin(nowSec * 0.028 + 3) * 0.14 - mistCamPitch) * follow;
+    mistCamBank += (-Math.atan2(ahead.x - here.x, 14) * 0.8 + Math.sin(nowSec * 0.025 + 5) * 0.16 - mistCamBank) * follow;
     camera.position.x = mistCamX;
     camera.position.y = mistCamY;
     camera.rotation.x = mistCamPitch;
     camera.rotation.y = mistCamYaw;
-    camera.rotation.z = mistCamBank;
-    // the cloud masses themselves drift around: each size bucket orbits
-    // slowly on its own bounded offsets (never cumulative, so the
-    // chunk-scroll wrap stays seamless)
+    camera.rotation.z = mistCamBank + cameraRollOffset;
+    // the cloud masses themselves wander widely and briskly: each size
+    // bucket orbits on its own bounded offsets with real up/down travel
+    // and fore/aft drift (never cumulative, so the chunk wrap stays
+    // clean), and each bucket slowly grows and shrinks (+/-25%) too
     mistGroup.children.forEach((b, i) => {
-      b.position.x = Math.sin(nowSec * (0.05 + i * 0.017) + i * 2) * 14;
-      b.position.y = Math.sin(nowSec * (0.04 + i * 0.013) + i * 4) * 5;
+      b.position.x = Math.sin(nowSec * (0.1 + i * 0.034) + i * 2) * 30;
+      b.position.y = Math.sin(nowSec * (0.08 + i * 0.026) + i * 4) * 14;
+      b.position.z = Math.sin(nowSec * (0.06 + i * 0.022) + i * 5) * 18;
+      b.material.size = b.userData.baseSize * (1 + Math.sin(nowSec * (0.07 + i * 0.019) + i * 3) * 0.25);
     });
   } else if (downtownGroup.visible){
     // wide-roaming glide through the big block maze: sweeping left/right/
     // up/down travel plus all three rotations, still clear of the slabs'
     // deepest reach into the corridor
     const nowSec = (t || 0) * 0.001;
-    downtownGroup.position.z = (nowSec * DT_SPEED) % DT_CHUNK_LENGTH;
+    downtownGroup.position.z = wrapScroll(flightDist * DT_SPEED, DT_CHUNK_LENGTH);
     camera.position.x = Math.sin(nowSec * 0.05) * 24 + Math.sin(nowSec * 0.021 + 3) * 10;
     camera.position.y = Math.sin(nowSec * 0.042 + 1) * 18 + Math.sin(nowSec * 0.017) * 8;
     camera.rotation.x = Math.sin(nowSec * 0.036 + 2) * 0.16;
     camera.rotation.y = Math.sin(nowSec * 0.03) * 0.34;
-    camera.rotation.z = Math.sin(nowSec * 0.04 + 4) * 0.2;
+    // one full slow 360deg barrel roll every ~2.5 minutes, with the axis
+    // sways and the steered flight roll layered on top
+    camera.rotation.z = nowSec * (Math.PI * 2 / 150) + Math.sin(nowSec * 0.04 + 4) * 0.2 + cameraRollOffset;
     // the reactive slabs breathe with the music (uIntensity is the same
     // smoothed audio level the sphere shader uses), each on its own phase
     const beat = panoUniforms.uIntensity.value;
@@ -2972,9 +2941,10 @@ function animate(t){
   } else {
     // only the scene branches above ever touch these - reset them so a
     // track change away from a 3D scene doesn't leave the sphere/tunnel
-    // view stuck mid-turn
+    // view stuck mid-turn (the steered flight roll still applies here,
+    // covering the intro tunnel and the plain sphere screen)
     camera.position.x = 0;
-    camera.rotation.z = 0;
+    camera.rotation.z = cameraRollOffset;
     camera.position.y = tunnelGroup.visible ? -1.1 : 0;
   }
 
@@ -3158,6 +3128,9 @@ if (!GATE_PASSWORD_ENABLED){
 $("#gate-btn").onclick = () => {
   $("#gate").classList.add("hidden");
   document.body.classList.remove("gate-active");
+  // the (now hidden) password input may still hold keyboard focus, which
+  // would swallow the arrow-key flight controls - release it
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   panoUniforms.uGate.value = 0; // restore the sphere's shader effects for the music screen
   tunnelGroup.visible = false; // intro-only tunnel hands off to the sphere (or the Polaroid road)
   tunnelLight.visible = false;
