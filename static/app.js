@@ -2361,7 +2361,7 @@ const mistGroup = new THREE.Group();
   // the road stars which use this same proven Points pipeline), additive
   // so overlap just builds glow and needs no depth sorting.
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
-  const CLUSTERS = 28;
+  const CLUSTERS = 36;
   const buckets = [
     { size: 280, positions: [], colors: [] },
     { size: 406, positions: [], colors: [] },
@@ -2369,12 +2369,12 @@ const mistGroup = new THREE.Group();
   ];
   for (let rep = 0; rep < MIST_REPEATS; rep++){
     for (let ci = 0; ci < CLUSTERS; ci++){
-      // the whole field sits low, from the view's midline downward - the
-      // camera looks down over a screen-filling floor of dark cloud.
-      // Spread very wide with few puffs per cluster, so the huge puffs
-      // still leave real open sky between cloud masses
+      // the field is banded around the flight path's own level (the drone
+      // rides at y ~ -10), so the camera constantly passes THROUGH cloud
+      // masses rather than only skimming over a low floor. Spread very
+      // wide with few puffs per cluster, so real open sky remains
       const cx0 = (h(ci, 1) - 0.5) * 700;
-      const cy0 = -16 + h(ci, 2) * 6;
+      const cy0 = -14 + h(ci, 2) * 8;
       const cz0 = -h(ci, 3) * MIST_CHUNK_LENGTH;
       const puffs = 4 + Math.floor(h(ci, 4) * 4);
       for (let pi = 0; pi < puffs; pi++){
@@ -2445,26 +2445,34 @@ const DT_HALF_H = 10 * DT_SCALE;  // corridor half-height - and far out above/be
 // warm base palette, deliberately kept mid-to-dark ("not too light");
 // tinted toward the artist's own color on activation - see dtMats below
 const DT_BASE_COLORS = [0x6e4420, 0x8a5a2c, 0x9c6428, 0x4a2f18, 0x7a3c1e, 0x5c3a22].map(c => new THREE.Color(c));
-const dtMats = DT_BASE_COLORS.map(color => new THREE.MeshPhongMaterial({ color: color.clone(), specular: 0x2a1c10, shininess: 8 }));
+// 80% transparent glassy boxes; depthWrite off so overlapping translucent
+// faces blend instead of clipping each other
+const dtMats = DT_BASE_COLORS.map(color => new THREE.MeshPhongMaterial({ color: color.clone(), specular: 0x2a1c10, shininess: 8,
+  transparent: true, opacity: 0.2, depthWrite: false }));
 const dtReactiveSlabs = []; // slabs that light up with the music (see animate())
+const dtBobSlabs = [];      // every box, corridor and outer - all bob up/down in animate()
 const downtownGroup = new THREE.Group();
 {
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
   const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-  // solid corridor shell behind the slabs, so gaps read as dark wood
-  const shellMat = new THREE.MeshPhongMaterial({ color: 0x2a1a0e, specular: 0x000000, shininess: 4, side: THREE.BackSide });
-  const shell = new THREE.Mesh(new THREE.BoxGeometry(DT_HALF_W * 2, DT_HALF_H * 2, DT_CHUNK_LENGTH * DT_REPEATS), shellMat);
-  shell.position.z = -DT_CHUNK_LENGTH * DT_REPEATS / 2;
-  downtownGroup.add(shell);
+  const registerBob = (slab, i, amp) => {
+    slab.userData.baseY = slab.position.y;
+    slab.userData.bobPhase = h(i, 20) * Math.PI * 2;
+    slab.userData.bobSpeed = 0.1 + h(i, 21) * 0.18;
+    slab.userData.bobAmp = amp;
+    dtBobSlabs.push(slab);
+  };
   // per-chunk template of slabs on all four sides, tiled DT_REPEATS times
+  // (no solid shell anymore - the gaps open onto the outer box field below,
+  // fading into the fog)
   const SLABS = 46;
   for (let rep = 0; rep < DT_REPEATS; rep++){
     for (let i = 0; i < SLABS; i++){
       const side = Math.floor(h(i, 1) * 4); // 0 left, 1 right, 2 floor, 3 ceiling
       const z = -h(i, 2) * DT_CHUNK_LENGTH - rep * DT_CHUNK_LENGTH;
-      const depth = (2 + h(i, 3) * 7) * DT_SCALE;        // how long along the corridor
-      const thickness = (0.6 + h(i, 4) * 1.3) * DT_SCALE;
-      const protrusion = (1 + h(i, 5) * 5) * DT_SCALE;   // how far it juts into the corridor
+      const depth = (2 + h(i, 3) * 7) * DT_SCALE * 0.5;        // how long along the corridor (50% size)
+      const thickness = (0.6 + h(i, 4) * 1.3) * DT_SCALE * 0.5;
+      const protrusion = (1 + h(i, 5) * 5) * DT_SCALE * 0.5;   // how far it juts into the corridor
       const along = (h(i, 6) - 0.5) * 2;    // position along the wall's free axis
       // roughly one slab in five glows with the music - those get their
       // own material clone so their emissive can pulse independently
@@ -2482,7 +2490,36 @@ const downtownGroup = new THREE.Group();
         slab.userData.pulsePhase = h(i, 9) * Math.PI * 2;
         dtReactiveSlabs.push(slab);
       }
+      registerBob(slab, i + rep * 1000, 1.5 + h(i, 22) * 2);
       downtownGroup.add(slab);
+    }
+  }
+  // bigger boxes drifting in the open space OUTSIDE the corridor walls,
+  // visible through the gaps between the wall slabs
+  const OUTER = 14;
+  for (let rep = 0; rep < DT_REPEATS; rep++){
+    for (let i = 0; i < OUTER; i++){
+      const k = i + 100;
+      const z = -h(k, 2) * DT_CHUNK_LENGTH - rep * DT_CHUNK_LENGTH;
+      const reactive = h(k, 8) < 0.15;
+      const mat = reactive ? dtMats[i % dtMats.length].clone() : dtMats[i % dtMats.length];
+      const box = new THREE.Mesh(boxGeo, mat);
+      box.scale.set((15 + h(k, 3) * 35) * 0.5, (15 + h(k, 4) * 35) * 0.5, (15 + h(k, 5) * 40) * 0.5);
+      let px, py;
+      if (h(k, 6) < 0.5){ // beyond the left/right walls
+        px = (h(k, 7) < 0.5 ? -1 : 1) * (DT_HALF_W + 20 + h(k, 9) * 150);
+        py = (h(k, 10) - 0.5) * 2 * DT_HALF_H * 2.2;
+      } else {            // beyond the floor/ceiling
+        py = (h(k, 7) < 0.5 ? -1 : 1) * (DT_HALF_H + 20 + h(k, 9) * 110);
+        px = (h(k, 10) - 0.5) * 2 * DT_HALF_W * 2.2;
+      }
+      box.position.set(px, py, z);
+      if (reactive){
+        box.userData.pulsePhase = h(k, 9) * Math.PI * 2;
+        dtReactiveSlabs.push(box);
+      }
+      registerBob(box, k + rep * 1000, 4 + h(k, 11) * 5);
+      downtownGroup.add(box);
     }
   }
 }
@@ -2937,6 +2974,11 @@ function animate(t){
     const beat = panoUniforms.uIntensity.value;
     dtReactiveSlabs.forEach(slab => {
       slab.material.emissiveIntensity = beat * (0.55 + Math.sin(nowSec * 2.2 + slab.userData.pulsePhase) * 0.45);
+    });
+    // every box floats smoothly up and down on its own slow phase (outer
+    // boxes with a wider travel than the corridor slabs)
+    dtBobSlabs.forEach(slab => {
+      slab.position.y = slab.userData.baseY + Math.sin(nowSec * slab.userData.bobSpeed + slab.userData.bobPhase) * slab.userData.bobAmp;
     });
   } else {
     // only the scene branches above ever touch these - reset them so a
