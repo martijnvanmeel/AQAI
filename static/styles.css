@@ -457,7 +457,7 @@ body.gate-active::after{display:none}
    z-index:0 (lower than .meta-row's 3) keeps it behind the song-title
    pill if the two ever overlap; top is set dynamically in JS by
    positionArtistPhoto() - 60px above the controls row */
-.artist-photo-wrap{position:relative;z-index:0;width:167.0625px;margin:0 auto -5px;transform:translateY(-38px) scale(.88)}
+.artist-photo-wrap{position:relative;z-index:0;width:167.0625px;margin:0 auto -5px;transform:translateY(-43px) scale(1.32)}
 /* soft glow behind the photo, tinted the current track's artist colour */
 .artist-photo-wrap::before{
   content:"";position:absolute;inset:-16%;z-index:0;
@@ -608,14 +608,14 @@ body.gate-active::after{display:none}
   display:flex;align-items:center;justify-content:center;gap:10px;
   flex:1 1 auto;max-width:75%;min-width:0;
 }
-.transport{display:flex;align-items:center;gap:8px}
+.transport{display:flex;align-items:center;gap:8px;position:relative;top:-15px}
 .transport-center{display:flex;align-items:center;gap:8px}
-.ctl.big-play{width:35.2px;height:35.2px;border-radius:12px}
-.ctl.big-play svg{width:16px;height:16px}
+.ctl.big-play{width:44px;height:44px;border-radius:15px}
+.ctl.big-play svg{width:20px;height:20px}
 /* now a direct sibling of .transport/.bar-row in .controls-row, so the
    40px gap from the volume slider comes for free via .controls-row's own
    gap - no extra margin needed */
-.side-btns{display:flex;align-items:center;gap:10px}
+.side-btns{display:flex;align-items:center;gap:10px;position:relative;top:-15px}
 .mobile-more-btn{display:none;flex:0 0 auto}
 
 /* narrower still: not enough room for transport + duration/volume side by
@@ -647,7 +647,9 @@ body.gate-active::after{display:none}
 @media (max-width:480px){
   .player{padding-left:15px;padding-right:15px}
   .controls-row{width:100%;margin-left:0;margin-right:0}
-  .bar-row{width:100%;margin:0;padding:0}
+  /* bleeds past .player's own 15px side padding, so the position/volume
+     row alone reaches the true screen edge (transport row above keeps it) */
+  .bar-row{width:calc(100% + 30px);margin:0 -15px;padding:0}
   .transport{width:100%;justify-content:space-between;gap:0}
   #c-random{transform:scale(.9)}
   .mobile-more-btn{display:flex}
@@ -695,7 +697,7 @@ body.gate-active::after{display:none}
 .ctl.toggle.on:hover::before{opacity:0}
 
 .bar-row .time{font-family:var(--font-title);font-size:11px;letter-spacing:.06em;color:var(--fg-soft);flex:0 0 auto;position:relative;top:1px}
-#t-cur{left:-5px} /* current position text: also 5px left */
+#t-cur{left:-2px} /* current position text: net 2px left of centre */
 #bar{
   position:relative;height:26px;flex:1 1 auto;display:flex;align-items:center;cursor:pointer;
   touch-action:none;min-width:0;
@@ -709,7 +711,7 @@ body.gate-active::after{display:none}
   position:absolute;width:19.84px;height:19.84px;border-radius:50%;
   /* artist-colour outer circle with a small grey (matching the bar) centre dot */
   background:radial-gradient(circle,
-    #888888 0, #888888 4px,
+    #000000 0, #000000 4px,
     var(--artist-color, var(--active-green)) 4px, var(--artist-color, var(--active-green)) 100%);
   left:0%;transform:translateX(-50%);
   border:2px solid var(--artist-color, var(--active-green));
@@ -745,6 +747,7 @@ body.gate-active::after{display:none}
   flex:0 1 55px;width:55px;height:26px;
   -webkit-appearance:none;appearance:none;cursor:pointer;
   background:transparent;
+  margin-left:7px; /* extra space from the duration text, on top of the row's own gap */
 }
 #c-volume::-webkit-slider-runnable-track{
   height:5px;border-radius:2.5px;
@@ -756,7 +759,7 @@ body.gate-active::after{display:none}
   -webkit-appearance:none;margin-top:-7.42px;
   width:19.84px;height:19.84px;border-radius:50%;
   background:radial-gradient(circle,
-    #888888 0, #888888 4px,
+    #000000 0, #000000 4px,
     var(--artist-color, var(--active-green)) 4px, var(--artist-color, var(--active-green)) 100%);
   border:2px solid var(--artist-color, var(--active-green));
   transition:transform .15s ease;
@@ -765,7 +768,7 @@ body.gate-active::after{display:none}
 #c-volume::-moz-range-thumb{
   width:19.84px;height:19.84px;border-radius:50%;
   background:radial-gradient(circle,
-    #888888 0, #888888 4px,
+    #000000 0, #000000 4px,
     var(--artist-color, var(--active-green)) 4px, var(--artist-color, var(--active-green)) 100%);
   border:2px solid var(--artist-color, var(--active-green));
   transition:transform .15s ease;

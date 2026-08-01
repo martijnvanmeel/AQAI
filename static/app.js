@@ -1438,13 +1438,13 @@ function positionWaveCanvas(){
   const height = Math.max(40, Math.min(80, lyricsTop * 0.5)) + 40;
   const photoRect = photo.getBoundingClientRect();
   const centerY = photoRect.top + photoRect.height / 2;
-  const canvasCenterY = centerY + 40 - 15 + 5 + 10 - 22; // visualiser (only) nudged 22px up
+  const canvasCenterY = centerY + 40 - 15 + 5 + 10 - 22 + 20; // visualiser (only) net 20px down from that
   const top = canvasCenterY - height / 2;
   canvas.style.top = top + "px";
   canvas.style.height = height + "px";
   // net effect: title pill sits 30px lower than before, independent of
   // however far the photo (and centerY along with it) has moved
-  metaRow.style.top = (centerY + 30) + "px";
+  metaRow.style.top = (centerY + 50) + "px"; // +20 more than before
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(canvas.clientWidth * dpr);
   canvas.height = Math.round(height * dpr);
