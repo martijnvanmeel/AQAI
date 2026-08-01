@@ -2329,7 +2329,7 @@ let roadCamX = 0, roadCamY = ROAD_CAM_HEIGHT, roadCamYaw = 0, roadCamPitch = 0, 
 const MIST_ARTIST_NAME = "Aveluna";
 const MIST_CHUNK_LENGTH = 240;
 const MIST_REPEATS = 3;
-const MIST_SPEED = 8; // floaty, but with real forward motion
+const MIST_SPEED = 16; // brisk - clouds stream visibly past the camera
 const MIST_SKY = new THREE.Color(0x241d5c); // the reference's deep indigo
 // soft round puff - the one texture every cloud sprite shares
 const mistPuffTexture = (() => {
