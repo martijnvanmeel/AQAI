@@ -2273,15 +2273,20 @@ function buildRoadFloaters(group){
       // anywhere from hugging the road edge to far out over the terrain
       const side = (i % 2 === 0 ? 1 : -1) * (3 + roadHash(i, 3) * 30);
       const s = new THREE.Mesh(sphereGeo, occluderMat);
-      const outline = new THREE.Mesh(sphereGeo, outlineMats[i % 3]);
+      // per-sphere clone so each one can fade in/out independently
+      const outline = new THREE.Mesh(sphereGeo, outlineMats[i % 3].clone());
       outline.scale.setScalar(1.025); // thin shell = ~1px rim at typical distance
       s.add(outline);
       s.scale.setScalar(0.5 + roadHash(i, 5) * 2.8); // wide size spread
-      s.position.set(center.x + side, center.y + 0.8, -(d + rep * ROAD_CHUNK_LENGTH));
-      // rises from just above the valley floor, easing in (slow lift-off,
-      // then accelerating upward), and loops back to the bottom - see the
-      // roadFloaters update in animate()
-      s.userData.startY = center.y + 0.8;
+      // start ABOVE the local terrain surface (the ridges rise well over
+      // the road level away from the corridor), never buried inside it
+      const groundY = center.y - 0.35 + roadTerrainHeight(side, Math.round(d / ROAD_SEG));
+      s.position.set(center.x + side, groundY + 1.2, -(d + rep * ROAD_CHUNK_LENGTH));
+      // rises from just above the field, easing in (slow lift-off, then
+      // accelerating upward); fades in at the bottom and out at the top of
+      // each cycle so it never pops - see the roadFloaters update in animate()
+      s.userData.outlineMat = outline.material;
+      s.userData.startY = groundY + 1.2;
       s.userData.rise = 8 + roadHash(i, 7) * 6;
       s.userData.period = 22 + roadHash(i, 9) * 18; // seconds per full rise
       s.userData.phase = roadHash(i, 11);
@@ -2803,11 +2808,14 @@ function animate(t){
     camera.rotation.z = roadCamBank;
     // stars stream from the far back toward (and past) the camera
     roadStars.position.z = (nowSec * ROAD_STAR_SPEED) % ROAD_STAR_DEPTH;
-    // translucent spheres rise slowly from the valley floor: p*p is the
-    // ease-in (gentle lift-off, accelerating upward), looping per period
+    // outline spheres rise slowly from just above the field: p*p is the
+    // ease-in (gentle lift-off, accelerating upward). Each cycle fades in
+    // over its first 15% and out over its last 15%, so a sphere appears
+    // softly, drifts up, and dissolves - never popping in or out at once
     roadFloaters.forEach(s => {
       const p = ((nowSec / s.userData.period) + s.userData.phase) % 1;
       s.position.y = s.userData.startY + p * p * s.userData.rise;
+      s.userData.outlineMat.opacity = Math.min(1, Math.min(p / 0.15, (1 - p) / 0.15)) * 0.95;
     });
     // the road itself brightens up to 25% with the music (uIntensity is
     // the same smoothed audio level the other visualisers use)
