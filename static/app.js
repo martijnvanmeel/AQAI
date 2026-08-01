@@ -911,9 +911,12 @@ $("#btn-download").onclick = () => {
 };
 $("#btn-share").onclick = async () => {
   const tr = TRACKS[cur];
-  const data = { title: "AQAI — " + tr.title, text: `Listening to "${tr.title}" by ${tr.artist}`, url: location.href.split("#")[0] };
+  // "?t=<id>" is read back at boot (see the fetch("/api/tracks") handler)
+  // to start the player on this exact track instead of the default first one
+  const url = `${location.origin}${location.pathname}?t=${encodeURIComponent(tr.id)}`;
+  const data = { title: `${tr.title} — ${tr.artist} · AQAI`, text: `Listening to "${tr.title}" by ${tr.artist}`, url };
   if (navigator.share){ try { await navigator.share(data); } catch(e){} }
-  else if (navigator.clipboard){ await navigator.clipboard.writeText(data.url); toast("Link copied"); }
+  else if (navigator.clipboard){ await navigator.clipboard.writeText(url); toast("Link copied"); }
 };
 
 /* delete this song - moved server-side into a _deleted folder next to
@@ -2374,9 +2377,17 @@ fetch("/api/tracks").then(r => r.json()).then(data => {
   $("#info-count").textContent = TRACKS.length;
   EDITABLE = !!data.editable;
   updateEditControlsVisibility();
+  // deep link from a shared "?t=<id>" URL (see $("#btn-share").onclick) -
+  // starts the player on that track instead of the default first one
+  const deepLinkId = new URLSearchParams(location.search).get("t");
+  if (deepLinkId){
+    const idx = TRACKS.findIndex(tr => tr.id === deepLinkId);
+    if (idx !== -1) cur = idx;
+  }
   renderMeta(); renderList(); syncButtons();
   ensureLyricsLoaded(cur);
   if (TRACKS.length) applyTheme(themeIndexForTrack(TRACKS[cur]));
+  if (TRACKS.length) updateArtistBackground(TRACKS[cur]);
   if (location.hash.includes("sync")){
     renderSyncTracks();
     fillLyrics();
