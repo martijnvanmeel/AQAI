@@ -2021,8 +2021,9 @@ const ROAD_REPEATS = 3;
 const ROAD_SPEED = 9;
 const ROAD_HALF_WIDTH = 2.5;    // road corridor half-width (50% of the old road)
 const ROAD_CAM_HEIGHT = 4.6;    // comfortably above the road at all times
-const ROAD_COLS = 72;           // terrain grid resolution across (x) - 2x detail
-const ROAD_ROWS = 88;           // terrain grid rows per chunk (z) - 2x detail
+const ROAD_COLS = 18;           // terrain grid resolution across (x) - deliberately coarse
+const ROAD_ROWS = 22;           // terrain grid rows per chunk (z) - deliberately coarse
+const ROAD_STRIP_ROWS = 88;     // the road ribbon itself stays 2x-detailed (its own row count)
 // palette lifted from the reference art
 const ROAD_TEAL = new THREE.Color(0x35e0c8);
 const ROAD_PURPLE = new THREE.Color(0x8a4fff);
@@ -2037,6 +2038,7 @@ function roadCenterAt(dist){
   };
 }
 const ROAD_SEG = ROAD_CHUNK_LENGTH / ROAD_ROWS;
+const ROAD_STRIP_SEG = ROAD_CHUNK_LENGTH / ROAD_STRIP_ROWS;
 // deterministic per-vertex jitter, periodic across chunk repeats because
 // it's keyed on (col, row-within-chunk) rather than absolute position
 function roadHash(ix, iz){
@@ -2139,14 +2141,14 @@ let roadStripGeo = null;
 let roadStripMat = null;
 function retintRoadStrip(artistColor){
   if (!roadStripGeo) return;
-  const totalRows = ROAD_ROWS * ROAD_REPEATS;
+  const totalRows = ROAD_STRIP_ROWS * ROAD_REPEATS;
   // darker, moodier ends of the sweep (whole-scene darkening pass)
   const cA = new THREE.Color(artistColor || "#7ED957").multiplyScalar(0.42);
   const cB = new THREE.Color(0x2d5bd8).multiplyScalar(0.55);
   const attr = roadStripGeo.attributes.color;
   const tmpColor = new THREE.Color();
   for (let r = 0; r <= totalRows; r++){
-    const a = ((r % ROAD_ROWS) / ROAD_ROWS) * Math.PI * 2;
+    const a = ((r % ROAD_STRIP_ROWS) / ROAD_STRIP_ROWS) * Math.PI * 2;
     tmpColor.copy(cA).lerp(cB, (Math.sin(a) + 1) / 2);
     attr.setXYZ(r * 2, tmpColor.r, tmpColor.g, tmpColor.b);
     attr.setXYZ(r * 2 + 1, tmpColor.r, tmpColor.g, tmpColor.b);
@@ -2154,11 +2156,13 @@ function retintRoadStrip(artistColor){
   attr.needsUpdate = true;
 }
 function buildRoadStrip(group){
-  const totalRows = ROAD_ROWS * ROAD_REPEATS;
+  // the ribbon keeps its own fine row resolution, independent of the
+  // (much coarser) terrain grid
+  const totalRows = ROAD_STRIP_ROWS * ROAD_REPEATS;
   const positions = [];
   for (let r = 0; r <= totalRows; r++){
-    const center = roadCenterAt(r * ROAD_SEG);
-    const z = -r * ROAD_SEG;
+    const center = roadCenterAt(r * ROAD_STRIP_SEG);
+    const z = -r * ROAD_STRIP_SEG;
     positions.push(center.x - ROAD_HALF_WIDTH, center.y, z, center.x + ROAD_HALF_WIDTH, center.y, z);
   }
   const indices = [];
@@ -2195,6 +2199,7 @@ const roadPoolTexture = (() => {
   cx.fillRect(0, 0, 128, 128);
   return new THREE.CanvasTexture(cv);
 })();
+const roadBallPulses = []; // {ball, pool, phase} - gentle pulse in animate()
 function buildRoadBalls(group){
   const ballGeo = new THREE.SphereGeometry(0.26, 12, 10);
   const ballMat = new THREE.MeshBasicMaterial({ color: 0xff4038 });
@@ -2202,7 +2207,7 @@ function buildRoadBalls(group){
     blending: THREE.AdditiveBlending, depthWrite: false });
   const poolGeo = new THREE.PlaneGeometry(9, 9);
   poolGeo.rotateX(-Math.PI / 2);
-  const PER_CHUNK = 5;
+  const PER_CHUNK = 9;
   for (let rep = 0; rep < ROAD_REPEATS; rep++){
     for (let i = 0; i < PER_CHUNK; i++){
       const d = roadHash(i * 13, i * 29) * ROAD_CHUNK_LENGTH;
@@ -2219,6 +2224,7 @@ function buildRoadBalls(group){
       pool.position.set(center.x + side, center.y + 0.04, z);
       pool.frustumCulled = false;
       group.add(pool);
+      roadBallPulses.push({ ball, pool, phase: roadHash(i * 7, i * 3) * Math.PI * 2 });
     }
   }
 }
@@ -2287,8 +2293,8 @@ function buildRoadFloaters(group){
       // each cycle so it never pops - see the roadFloaters update in animate()
       s.userData.outlineMat = outline.material;
       s.userData.startY = groundY + 1.2;
-      s.userData.rise = 8 + roadHash(i, 7) * 6;
-      s.userData.period = 22 + roadHash(i, 9) * 18; // seconds per full rise
+      s.userData.rise = 12 + roadHash(i, 7) * 8;    // taller travel: visibly climbing while on screen
+      s.userData.period = 10 + roadHash(i, 9) * 8;  // seconds per full rise - brisk enough to read as motion
       s.userData.phase = roadHash(i, 11);
       s.frustumCulled = false;
       group.add(s);
@@ -2336,9 +2342,12 @@ const mistPuffTexture = (() => {
   const cv = document.createElement("canvas");
   cv.width = cv.height = 128;
   const cx = cv.getContext("2d");
+  // a readable transparent DISC (near-flat alpha with a short soft rim),
+  // not a fuzzy blob - the cloud field reads as overlapping circles
   const g = cx.createRadialGradient(64, 64, 6, 64, 64, 62);
-  g.addColorStop(0, "rgba(255,255,255,0.9)");
-  g.addColorStop(0.5, "rgba(255,255,255,0.45)");
+  g.addColorStop(0, "rgba(255,255,255,0.95)");
+  g.addColorStop(0.72, "rgba(255,255,255,0.88)");
+  g.addColorStop(0.88, "rgba(255,255,255,0.3)");
   g.addColorStop(1, "rgba(255,255,255,0)");
   cx.fillStyle = g;
   cx.fillRect(0, 0, 128, 128);
@@ -2363,9 +2372,9 @@ const mistGroup = new THREE.Group();
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
   const CLUSTERS = 36;
   const buckets = [
-    { size: 280, positions: [], colors: [] },
-    { size: 406, positions: [], colors: [] },
-    { size: 546, positions: [], colors: [] },
+    { size: 220, positions: [], colors: [] },
+    { size: 480, positions: [], colors: [] },
+    { size: 750, positions: [], colors: [] },
   ];
   for (let rep = 0; rep < MIST_REPEATS; rep++){
     for (let ci = 0; ci < CLUSTERS; ci++){
@@ -2445,16 +2454,20 @@ const DT_HALF_H = 10 * DT_SCALE;  // corridor half-height - and far out above/be
 // warm base palette, deliberately kept mid-to-dark ("not too light");
 // tinted toward the artist's own color on activation - see dtMats below
 const DT_BASE_COLORS = [0x6e4420, 0x8a5a2c, 0x9c6428, 0x4a2f18, 0x7a3c1e, 0x5c3a22].map(c => new THREE.Color(c));
-// 80% transparent glassy boxes; depthWrite off so overlapping translucent
-// faces blend instead of clipping each other
+// just barely translucent boxes, with a bright wireframe edge overlay
+// (dtEdgeMat, tinted with the artist color on activation)
 const dtMats = DT_BASE_COLORS.map(color => new THREE.MeshPhongMaterial({ color: color.clone(), specular: 0x2a1c10, shininess: 8,
-  transparent: true, opacity: 0.2, depthWrite: false }));
+  transparent: true, opacity: 0.92 }));
+const dtEdgeMat = new THREE.LineBasicMaterial({ color: 0xd8b088, transparent: true, opacity: 0.55 });
 const dtReactiveSlabs = []; // slabs that light up with the music (see animate())
 const dtBobSlabs = [];      // every box, corridor and outer - all bob up/down in animate()
 const downtownGroup = new THREE.Group();
 {
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
   const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+  // one shared unit-box edge geometry: added as a child of each box it
+  // inherits that box's scale, drawing the wireframe outline around it
+  const dtEdgeGeo = new THREE.EdgesGeometry(boxGeo);
   const registerBob = (slab, i, amp) => {
     slab.userData.baseY = slab.position.y;
     slab.userData.bobPhase = h(i, 20) * Math.PI * 2;
@@ -2470,9 +2483,9 @@ const downtownGroup = new THREE.Group();
     for (let i = 0; i < SLABS; i++){
       const side = Math.floor(h(i, 1) * 4); // 0 left, 1 right, 2 floor, 3 ceiling
       const z = -h(i, 2) * DT_CHUNK_LENGTH - rep * DT_CHUNK_LENGTH;
-      const depth = (2 + h(i, 3) * 7) * DT_SCALE * 0.5;        // how long along the corridor (50% size)
-      const thickness = (0.6 + h(i, 4) * 1.3) * DT_SCALE * 0.5;
-      const protrusion = (1 + h(i, 5) * 5) * DT_SCALE * 0.5;   // how far it juts into the corridor
+      const depth = (2 + h(i, 3) * 7) * DT_SCALE;        // how long along the corridor
+      const thickness = (0.6 + h(i, 4) * 1.3) * DT_SCALE;
+      const protrusion = (1 + h(i, 5) * 5) * DT_SCALE;   // how far it juts into the corridor
       const along = (h(i, 6) - 0.5) * 2;    // position along the wall's free axis
       // roughly one slab in five glows with the music - those get their
       // own material clone so their emissive can pulse independently
@@ -2490,6 +2503,7 @@ const downtownGroup = new THREE.Group();
         slab.userData.pulsePhase = h(i, 9) * Math.PI * 2;
         dtReactiveSlabs.push(slab);
       }
+      slab.add(new THREE.LineSegments(dtEdgeGeo, dtEdgeMat));
       registerBob(slab, i + rep * 1000, 1.5 + h(i, 22) * 2);
       downtownGroup.add(slab);
     }
@@ -2504,7 +2518,7 @@ const downtownGroup = new THREE.Group();
       const reactive = h(k, 8) < 0.15;
       const mat = reactive ? dtMats[i % dtMats.length].clone() : dtMats[i % dtMats.length];
       const box = new THREE.Mesh(boxGeo, mat);
-      box.scale.set((15 + h(k, 3) * 35) * 0.5, (15 + h(k, 4) * 35) * 0.5, (15 + h(k, 5) * 40) * 0.5);
+      box.scale.set(15 + h(k, 3) * 35, 15 + h(k, 4) * 35, 15 + h(k, 5) * 40);
       let px, py;
       if (h(k, 6) < 0.5){ // beyond the left/right walls
         px = (h(k, 7) < 0.5 ? -1 : 1) * (DT_HALF_W + 20 + h(k, 9) * 150);
@@ -2518,6 +2532,7 @@ const downtownGroup = new THREE.Group();
         box.userData.pulsePhase = h(k, 9) * Math.PI * 2;
         dtReactiveSlabs.push(box);
       }
+      box.add(new THREE.LineSegments(dtEdgeGeo, dtEdgeMat));
       registerBob(box, k + rep * 1000, 4 + h(k, 11) * 5);
       downtownGroup.add(box);
     }
@@ -2544,6 +2559,8 @@ function applyDowntownTint(artistColor){
     slab.material.emissive.copy(dtTintColor).multiplyScalar(0.5);
     slab.material.emissiveIntensity = 0;
   });
+  // the box wireframe outlines follow the artist color too, brightened
+  dtEdgeMat.color.copy(dtTintColor).lerp(new THREE.Color(0xffffff), 0.45);
 }
 downtownGroup.visible = false;
 scene.add(downtownGroup);
@@ -2921,6 +2938,12 @@ function animate(t){
     // the road itself brightens up to 25% with the music (uIntensity is
     // the same smoothed audio level the other visualisers use)
     if (roadStripMat) roadStripMat.color.setScalar(1 + panoUniforms.uIntensity.value * 0.25);
+    // red balls and their cast-light pools breathe gently, each on its own phase
+    roadBallPulses.forEach(p => {
+      const s = 1 + Math.sin(nowSec * 1.4 + p.phase) * 0.12;
+      p.ball.scale.setScalar(s);
+      p.pool.scale.setScalar(s);
+    });
   } else if (mistGroup.visible){
     // endless drone flight THROUGH the cloud field, in the same style as
     // the Polaroid road: the camera lerp-follows an invisible curving
@@ -2935,11 +2958,12 @@ function animate(t){
     // generous sways on every axis - the drone wanders far off the path
     // line and rolls/looks all around while following it
     mistCamX += (here.x + Math.sin(nowSec * 0.055) * 12 - mistCamX) * follow;
-    mistCamY += (-10 + here.y + Math.sin(nowSec * 0.045 + 1) * 9 - mistCamY) * follow;
+    mistCamY += (here.y + Math.sin(nowSec * 0.045 + 1) * 9 - mistCamY) * follow;
     mistCamYaw += (-Math.atan2(ahead.x - here.x, 14) * 0.6 + Math.sin(nowSec * 0.032) * 0.3 - mistCamYaw) * follow;
-    // base pitch tilted up ~0.2rad (~200px at this zoom/viewport): the
-    // whole cloudscape sits that much lower in the frame
-    mistCamPitch += (Math.atan2(ahead.y - here.y, 14) * 0.45 + 0.18 + Math.sin(nowSec * 0.028 + 3) * 0.14 - mistCamPitch) * follow;
+    // slight upward base pitch parks the cloud horizon in the lower part
+    // of the frame, safely under the karaoke lyrics viewer, while the
+    // circle field still streams past and through the camera
+    mistCamPitch += (Math.atan2(ahead.y - here.y, 14) * 0.45 + 0.15 + Math.sin(nowSec * 0.028 + 3) * 0.14 - mistCamPitch) * follow;
     mistCamBank += (-Math.atan2(ahead.x - here.x, 14) * 0.8 + Math.sin(nowSec * 0.025 + 5) * 0.16 - mistCamBank) * follow;
     camera.position.x = mistCamX;
     camera.position.y = mistCamY;
