@@ -240,6 +240,9 @@ body.gate-active::after{display:none}
 }
 body.scene-3d #grid-overlay,
 body.gate-active #grid-overlay{display:block}
+/* Polaroid road sky: the WebGL canvas clears transparent there, revealing
+   this gradient - a little brighter near the horizon, darker up top */
+body.scene-road #stage{background:linear-gradient(to top, #282153 0%, #131034 55%, #0a0618 100%)}
 /* full-screen tint in the current track's artist color, sitting right on
    top of the 3D sphere/background video (z-index:0) but below every
    other overlay/UI layer (z-index:1+) - color set per-track in
@@ -365,6 +368,8 @@ body.gate-active #grid-overlay{display:block}
   z-index:2;pointer-events:none;
   text-align:center;
   height:calc(clamp(18px,calc(14vw - 10px),70px) * 4.6);overflow:hidden;
+  /* very soft, light drop shadow lifting the karaoke text off the 3D scenes */
+  filter:drop-shadow(0 6px 28px rgba(0,0,0,.35));
 }
 #lyric-rows{position:relative;width:100%;height:100%}
 .lyric-row{
