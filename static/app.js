@@ -2136,6 +2136,7 @@ function buildRoadTerrain(group){
 // scroll); retintRoadStrip() rewrites the vertex colors once the current
 // track's real artistColor is known
 let roadStripGeo = null;
+let roadStripMat = null;
 function retintRoadStrip(artistColor){
   if (!roadStripGeo) return;
   const totalRows = ROAD_ROWS * ROAD_REPEATS;
@@ -2170,7 +2171,10 @@ function buildRoadStrip(group){
   roadStripGeo.setAttribute("color", new THREE.Float32BufferAttribute(new Float32Array((totalRows + 1) * 6), 3));
   roadStripGeo.setIndex(indices);
   retintRoadStrip("#7ED957"); // sensible default until a track is active
-  group.add(new THREE.Mesh(roadStripGeo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide })));
+  // material kept as a named ref: its color multiplies the vertex-color
+  // gradient, and animate() drives it 1.0 -> 1.25 with the music level
+  roadStripMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
+  group.add(new THREE.Mesh(roadStripGeo, roadStripMat));
 }
 // little glowing red balls hovering over the road edge, each "casting"
 // light as an additive radial pool on the road surface beneath it (the
@@ -2805,6 +2809,9 @@ function animate(t){
       const p = ((nowSec / s.userData.period) + s.userData.phase) % 1;
       s.position.y = s.userData.startY + p * p * s.userData.rise;
     });
+    // the road itself brightens up to 25% with the music (uIntensity is
+    // the same smoothed audio level the other visualisers use)
+    if (roadStripMat) roadStripMat.color.setScalar(1 + panoUniforms.uIntensity.value * 0.25);
   } else if (mistGroup.visible){
     // slow, endless drone flight over the cloud field: forward scroll
     // wraps seamlessly forever, and the camera drifts through every axis
