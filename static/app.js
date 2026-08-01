@@ -1192,6 +1192,11 @@ stage.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 900);
 camera.position.z = 8.0;
+// lowered while the intro tunnel is up - a lower viewpoint makes the nearby
+// tunnel walls sweep past faster in the visual field, reading as more speed.
+// Kept well under the tunnel's minimum wall radius (see TUNNEL_RADIUS_BASE's
+// Math.max(1.8, ...) clamp below) so the camera always stays inside it.
+camera.position.y = document.body.classList.contains("gate-active") ? -1.1 : 0;
 
 /* ---------- background panorama: the selected clip mapped onto a curved
    patch centered in front of the camera - sized to the video's own aspect
@@ -1577,9 +1582,250 @@ function rebuildPanoMesh(){
   if (panoMesh){ scene.remove(panoMesh); panoMesh.geometry.dispose(); }
   panoMesh = new THREE.Mesh(buildPanoGeometry(aspect), panoMat);
   panoMesh.rotation.y = PANO_YAW_CENTER;
+  // the sphere is reserved for the music screen - the intro shows the rock
+  // tunnel instead (see tunnelGroup below)
+  panoMesh.visible = !document.body.classList.contains("gate-active");
   scene.add(panoMesh);
   computePanoDistRange(panoMesh);
 }
+
+/* ---------- intro-only rock tunnel: replaces the sphere while the gate is
+   up. A sequence of irregular ("rock") polygon rings extruded along -Z,
+   with a black filled surface plus a wireframe overlay drawn from the
+   geometry's real edges. Built from ONE randomized chunk of rings repeated
+   back-to-back, so scrolling the whole group forward by exactly one
+   chunk-length loops seamlessly without regenerating geometry every frame -
+   see the tunnelGroup.position.z update in animate(). ---------- */
+const TUNNEL_SIDES = 12;          // vertices per ring
+const TUNNEL_CHUNK_RINGS = 18;    // rings in the one randomized, repeatable chunk
+const TUNNEL_REPEATS = 3;         // how many times that chunk is tiled
+const TUNNEL_RING_SPACING = 5;    // world units between rings
+const TUNNEL_RADIUS_BASE = 4.5;
+const TUNNEL_CHUNK_LENGTH = TUNNEL_CHUNK_RINGS * TUNNEL_RING_SPACING;
+const TUNNEL_SPEED = 5.5; // world units/sec scrolled toward the camera ("flying backwards" through it)
+const TUNNEL_COLOR_CYCLE_RINGS = 9; // divides TUNNEL_CHUNK_RINGS evenly so the color band pattern loops seamlessly too
+// white -> every artist accent color (mirrors ARTIST_COLORS in server.py) ->
+// the app's default green -> back to white, so the wireframe cycles through
+// "white to all the artist colors and also the green and white"
+const TUNNEL_PALETTE = [
+  "#FFFFFF", "#7ED957", "#FF8A73", "#FF8FDB", "#7FD6FF", "#FFC27A", "#9B72FF",
+  "#1E90FF", "#FF7F27", "#8C6FFF", "#52C41A", "#FFD700", "#CBA378", "#AAAAAA",
+  "#7CFF9E", "#FFFFFF",
+].map((hex) => new THREE.Color(hex));
+function tunnelColorForRing(ring, out){
+  const u = (ring % TUNNEL_COLOR_CYCLE_RINGS) / TUNNEL_COLOR_CYCLE_RINGS;
+  const scaled = u * (TUNNEL_PALETTE.length - 1);
+  const i0 = Math.floor(scaled), i1 = Math.min(i0 + 1, TUNNEL_PALETTE.length - 1);
+  return out.copy(TUNNEL_PALETTE[i0]).lerp(TUNNEL_PALETTE[i1], scaled - i0);
+}
+// same palette, dimmed way down - the tunnel walls read as near-black with
+// just a tint of the artist color, so the point light (see tunnelLight)
+// standing in for the AQAI logo has something to visibly glint off of
+function tunnelSurfaceColorForRing(ring, out){
+  return tunnelColorForRing(ring, out).multiplyScalar(0.14);
+}
+// (re)colors any tunnel-derived geometry purely from each vertex's own z -
+// every ring sits at an exact, recoverable z = -ring * TUNNEL_RING_SPACING,
+// so this works even on geometries (EdgesGeometry, clones) that lost the
+// original per-ring vertex order
+function recolorTunnelGeometryByZ(geo, colorFn){
+  const pos = geo.attributes.position;
+  const colors = new Float32Array(pos.count * 3);
+  const tmpColor = new THREE.Color();
+  for (let i = 0; i < pos.count; i++){
+    const ring = Math.round(-pos.getZ(i) / TUNNEL_RING_SPACING);
+    colorFn(ring, tmpColor);
+    colors[i * 3] = tmpColor.r; colors[i * 3 + 1] = tmpColor.g; colors[i * 3 + 2] = tmpColor.b;
+  }
+  geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+}
+// screen-space "fat line" mesh: turns each EdgesGeometry segment into a
+// camera-facing ribbon quad of uLineWidth pixels wide, since plain
+// THREE.LineBasicMaterial ignores its linewidth on virtually every modern
+// GPU driver. uResolution is kept live via tunnelLineResolution (updated in
+// resize()) so the pixel width stays correct across window sizes.
+const tunnelLineResolution = new THREE.Vector2(1, 1);
+function buildTunnelFatLineGeometry(edgesGeo){
+  const src = edgesGeo.attributes.position;
+  const segCount = src.count / 2;
+  const positions = new Float32Array(segCount * 4 * 3);
+  const others = new Float32Array(segCount * 4 * 3);
+  const sides = new Float32Array(segCount * 4);
+  const colors = new Float32Array(segCount * 4 * 3);
+  const indices = [];
+  const tmpColor = new THREE.Color();
+  const put = (vi, px, py, pz, ox, oy, oz, side) => {
+    positions[vi * 3] = px; positions[vi * 3 + 1] = py; positions[vi * 3 + 2] = pz;
+    others[vi * 3] = ox; others[vi * 3 + 1] = oy; others[vi * 3 + 2] = oz;
+    sides[vi] = side;
+    tunnelColorForRing(Math.round(-pz / TUNNEL_RING_SPACING), tmpColor);
+    colors[vi * 3] = tmpColor.r; colors[vi * 3 + 1] = tmpColor.g; colors[vi * 3 + 2] = tmpColor.b;
+  };
+  for (let s = 0; s < segCount; s++){
+    const ax = src.getX(s * 2), ay = src.getY(s * 2), az = src.getZ(s * 2);
+    const bx = src.getX(s * 2 + 1), by = src.getY(s * 2 + 1), bz = src.getZ(s * 2 + 1);
+    const base = s * 4;
+    put(base, ax, ay, az, bx, by, bz, -1);
+    put(base + 1, ax, ay, az, bx, by, bz, 1);
+    put(base + 2, bx, by, bz, ax, ay, az, -1);
+    put(base + 3, bx, by, bz, ax, ay, az, 1);
+    indices.push(base, base + 2, base + 1, base + 2, base + 3, base + 1);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute("aOther", new THREE.Float32BufferAttribute(others, 3));
+  geo.setAttribute("aSide", new THREE.Float32BufferAttribute(sides, 1));
+  geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  geo.setIndex(indices);
+  return geo;
+}
+function buildTunnelFatLineMaterial(){
+  return new THREE.ShaderMaterial({
+    uniforms: { uResolution: { value: tunnelLineResolution }, uLineWidth: { value: 3.2 } },
+    side: THREE.DoubleSide,
+    vertexShader: `
+      attribute vec3 aOther;
+      attribute float aSide;
+      attribute vec3 color;
+      uniform vec2 uResolution;
+      uniform float uLineWidth;
+      varying vec3 vColor;
+      // identical proximity-grow math to applyTunnelProximityGrow() below,
+      // kept in sync by hand since this material isn't a built-in one
+      vec3 tunnelGrow( vec3 p, vec4 mv ){
+        float dist = -mv.z;
+        float amt = smoothstep( 42.0, 3.0, dist ) * 0.28;
+        p.xy *= ( 1.0 + amt );
+        return p;
+      }
+      void main(){
+        vColor = color;
+        vec4 mvSelf = modelViewMatrix * vec4( position, 1.0 );
+        vec4 mvOther = modelViewMatrix * vec4( aOther, 1.0 );
+        vec4 clipSelf = projectionMatrix * modelViewMatrix * vec4( tunnelGrow( position, mvSelf ), 1.0 );
+        vec4 clipOther = projectionMatrix * modelViewMatrix * vec4( tunnelGrow( aOther, mvOther ), 1.0 );
+        vec2 screenSelf = clipSelf.xy / clipSelf.w * uResolution;
+        vec2 screenOther = clipOther.xy / clipOther.w * uResolution;
+        vec2 dir = normalize( screenOther - screenSelf + 1e-4 );
+        vec2 normal = vec2( -dir.y, dir.x );
+        vec2 offsetPx = normal * ( uLineWidth * 0.5 ) * aSide;
+        clipSelf.xy += ( offsetPx / uResolution ) * clipSelf.w;
+        gl_Position = clipSelf;
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vColor;
+      void main(){ gl_FragColor = vec4( vColor, 1.0 ); }
+    `,
+  });
+}
+// grows the tunnel walls (and, via the same injection on the line/point
+// materials, the wireframe + connection dots) outward the closer they get
+// to the camera - purely a function of the live modelViewMatrix, so it
+// tracks the scroll/rotation already applied to tunnelGroup with no extra
+// per-frame JS work needed
+function applyTunnelProximityGrow(material){
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        "#include <begin_vertex>",
+        `#include <begin_vertex>
+        vec4 tGrowMv = modelViewMatrix * vec4( transformed, 1.0 );
+        float tGrowDist = -tGrowMv.z;
+        float tGrowAmt = smoothstep( 42.0, 3.0, tGrowDist ) * 0.28;
+        transformed.xy *= ( 1.0 + tGrowAmt );`
+      );
+  };
+}
+function buildTunnelGeometry(){
+  const totalRings = TUNNEL_CHUNK_RINGS * TUNNEL_REPEATS;
+  // one chunk's per-ring, per-vertex radii: a slow sinusoidal bulge/pinch
+  // along the chunk's length, plus per-vertex jagged noise (varying
+  // independently per angular direction v) for the "rock" irregularity -
+  // the cross-section is uneven in every direction without the tube's own
+  // axis ever drifting off it. The axis is intentionally kept pinned to
+  // x=0,y=0 - the AQAI logo's own axis - the whole tunnel stays centered on
+  // it (and therefore on the camera) rather than carrying its own x/y
+  // position, so the camera never ends up outside the tunnel wall.
+  const chunkRadii = [];
+  for (let r = 0; r < TUNNEL_CHUNK_RINGS; r++){
+    const wobble = Math.sin(r * 0.55) * 1.6 + Math.sin(r * 1.3 + 1) * 0.7;
+    const radii = [];
+    for (let v = 0; v < TUNNEL_SIDES; v++){
+      const jag = Math.sin(r * 2.1 + v * 1.7) * 0.6 + (Math.random() - 0.5) * 1.1;
+      radii.push(Math.max(1.8, TUNNEL_RADIUS_BASE + wobble + jag));
+    }
+    chunkRadii.push(radii);
+  }
+  const positions = [];
+  const colors = [];
+  const tmpColor = new THREE.Color();
+  for (let ring = 0; ring < totalRings; ring++){
+    const radii = chunkRadii[ring % TUNNEL_CHUNK_RINGS];
+    const z = -ring * TUNNEL_RING_SPACING;
+    tunnelColorForRing(ring, tmpColor);
+    for (let v = 0; v < TUNNEL_SIDES; v++){
+      const theta = (v / TUNNEL_SIDES) * Math.PI * 2;
+      positions.push(Math.cos(theta) * radii[v], Math.sin(theta) * radii[v], z);
+      colors.push(tmpColor.r, tmpColor.g, tmpColor.b);
+    }
+  }
+  const indices = [];
+  for (let ring = 0; ring < totalRings - 1; ring++){
+    for (let v = 0; v < TUNNEL_SIDES; v++){
+      const a = ring * TUNNEL_SIDES + v;
+      const b = ring * TUNNEL_SIDES + (v + 1) % TUNNEL_SIDES;
+      const c = (ring + 1) * TUNNEL_SIDES + v;
+      const d = (ring + 1) * TUNNEL_SIDES + (v + 1) % TUNNEL_SIDES;
+      indices.push(a, b, c, b, d, c);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+const tunnelGroup = new THREE.Group();
+{
+  const tunnelGeo = buildTunnelGeometry();
+
+  // surface: dark, artist-color-tinted, specular/reflective so the light
+  // standing in for the AQAI logo (see tunnelLight below) glints off it
+  const surfaceGeo = tunnelGeo.clone();
+  recolorTunnelGeometryByZ(surfaceGeo, tunnelSurfaceColorForRing);
+  const tunnelSurfMat = new THREE.MeshPhongMaterial({
+    color: 0xffffff, vertexColors: true,
+    specular: 0xffffff, shininess: 120, flatShading: true, side: THREE.DoubleSide,
+  });
+  applyTunnelProximityGrow(tunnelSurfMat);
+  tunnelGroup.add(new THREE.Mesh(surfaceGeo, tunnelSurfMat));
+
+  // wireframe: thick, camera-facing colored ribbons (see buildTunnelFatLineMaterial)
+  const tunnelEdgesGeo = new THREE.EdgesGeometry(tunnelGeo, 8);
+  const tunnelLineGeo = buildTunnelFatLineGeometry(tunnelEdgesGeo);
+  tunnelEdgesGeo.dispose();
+  tunnelGroup.add(new THREE.Mesh(tunnelLineGeo, buildTunnelFatLineMaterial()));
+
+  // little dots marking every point where the wireframe lines/surfaces meet
+  const tunnelDotsGeo = new THREE.BufferGeometry();
+  tunnelDotsGeo.setAttribute("position", tunnelGeo.getAttribute("position").clone());
+  tunnelDotsGeo.setAttribute("color", tunnelGeo.getAttribute("color").clone());
+  const tunnelDotsMat = new THREE.PointsMaterial({ size: 0.16, vertexColors: true, sizeAttenuation: true });
+  applyTunnelProximityGrow(tunnelDotsMat);
+  tunnelGroup.add(new THREE.Points(tunnelDotsGeo, tunnelDotsMat));
+}
+tunnelGroup.visible = document.body.classList.contains("gate-active");
+scene.add(tunnelGroup);
+// stands in for "the AQAI logo is the lightsource" - parked at the camera/
+// logo's shared position (not inside tunnelGroup, so it doesn't spin with
+// the tunnel), close enough that its falloff still reads as darkness further
+// down the tunnel
+const tunnelLight = new THREE.PointLight(0xffffff, 2.4, 70, 2);
+tunnelLight.position.set(0, 0, 7.5);
+tunnelLight.visible = document.body.classList.contains("gate-active");
+scene.add(tunnelLight);
 panoVideoEl.addEventListener("loadedmetadata", () => { if (currentPanoKind === "video") rebuildPanoMesh(); });
 panoGifImg.addEventListener("load", () => {
   panoGifCanvas.width = panoGifImg.naturalWidth;
@@ -1704,6 +1950,7 @@ function resize(){
   const w = stage.clientWidth, h = stage.clientHeight;
   renderer.setSize(w, h);
   camera.aspect = w / h; camera.updateProjectionMatrix();
+  tunnelLineResolution.set(renderer.domElement.width, renderer.domElement.height);
   positionWaveCanvas();
   fitControlsRowToWidth();
 }
@@ -1775,6 +2022,15 @@ function animate(t){
     const gateYawDeg = camYaw * (180 / Math.PI) * 0.6;
     const gatePitchDeg = camPitch * (180 / Math.PI) * 0.6;
     gateLogoTiltEl.style.transform = `rotateY(${gateYawDeg}deg) rotateX(${gatePitchDeg}deg)`;
+  }
+
+  if (tunnelGroup.visible){
+    const nowSec = (t || 0) * 0.001;
+    // scrolled by exactly one chunk-length wraps seamlessly, since chunk 2
+    // is an identical copy of chunk 1 (see buildTunnelGeometry)
+    tunnelGroup.position.z = (nowSec * TUNNEL_SPEED) % TUNNEL_CHUNK_LENGTH;
+    // same 9s period as the intro logo's own CSS spin (logo3dSpin)
+    tunnelGroup.rotation.z = (nowSec / 9) * Math.PI * 2;
   }
 
   if (currentPanoKind === "video"){
@@ -1931,6 +2187,10 @@ $("#gate-btn").onclick = () => {
   $("#gate").classList.add("hidden");
   document.body.classList.remove("gate-active");
   panoUniforms.uGate.value = 0; // restore the sphere's shader effects for the music screen
+  tunnelGroup.visible = false; // intro-only tunnel hands off to the sphere
+  tunnelLight.visible = false;
+  camera.position.y = 0; // undo the tunnel's lowered viewpoint for the sphere's mouse-look
+  if (panoMesh) panoMesh.visible = true;
   // .home-top/#lyrics/#wave-canvas were all display:none behind the gate,
   // so the very first positionWaveCanvas() (run from the initial resize()
   // at boot) measured zero-size rects - redo it now that they're visible
