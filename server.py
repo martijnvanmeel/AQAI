@@ -83,7 +83,10 @@ def load_folder_photo_map(real_folders):
 # folder index as load_folder_photo_map - 12 colors picked from the
 # swatch the user provided, plus a 13th (grey) for the one folder left over
 ARTIST_COLORS = [
-    "#7ED957", "#FF8A73", "#FF8FDB", "#7FD6FF", "#FFC27A", "#9B72FF",
+    # third entry (sorted folder "BOBS PLACE" = Downtown): the red variant
+    # of Instrumental's #1E90FF blue - same saturation/brightness, hue
+    # rotated to red (was #FF8FDB pink)
+    "#7ED957", "#FF8A73", "#FF1E1E", "#7FD6FF", "#FFC27A", "#9B72FF",
     "#1E90FF", "#FF7F27", "#8C6FFF", "#52C41A", "#FFD700", "#CBA378",
     "#AAAAAA",
 ]
