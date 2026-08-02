@@ -3380,10 +3380,11 @@ let ringsGlowMat = null;
   // means nothing is ever coplanar, so no interference flicker.
   for (let gi = 0; gi < gatesPerChunk; gi++){
     const bandCount = 5 + Math.floor(h(gi, 1) * 3);
-    const holeR = 7 + h(gi, 2) * 8;        // 2x bore: the dark center the camera flies through
-    const bandW = 2.2 + h(gi, 3) * 1.8;
+    const holeR = 14 + h(gi, 2) * 16;      // 4x bore: the wide-open center the camera flies through
+    const bandStep = 3 + h(gi, 3) * 2.4;   // ring-to-ring spacing
+    const bandW = bandStep * 0.3;          // drawn band is 30% of the step - slim rings, open gaps
     const bands = [];
-    let outerR = holeR + bandCount * bandW;
+    let outerR = holeR + bandCount * bandStep;
     if (h(gi, 4) < 0.5){
       const hr = outerR + 2 + h(gi, 5) * 5;
       // halos join as extra thin bands
@@ -3392,7 +3393,7 @@ let ringsGlowMat = null;
       outerR = hr + 1.45;
     }
     for (let bi = 0; bi < bandCount; bi++){
-      bands.push({ r0: holeR + bi * bandW, r1: holeR + (bi + 1) * bandW - 0.12,
+      bands.push({ r0: holeR + bi * bandStep, r1: holeR + bi * bandStep + bandW,
         slot: Math.floor(h(gi * 13 + bi, 8) * 8) });
     }
     bands.forEach(band => {
@@ -3401,6 +3402,9 @@ let ringsGlowMat = null;
       band.tex = new THREE.CanvasTexture(band.canvas);
       // smaller rings recede further behind the gate plane
       band.zOff = (outerR - band.r1) * 0.6;
+      // position along the gate's radial sweep, 0 innermost .. 1 outermost -
+      // drives the one continuous color gradient in ringsRetint
+      band.t = Math.max(0, Math.min(1, (band.r0 - holeR) / Math.max(1, outerR - holeR)));
     });
     ringsGates.push({ bands, outerR });
   }
@@ -3453,32 +3457,34 @@ scene.add(ringsScenery);
 const ringsFog = new THREE.FogExp2(0x000000, 0.013); // far gates melt into the black
 function ringsRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
-  const slotColor = i => {
-    if (i === 8) return dominant.clone(); // halo bands
-    if (i < 4) return dominant.clone().multiplyScalar([1, 0.72, 0.5, 0.32][i]);
-    return others[i % others.length].clone();
+  // ONE continuous gradient across each gate's radial sweep: deep artist
+  // shade at the innermost ring, through the full artist color, out into
+  // the other artists' hues - every circle sits on the same ramp, so all
+  // rings match
+  const stops = [
+    dominant.clone().multiplyScalar(0.35),
+    dominant.clone().multiplyScalar(0.7),
+    dominant.clone(),
+    others[0].clone(),
+    others[1 % others.length].clone(),
+  ];
+  const gradientAt = t => {
+    const f = t * (stops.length - 1);
+    const i0 = Math.min(stops.length - 2, Math.floor(f));
+    return stops[i0].clone().lerp(stops[i0 + 1], f - i0);
   };
-  // redraw every band's own canvas: an annulus with a feathered edge
-  // capped at 2px of blur
+  // redraw every band's own canvas: a clean hard-edged annulus (only the
+  // canvas's natural 1px anti-aliasing, no blur)
   ringsGates.forEach(gate => {
     gate.bands.forEach(band => {
       const g = band.canvas.getContext("2d");
       g.clearRect(0, 0, 256, 256);
-      const px = r => (r / band.r1) * 128; // world radius -> canvas px (r1 fills the plane)
-      const r0 = px(band.r0), r1 = 128;
-      const feather = Math.min(2, (r1 - r0) * 0.25);
-      const c = slotColor(band.slot);
-      const css = `${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)}`;
-      const grad = g.createRadialGradient(128, 128, Math.max(0, r0), 128, 128, r1);
-      const span = r1 - r0;
-      grad.addColorStop(0, `rgba(${css},0)`);
-      grad.addColorStop(Math.min(0.49, feather / span), `rgba(${css},1)`);
-      grad.addColorStop(Math.max(0.51, 1 - feather / span), `rgba(${css},1)`);
-      grad.addColorStop(1, `rgba(${css},0)`);
-      g.fillStyle = grad;
+      const r0 = (band.r0 / band.r1) * 128;
+      const c = gradientAt(band.t);
+      g.fillStyle = `rgb(${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)})`;
       g.beginPath();
-      g.arc(128, 128, r1, 0, Math.PI * 2);
-      g.arc(128, 128, Math.max(0, r0 - 1), 0, Math.PI * 2, true);
+      g.arc(128, 128, 128, 0, Math.PI * 2);
+      g.arc(128, 128, Math.max(0, r0), 0, Math.PI * 2, true);
       g.fill();
       band.tex.needsUpdate = true;
     });
