@@ -3106,6 +3106,38 @@ let beamsFloorTex = null;
     beamsMirrorMats.push(new THREE.MeshPhongMaterial({ specular: 0x888888, shininess: 90,
       transparent: true, opacity: 0.4 }));
   }
+  // little starfield above the horizon - round stars 1px to 5px - with a
+  // faint mirrored copy under the glossy floor as its reflection
+  {
+    const hh = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+    const starPal = [0xffffff, 0xd9e8ff, 0xffe8d2].map(c => new THREE.Color(c));
+    [[90, 1], [60, 2], [40, 3], [18, 5]].forEach(([count, size], si) => {
+      const positions = [], colors = [];
+      for (let i = 0; i < count; i++){
+        positions.push((hh(i * 3 + si * 97, 1) - 0.5) * 320, 8 + hh(i * 5 + si * 31, 2) * 85,
+          -40 - hh(i * 7 + si * 53, 3) * 280);
+        const c = starPal[i % starPal.length];
+        colors.push(c.r, c.g, c.b);
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+      const mkMat = opacity => {
+        const m = new THREE.PointsMaterial({ size, vertexColors: true, sizeAttenuation: false,
+          map: roadDotTexture, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false });
+        m.fog = false;
+        return m;
+      };
+      const stars = new THREE.Points(geo, mkMat(0.9));
+      stars.frustumCulled = false;
+      beamsScenery.add(stars);
+      // the reflection: same field flipped under the floor, faint
+      const mirrorStars = new THREE.Points(geo.clone(), mkMat(0.22));
+      mirrorStars.scale.y = -1;
+      mirrorStars.frustumCulled = false;
+      beamsScenery.add(mirrorStars);
+    });
+  }
   for (let i = 0; i < 14; i++){
     const mi = i;
     const cube = new THREE.Mesh(cubeGeo, beamsCubeMats[mi]);
@@ -3208,7 +3240,9 @@ const prismBloomMats = [];
     prismMats.push(new THREE.MeshBasicMaterial({ map: edgeTex, transparent: true, depthWrite: false,
       blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
   }
-  const panelMat = new THREE.MeshBasicMaterial({ color: 0x0a0a0e, side: THREE.DoubleSide });
+  // Lambert (not Basic): the drifting star lights genuinely illuminate
+  // the slat surfaces as they pass
+  const panelMat = new THREE.MeshLambertMaterial({ color: 0x1b1b24, side: THREE.DoubleSide });
   const panelBuf = { pos: [], idx: [] };
   const edgeBufs = prismMats.map(() => ({ pos: [], uv: [], idx: [] }));
   const pushPanel = corners => {
@@ -3293,6 +3327,7 @@ const prismBloomMats = [];
   const panelGeo = new THREE.BufferGeometry();
   panelGeo.setAttribute("position", new THREE.Float32BufferAttribute(panelBuf.pos, 3));
   panelGeo.setIndex(panelBuf.idx);
+  panelGeo.computeVertexNormals(); // Lambert lighting needs normals
   const panelMesh = new THREE.Mesh(panelGeo, panelMat);
   panelMesh.frustumCulled = false;
   prismGroup.add(panelMesh);
@@ -3334,6 +3369,55 @@ const prismBloomMats = [];
 }
 prismGroup.visible = false;
 scene.add(prismGroup);
+// two star layers on their own scroll clocks - one drifting at half the
+// lines' speed, one rushing past at 1.7x - so the slat curtain sits
+// between two parallax depths
+const prismStarLayers = [];
+[[0.5, 120, 1.6], [1.7, 80, 2.4]].forEach(([speedMul, count, size], li) => {
+  const hh = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+  const positions = [], colors = [];
+  const pal = [0xffffff, 0xd9e8ff, 0xffe8d2].map(c => new THREE.Color(c));
+  for (let rep = -1; rep < PRISM_REPEATS; rep++){
+    for (let i = 0; i < count; i++){
+      positions.push((hh(i * 3 + li * 97, 1) - 0.5) * 90, (hh(i * 5 + li * 31, 2) - 0.5) * 120,
+        -hh(i * 7 + li * 53, 3) * PRISM_CHUNK_LENGTH - rep * PRISM_CHUNK_LENGTH);
+      const c = pal[i % pal.length];
+      colors.push(c.r, c.g, c.b);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  const mat = new THREE.PointsMaterial({ size, vertexColors: true, sizeAttenuation: false,
+    map: roadDotTexture, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
+  mat.fog = false;
+  const points = new THREE.Points(geo, mat);
+  points.frustumCulled = false;
+  const group = new THREE.Group();
+  group.add(points);
+  group.visible = false;
+  group.userData.speedMul = speedMul;
+  scene.add(group);
+  prismStarLayers.push(group);
+});
+// three of the stars are true light sources, drifting through the hall
+// and genuinely lighting the slat panels as they pass
+const prismStarLights = [];
+for (let i = 0; i < 3; i++){
+  const light = new THREE.PointLight(0xffffff, 1.5, 55, 2);
+  light.visible = false;
+  scene.add(light);
+  // a small bright core so the light reads as one of the stars
+  const core = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6),
+    new THREE.MeshBasicMaterial({ map: roadDotTexture, transparent: true,
+      blending: THREE.AdditiveBlending, depthWrite: false }));
+  core.frustumCulled = false;
+  light.add(core);
+  prismStarLights.push(light);
+}
+const prismAmbient = new THREE.AmbientLight(0xffffff, 0.22);
+prismAmbient.visible = false;
+scene.add(prismAmbient);
 const prismFog = new THREE.FogExp2(0x000000, 0.006);
 function prismRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
@@ -3343,6 +3427,12 @@ function prismRetint(tr){
   });
   prismBloomMats.forEach((mat, i) => {
     mat.color.copy(i % 2 === 0 ? dominant : others[i % others.length]).multiplyScalar(0.6);
+  });
+  // the three star lights: artist color plus two other artists' hues
+  prismStarLights.forEach((light, i) => {
+    const c = i === 0 ? dominant.clone() : others[i % others.length].clone();
+    light.color.copy(c.lerp(new THREE.Color(0xffffff), 0.35));
+    light.children[0].material.color.copy(light.color);
   });
 }
 
@@ -3654,6 +3744,9 @@ function updateArtistBackground(tr){
   beamsLight.visible = wantBeams;
   beamsAmbient.visible = wantBeams;
   prismGroup.visible = wantPrism;
+  prismStarLayers.forEach(g => { g.visible = wantPrism; });
+  prismStarLights.forEach(l => { l.visible = wantPrism; });
+  prismAmbient.visible = wantPrism;
   ringsGroup.visible = wantRings;
   ringsScenery.visible = wantRings;
   checkGroup.visible = wantCheck;
@@ -4302,6 +4395,18 @@ function animate(t){
     prismMovers.forEach(m => {
       const s01 = 0.5 + 0.5 * Math.sin(nowSec * m.userData.speed + m.userData.phase);
       m.position.x = m.userData.baseX - Math.sign(m.userData.baseX) * m.userData.amp * s01;
+    });
+    // star layers ride their own clocks - half speed behind, 1.7x in front
+    prismStarLayers.forEach(g => {
+      g.position.z = wrapScroll(flightDist * PRISM_SPEED * g.userData.speedMul, PRISM_CHUNK_LENGTH);
+    });
+    // the three light-stars drift through the hall on slow closed paths,
+    // sweeping their glow across the slats as they pass
+    prismStarLights.forEach((l, i) => {
+      l.position.set(
+        Math.sin(nowSec * 0.11 + i * 2.1) * 11,
+        Math.sin(nowSec * 0.09 + i * 4.2) * 22,
+        -18 - (Math.sin(nowSec * 0.07 + i * 1.3) * 0.5 + 0.5) * 55);
     });
   } else if (ringsGroup.visible){
     // ring snake: the tunnel of gates bends in every direction and the
