@@ -3188,6 +3188,7 @@ const PRISM_REPEATS = 3;
 const PRISM_SPEED = 10;
 const prismGroup = new THREE.Group();
 const prismMats = [];
+const prismMovers = []; // slats that breathe toward the camera line and back
 const prismBloomMats = [];
 {
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
@@ -3222,10 +3223,10 @@ const prismBloomMats = [];
     b.uv.push(0, 0, 1, 0, 1, 1, 0, 1);
     b.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
   };
-  // slats tower far above and below the view (SLAT_H 110), and every slat
-  // and every glow rim gets its own random thickness - rims span roughly
-  // 1px hairlines to fat 10px bars on screen
-  const SLAT_H = 110, STEP = 3.4;
+  // slats stretch from far out of sight above to far below (SLAT_H 150),
+  // and every slat and every glow rim gets its own random thickness -
+  // rims span roughly 1px hairlines to fat 10px bars on screen
+  const SLAT_H = 150, STEP = 3.4;
   const perChunk = Math.floor(PRISM_CHUNK_LENGTH / STEP);
   for (let rep = 0; rep < PRISM_REPEATS; rep++){
     for (let zi = 0; zi < perChunk; zi++){
@@ -3237,14 +3238,47 @@ const prismBloomMats = [];
         const slatW = 1 + h(zi * 7 + si, 4) * 3.2;
         pushPanel([[x, yOff - SLAT_H / 2, z - slatW / 2], [x, yOff - SLAT_H / 2, z + slatW / 2],
           [x, yOff + SLAT_H / 2, z + slatW / 2], [x, yOff + SLAT_H / 2, z - slatW / 2]]);
-        // glowing rims on both vertical edges of the slat
+        // glowing rims on both vertical edges, nudged a hair off the
+        // panel's own plane toward the corridor so the two never sit
+        // coplanar - that shared plane was what caused the buggy
+        // interference flicker
+        const xe = x - sideSign * 0.12;
         [z - slatW / 2, z + slatW / 2].forEach((ze, ei) => {
           const mi = Math.floor(h(zi * 11 + si * 29 + ei, 3) * 6);
           const edgeW = 0.1 + h(zi * 13 + si * 37 + ei, 5) * 1.1;
-          pushEdge(mi, [[x, yOff - SLAT_H / 2, ze - edgeW], [x, yOff - SLAT_H / 2, ze + edgeW],
-            [x, yOff + SLAT_H / 2, ze + edgeW], [x, yOff + SLAT_H / 2, ze - edgeW]]);
+          pushEdge(mi, [[xe, yOff - SLAT_H / 2, ze - edgeW], [xe, yOff - SLAT_H / 2, ze + edgeW],
+            [xe, yOff + SLAT_H / 2, ze + edgeW], [xe, yOff + SLAT_H / 2, ze - edgeW]]);
         });
       });
+    }
+  }
+  // a handful of free slats that breathe inward toward the camera's base
+  // line and drift back out again (animated in the prism branch)
+  for (let rep = 0; rep < PRISM_REPEATS; rep++){
+    for (let i = 0; i < 5; i++){
+      const sideSign = i % 2 === 0 ? -1 : 1;
+      const baseX = sideSign * (17 + h(i, 6) * 6);
+      const z = -h(i, 7) * PRISM_CHUNK_LENGTH - rep * PRISM_CHUNK_LENGTH;
+      const slatW = 1 + h(i, 8) * 2.5;
+      const mover = new THREE.Group();
+      const panel = new THREE.Mesh(new THREE.PlaneGeometry(slatW, SLAT_H), panelMat);
+      panel.rotation.y = Math.PI / 2;
+      mover.add(panel);
+      [-slatW / 2, slatW / 2].forEach((zo, ei) => {
+        const edgeW = 0.1 + h(i * 9 + ei, 9) * 1.1;
+        const rim = new THREE.Mesh(new THREE.PlaneGeometry(edgeW * 2, SLAT_H), prismMats[(i + ei) % 6]);
+        rim.rotation.y = Math.PI / 2;
+        rim.position.set(-sideSign * 0.12, 0, zo);
+        mover.add(rim);
+      });
+      mover.position.set(baseX, 0, z);
+      mover.userData.baseX = baseX;
+      mover.userData.amp = 6 + h(i, 10) * 7;
+      mover.userData.speed = 0.12 + h(i, 11) * 0.15;
+      mover.userData.phase = h(i, 12) * Math.PI * 2;
+      mover.traverse(o => { o.frustumCulled = false; });
+      prismMovers.push(mover);
+      prismGroup.add(mover);
     }
   }
   const panelGeo = new THREE.BufferGeometry();
@@ -3339,29 +3373,36 @@ let ringsGlowMat = null;
     gateZ.push(-(gapAcc + g / 2));
     gapAcc += g;
   }
-  // each gate is ONE textured plane: its concentric bands are drawn into a
-  // canvas with soft (blurred) inner/outer edges - no stacked coplanar
-  // geometry, so nothing z-fights, and edges feather naturally
+  // every band is its own small textured plane (soft 2px-max feathered
+  // annulus painted in ringsRetint), and the SMALLER a ring is, the
+  // DEEPER it sits behind its gate's plane - each gate becomes a little
+  // funnel receding into the distance. Distinct depths per band also
+  // means nothing is ever coplanar, so no interference flicker.
   for (let gi = 0; gi < gatesPerChunk; gi++){
     const bandCount = 5 + Math.floor(h(gi, 1) * 3);
     const holeR = 7 + h(gi, 2) * 8;        // 2x bore: the dark center the camera flies through
     const bandW = 2.2 + h(gi, 3) * 1.8;
     const bands = [];
+    let outerR = holeR + bandCount * bandW;
+    if (h(gi, 4) < 0.5){
+      const hr = outerR + 2 + h(gi, 5) * 5;
+      // halos join as extra thin bands
+      bands.push({ r0: hr, r1: hr + 0.35, slot: 8 });
+      bands.push({ r0: hr + 1.1, r1: hr + 1.45, slot: 8 });
+      outerR = hr + 1.45;
+    }
     for (let bi = 0; bi < bandCount; bi++){
       bands.push({ r0: holeR + bi * bandW, r1: holeR + (bi + 1) * bandW - 0.12,
         slot: Math.floor(h(gi * 13 + bi, 8) * 8) });
     }
-    const halos = [];
-    let outerR = holeR + bandCount * bandW;
-    if (h(gi, 4) < 0.5){
-      const hr = outerR + 2 + h(gi, 5) * 5;
-      halos.push(hr, hr + 1.1);
-      outerR = hr + 1.4;
-    }
-    const canvas = document.createElement("canvas");
-    canvas.width = canvas.height = 512;
-    const tex = new THREE.CanvasTexture(canvas);
-    ringsGates.push({ canvas, tex, bands, halos, outerR });
+    bands.forEach(band => {
+      band.canvas = document.createElement("canvas");
+      band.canvas.width = band.canvas.height = 256;
+      band.tex = new THREE.CanvasTexture(band.canvas);
+      // smaller rings recede further behind the gate plane
+      band.zOff = (outerR - band.r1) * 0.6;
+    });
+    ringsGates.push({ bands, outerR });
   }
   const planeGeo = new THREE.PlaneGeometry(1, 1);
   for (let rep = 0; rep < RINGS_REPEATS; rep++){
@@ -3370,19 +3411,21 @@ let ringsGlowMat = null;
       const gz = gateZ[gi] - rep * RINGS_CHUNK_LENGTH;
       // the gate sits on the serpentine spine at its own depth
       const bend = ringsPathAt(-gz);
-      const mesh = new THREE.Mesh(planeGeo, new THREE.MeshBasicMaterial({ map: gate.tex,
-        transparent: true, side: THREE.DoubleSide, depthWrite: false }));
-      mesh.position.set(bend.x, bend.y, gz);
-      const baseScale = gate.outerR * 2;
-      mesh.scale.set(baseScale, baseScale, 1);
-      mesh.userData.baseX = bend.x; mesh.userData.baseY = bend.y;
-      mesh.userData.baseScale = baseScale;
-      mesh.userData.drift = 1.2 + h(gi * 17, 9) * 2.6;
-      mesh.userData.phase = h(gi * 19, 10) * Math.PI * 2;
-      mesh.userData.rate = 0.03 + h(gi * 23, 11) * 0.05;
-      mesh.userData.gate = gi + rep * gatesPerChunk;
-      mesh.frustumCulled = false;
-      ringsGroup.add(mesh);
+      gate.bands.forEach((band, bi) => {
+        const mesh = new THREE.Mesh(planeGeo, new THREE.MeshBasicMaterial({ map: band.tex,
+          transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+        mesh.position.set(bend.x, bend.y, gz - band.zOff);
+        const baseScale = band.r1 * 2;
+        mesh.scale.set(baseScale, baseScale, 1);
+        mesh.userData.baseX = bend.x; mesh.userData.baseY = bend.y;
+        mesh.userData.baseScale = baseScale;
+        mesh.userData.drift = 1.2 + h(gi * 17 + bi, 9) * 2.6;
+        mesh.userData.phase = h(gi * 19 + bi, 10) * Math.PI * 2;
+        mesh.userData.rate = 0.03 + h(gi * 23 + bi, 11) * 0.05;
+        mesh.userData.gate = gi + rep * gatesPerChunk;
+        mesh.frustumCulled = false;
+        ringsGroup.add(mesh);
+      });
     }
   }
   // the light at the end of the tunnel: a big soft glow far down the spine
@@ -3411,46 +3454,34 @@ const ringsFog = new THREE.FogExp2(0x000000, 0.013); // far gates melt into the 
 function ringsRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
   const slotColor = i => {
+    if (i === 8) return dominant.clone(); // halo bands
     if (i < 4) return dominant.clone().multiplyScalar([1, 0.72, 0.5, 0.32][i]);
     return others[i % others.length].clone();
   };
-  // redraw every gate: concentric bands with feathered (blurred) inner and
-  // outer edges, plus soft thin halo circles
+  // redraw every band's own canvas: an annulus with a feathered edge
+  // capped at 2px of blur
   ringsGates.forEach(gate => {
-    const g = gate.canvas.getContext("2d");
-    g.clearRect(0, 0, 512, 512);
-    const px = r => (r / gate.outerR) * 256; // world radius -> canvas px
     gate.bands.forEach(band => {
-      const r0 = px(band.r0), r1 = px(band.r1);
-      const feather = Math.min(6, (r1 - r0) * 0.3);
+      const g = band.canvas.getContext("2d");
+      g.clearRect(0, 0, 256, 256);
+      const px = r => (r / band.r1) * 128; // world radius -> canvas px (r1 fills the plane)
+      const r0 = px(band.r0), r1 = 128;
+      const feather = Math.min(2, (r1 - r0) * 0.25);
       const c = slotColor(band.slot);
       const css = `${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)}`;
-      const grad = g.createRadialGradient(256, 256, Math.max(0, r0 - feather), 256, 256, r1 + feather);
-      const span = (r1 + feather) - (r0 - feather);
+      const grad = g.createRadialGradient(128, 128, Math.max(0, r0), 128, 128, r1);
+      const span = r1 - r0;
       grad.addColorStop(0, `rgba(${css},0)`);
-      grad.addColorStop(Math.min(0.49, feather * 2 / span), `rgba(${css},1)`);
-      grad.addColorStop(Math.max(0.51, 1 - feather * 2 / span), `rgba(${css},1)`);
+      grad.addColorStop(Math.min(0.49, feather / span), `rgba(${css},1)`);
+      grad.addColorStop(Math.max(0.51, 1 - feather / span), `rgba(${css},1)`);
       grad.addColorStop(1, `rgba(${css},0)`);
       g.fillStyle = grad;
       g.beginPath();
-      g.arc(256, 256, r1 + feather, 0, Math.PI * 2);
-      g.arc(256, 256, Math.max(0, r0 - feather), 0, Math.PI * 2, true);
+      g.arc(128, 128, r1, 0, Math.PI * 2);
+      g.arc(128, 128, Math.max(0, r0 - 1), 0, Math.PI * 2, true);
       g.fill();
+      band.tex.needsUpdate = true;
     });
-    const hc = dominant;
-    const hcss = `${Math.round(hc.r * 255)},${Math.round(hc.g * 255)},${Math.round(hc.b * 255)}`;
-    gate.halos.forEach(hr => {
-      const r = px(hr);
-      g.strokeStyle = `rgba(${hcss},0.75)`;
-      g.lineWidth = 2.5;
-      g.shadowColor = `rgba(${hcss},0.9)`;
-      g.shadowBlur = 6;
-      g.beginPath();
-      g.arc(256, 256, r, 0, Math.PI * 2);
-      g.stroke();
-      g.shadowBlur = 0;
-    });
-    gate.tex.needsUpdate = true;
   });
   // the end-of-tunnel light warms toward the artist color
   if (ringsGlowMat) ringsGlowMat.color.copy(dominant).lerp(new THREE.Color(0xfff6e8), 0.6);
@@ -4229,6 +4260,11 @@ function animate(t){
     camera.rotation.x = Math.sin(swayT * 0.027 + 2) * 0.1;
     camera.rotation.y = Math.sin(swayT * 0.023) * 0.24;
     camera.rotation.z = Math.sin(swayT * 0.03 + 4) * 0.09 + cameraRollOffset;
+    // the free slats ease in toward the camera's base line and back out
+    prismMovers.forEach(m => {
+      const s01 = 0.5 + 0.5 * Math.sin(nowSec * m.userData.speed + m.userData.phase);
+      m.position.x = m.userData.baseX - Math.sign(m.userData.baseX) * m.userData.amp * s01;
+    });
   } else if (ringsGroup.visible){
     // ring snake: the tunnel of gates bends in every direction and the
     // camera rides its spine exactly like the Polaroid road drone -
