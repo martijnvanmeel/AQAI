@@ -1683,6 +1683,23 @@ panoMat.onBeforeCompile = shader => {
 const PANO_DISTANCE = 400; // radius of the curve, in front of the camera
 const PANO_YAW_CENTER = Math.PI / 2; // rotates the patch to face the default camera direction
 let panoMesh = null;
+// the sphere scene's reflective floor: a glossy dark plane at this height,
+// with a flipped, dimmed copy of the video patch beneath it as the
+// "reflection" (see rebuildPanoMesh)
+const SPHERE_FLOOR_Y = -8;
+let panoMirrorMesh = null;
+const panoMirrorMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.38 });
+const sphereFloor = new THREE.Mesh(new THREE.PlaneGeometry(700, 700),
+  new THREE.MeshPhongMaterial({ color: 0x07080d, specular: 0x8899aa, shininess: 90,
+    transparent: true, opacity: 0.6, side: THREE.DoubleSide }));
+sphereFloor.rotateX(-Math.PI / 2);
+sphereFloor.position.y = SPHERE_FLOOR_Y;
+sphereFloor.visible = false;
+scene.add(sphereFloor);
+const sphereFloorLight = new THREE.DirectionalLight(0xffffff, 0.7);
+sphereFloorLight.position.set(30, 60, 40);
+sphereFloorLight.visible = false;
+scene.add(sphereFloorLight);
 function computePanoDistRange(mesh){
   mesh.updateMatrixWorld(true);
   const pos = mesh.geometry.attributes.position;
@@ -1746,6 +1763,16 @@ function rebuildPanoMesh(){
     && !document.body.classList.contains("scene-3d");
   scene.add(panoMesh);
   computePanoDistRange(panoMesh);
+  // the reflection copy under the glossy floor: same geometry flipped
+  // vertically about the floor plane, plain dimmed video (no shader
+  // treatment - reflections read simpler than the source)
+  if (panoMirrorMesh){ scene.remove(panoMirrorMesh); }
+  panoMirrorMesh = new THREE.Mesh(panoMesh.geometry, panoMirrorMat);
+  panoMirrorMesh.rotation.y = PANO_YAW_CENTER;
+  panoMirrorMesh.scale.y = -1;
+  panoMirrorMesh.position.y = SPHERE_FLOOR_Y * 2;
+  panoMirrorMesh.visible = panoMesh.visible;
+  scene.add(panoMirrorMesh);
 }
 
 /* ---------- intro-only rock tunnel: replaces the sphere while the gate is
@@ -2667,31 +2694,35 @@ const downtownAmbient = new THREE.AmbientLight(0x2a180c, 0.68);
 downtownAmbient.visible = false;
 scene.add(downtownAmbient);
 const downtownFog = new THREE.FogExp2(0x120a05, 0.02 / DT_SCALE);
-// starfield rushing through the maze at 3x the blocks' speed
+// starfield rushing through the maze at 3x the blocks' speed, in four
+// pixel-size classes from 1px pinpricks up to 4px flares, fogged like the
+// blocks so far stars sit darker and brighten as they rush closer
 const dtStars = (() => {
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
-  const positions = [], colors = [];
   const pal = [0xffffff, 0xffd9a0, 0xff8a73].map(c => new THREE.Color(c));
-  for (let rep = -1; rep < DT_REPEATS; rep++){
-    for (let i = 0; i < 220; i++){
-      positions.push((h(i, 1) - 0.5) * DT_HALF_W * 5, (h(i, 2) - 0.5) * DT_HALF_H * 4,
-        -h(i, 3) * DT_CHUNK_LENGTH - rep * DT_CHUNK_LENGTH);
-      const c = pal[i % pal.length];
-      colors.push(c.r, c.g, c.b);
+  const group = new THREE.Group();
+  [[100, 1], [70, 2], [40, 3], [20, 4]].forEach(([count, size], si) => {
+    const positions = [], colors = [];
+    for (let rep = -1; rep < DT_REPEATS; rep++){
+      for (let i = 0; i < count; i++){
+        positions.push((h(i * 3 + si * 97, 1) - 0.5) * DT_HALF_W * 5, (h(i * 5 + si * 31, 2) - 0.5) * DT_HALF_H * 4,
+          -h(i * 7 + si * 53, 3) * DT_CHUNK_LENGTH - rep * DT_CHUNK_LENGTH);
+        const c = pal[i % pal.length];
+        colors.push(c.r, c.g, c.b);
+      }
     }
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-  // fogged like the blocks, so far stars sit darker and brighten as they
-  // rush toward the camera
-  const mat = new THREE.PointsMaterial({ size: 2.4, vertexColors: true, sizeAttenuation: false,
-    map: roadDotTexture, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
-  const points = new THREE.Points(geo, mat);
-  points.frustumCulled = false;
-  points.visible = false;
-  scene.add(points);
-  return points;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+    const mat = new THREE.PointsMaterial({ size, vertexColors: true, sizeAttenuation: false,
+      map: roadDotTexture, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
+    const points = new THREE.Points(geo, mat);
+    points.frustumCulled = false;
+    group.add(points);
+  });
+  group.visible = false;
+  scene.add(group);
+  return group;
 })();
 
 /* ---------- shared palette rule for the numbered scenes: the current
@@ -2856,9 +2887,13 @@ const tilesBlocks = []; // floating animated cubes, driven in animate()
 }
 // warm-white key light raking the corridor from high front-left - what
 // shades the tile faces and draws the blocks' cast shadows
-const tilesDirLight = new THREE.DirectionalLight(0xfff4e8, 0.6); // soft, not super bright
+// the key is split: a shadow-casting 70% part and a shadowless 30% fill
+// on the same axis, so cast shadows land at 70% of full depth - and a
+// wide PCF radius blurs their edges soft
+const tilesDirLight = new THREE.DirectionalLight(0xfff4e8, 0.42);
 tilesDirLight.position.set(30, 55, 20);
 tilesDirLight.castShadow = true;
+tilesDirLight.shadow.radius = 9;
 tilesDirLight.shadow.mapSize.set(1024, 1024);
 tilesDirLight.shadow.camera.left = -120;
 tilesDirLight.shadow.camera.right = 120;
@@ -2870,6 +2905,11 @@ tilesDirLight.target.position.set(0, 0, -60);
 tilesDirLight.visible = false;
 scene.add(tilesDirLight);
 scene.add(tilesDirLight.target);
+const tilesDirFill = new THREE.DirectionalLight(0xfff4e8, 0.18); // the shadowless 30%
+tilesDirFill.position.copy(tilesDirLight.position);
+tilesDirFill.target = tilesDirLight.target;
+tilesDirFill.visible = false;
+scene.add(tilesDirFill);
 const tilesAmbient = new THREE.AmbientLight(0xffffff, 0.38); // 30% darker scene
 tilesAmbient.visible = false;
 scene.add(tilesAmbient);
@@ -3497,6 +3537,7 @@ function updateArtistBackground(tr){
   dtStars.visible = wantMaze;
   tilesGroup.visible = wantTiles;
   tilesDirLight.visible = wantTiles;
+  tilesDirFill.visible = wantTiles;
   tilesAmbient.visible = wantTiles;
   beamsGroup.visible = wantBeams;
   beamsScenery.visible = wantBeams;
@@ -3506,7 +3547,11 @@ function updateArtistBackground(tr){
   ringsGroup.visible = wantRings;
   ringsScenery.visible = wantRings;
   checkGroup.visible = wantCheck;
-  if (panoMesh) panoMesh.visible = !gateActive && !want3d;
+  const wantSphere = !gateActive && !want3d;
+  if (panoMesh) panoMesh.visible = wantSphere;
+  if (panoMirrorMesh) panoMirrorMesh.visible = wantSphere;
+  sphereFloor.visible = wantSphere;
+  sphereFloorLight.visible = wantSphere;
   // vertical-grid overlay shows over every 3D environment (see styles.css;
   // the intro tunnel is covered by its own body.gate-active selector)
   document.body.classList.toggle("scene-3d", want3d);
@@ -3582,11 +3627,13 @@ function loadPanoFile(file, base = "/panorama2/"){
   if (isGifFile(file)){
     currentPanoKind = "gif";
     panoMat.map = panoGifTexture;
+    panoMirrorMat.map = panoGifTexture; // floor reflection follows
     if (panoGifImg.getAttribute("src") !== src) panoGifImg.src = src;
     else rebuildPanoMesh();
   } else {
     currentPanoKind = "video";
     panoMat.map = panoTexture;
+    panoMirrorMat.map = panoTexture; // floor reflection follows
     if (panoVideoEl.getAttribute("src") !== src){
       panoVideoEl.src = src;
       panoVideoEl.play().catch(() => {});
@@ -4010,8 +4057,10 @@ function animate(t){
     }
     // the invisible light travels WITH the camera - a soft diffuse key
     // riding above and ahead, so light and shadows sweep along the bends
+    // (the shadowless fill shares its axis and target)
     tilesDirLight.position.set(tilesCamX + 12, tilesCamY + 26, 8 + 18);
     tilesDirLight.target.position.set(tilesCamX, tilesCamY, 8 - 40);
+    tilesDirFill.position.copy(tilesDirLight.position);
   } else if (beamsGroup.visible){
     // five-lane road: drone flight over the ribbons while cubes rain in,
     // bounce with real gravity, roll to a stop and drift past with the
@@ -4023,8 +4072,9 @@ function animate(t){
     beamsPrevFlight = flightDist;
     camera.position.x = Math.sin(swayT * 0.045) * 4;
     camera.position.y = 5.5 + Math.sin(swayT * 0.038 + 1) * 1.5;
-    // stronger down-tilt sits the horizon ~100px lower in frame
-    camera.rotation.x = -0.25 + Math.sin(swayT * 0.03 + 2) * 0.04;
+    // down-tilt tuned so the horizon sits at the profile picture's
+    // vertical midpoint (~60% down the frame)
+    camera.rotation.x = -0.09 + Math.sin(swayT * 0.03 + 2) * 0.04;
     camera.rotation.y = Math.sin(swayT * 0.026) * 0.09;
     camera.rotation.z = Math.sin(swayT * 0.033 + 4) * 0.05 + cameraRollOffset;
     beamsCubes.forEach(c => {
@@ -4167,14 +4217,19 @@ function animate(t){
     camera.rotation.x = Math.sin(swayT * 0.03 + 2) * 0.06;
     camera.rotation.y = Math.sin(swayT * 0.026) * 0.1;
     camera.rotation.z = nowSec * (Math.PI * 2 / 85) + cameraRollOffset;
+  } else if (!tunnelGroup.visible){
+    // the sphere (auto) screen: a drone-style glide in the Polaroid
+    // spirit - slow translational sweeps and a gentle bank layered over
+    // the existing Lissajous look-drift, floating above the glossy floor
+    camera.position.x = Math.sin(swayT * 0.021) * 3.2;
+    camera.position.y = Math.sin(swayT * 0.017 + 1) * 2.2;
+    camera.rotation.z = Math.sin(swayT * 0.019 + 4) * 0.05 + cameraRollOffset;
   } else {
-    // only the scene branches above ever touch these - reset them so a
-    // track change away from a 3D scene doesn't leave the sphere/tunnel
-    // view stuck mid-turn (the steered flight roll still applies here,
-    // covering the intro tunnel and the plain sphere screen)
+    // intro tunnel: keep its fixed lowered viewpoint; only the steered
+    // flight roll applies
     camera.position.x = 0;
     camera.rotation.z = cameraRollOffset;
-    camera.position.y = tunnelGroup.visible ? -1.1 : 0;
+    camera.position.y = -1.1;
   }
 
   if (currentPanoKind === "video"){
