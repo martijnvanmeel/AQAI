@@ -144,9 +144,7 @@ body.gate-active::after{display:none}
    wrapper, so #gate-logo3d keeps preserve-3d and its 50px extrusion shows) */
 /* sphere-control toggle: lit in the artist colour while the user is
    steering the sphere with the mouse (auto music-reactive drift otherwise) */
-#btn-sphere-control{position:fixed;top:10px;right:10px;z-index:3}
-#btn-sphere-control.on{background:var(--artist-color, var(--active-green));color:#000000;border-color:var(--artist-color, var(--active-green))}
-/* fullscreen toggle - same fixed top-corner spacing as #btn-sphere-control,
+/* fullscreen toggle - fixed top-corner spacing,
    mirrored to the left. Shows the "enter fullscreen" (expand) icon while
    off, swaps to "exit fullscreen" (compress) once .on - see the
    fullscreenchange listener in app.js */
@@ -230,16 +228,9 @@ body.gate-active::after{display:none}
 #view-home{overflow:hidden}
 #stage{position:fixed;inset:0;z-index:0}
 /* the 3D environments' screen treatment: instead of the sphere's shader-
-   baked CRT scanlines, a plain vertical grid of 1px lines at 50% alpha
-   over the whole stage. Shown only while a 3D scene is up - the per-artist
-   worlds (body.scene-3d, toggled in updateArtistBackground()) and the
-   intro tunnel (body.gate-active) */
-#grid-overlay{
-  position:fixed;inset:0;z-index:1;pointer-events:none;display:none;
-  background:repeating-linear-gradient(90deg, rgba(0,0,0,.5) 0 1px, transparent 1px 4px);
-}
-body.scene-3d #grid-overlay,
-body.gate-active #grid-overlay{display:block}
+   retired: the vertical-grid/VCR overlay is gone - the 3D scenes render
+   clean with no scanline treatment */
+#grid-overlay{display:none}
 /* Polaroid road sky: the WebGL canvas clears transparent there, revealing
    this gradient - a little brighter near the horizon, darker up top */
 body.scene-road #stage{background:linear-gradient(to top, #282153 0%, #131034 55%, #0a0618 100%)}

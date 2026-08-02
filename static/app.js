@@ -2691,6 +2691,7 @@ const TILES_HALF_W = 14;
 const tilesGroup = new THREE.Group();
 const tilesMats = [];
 const tilesCanvases = [];
+const tilesBlocks = []; // floating animated cubes, driven in animate()
 {
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
   for (let i = 0; i < 12; i++){
@@ -2724,6 +2725,24 @@ const tilesCanvases = [];
         const x = (xi - 1) * TILES_TILE;
         pushQuad(Math.floor(h(zi * 7 + xi * 17, 3) * 12),
           [[x - s, -20, z + s], [x + s, -20, z + s], [x + s, -20, z - s], [x - s, -20, z - s]]);
+        // matching tiled ceiling closes the corridor into a full box
+        pushQuad(Math.floor(h(zi * 7 + xi * 17, 4) * 12),
+          [[x - s, 20, z - s], [x + s, 20, z - s], [x + s, 20, z + s], [x - s, 20, z + s]]);
+      }
+      // stage gates: every 4th step a tiled frame crosses the corridor -
+      // top and bottom bars, plus an occasional side panel that narrows
+      // the passage so the weaving flight path has real corners to thread
+      if (zi % 4 === 0){
+        const gz = z - s;
+        pushQuad(Math.floor(h(zi * 31, 5) * 12),
+          [[-TILES_HALF_W, 12, gz], [TILES_HALF_W, 12, gz], [TILES_HALF_W, 20, gz], [-TILES_HALF_W, 20, gz]]);
+        pushQuad(Math.floor(h(zi * 31, 6) * 12),
+          [[-TILES_HALF_W, -20, gz], [TILES_HALF_W, -20, gz], [TILES_HALF_W, -12, gz], [-TILES_HALF_W, -12, gz]]);
+        if (h(zi * 31, 7) < 0.6){
+          const sideSign = h(zi * 31, 8) < 0.5 ? -1 : 1;
+          pushQuad(Math.floor(h(zi * 31, 9) * 12),
+            [[sideSign * TILES_HALF_W, -12, gz], [sideSign * 5, -12, gz], [sideSign * 5, 12, gz], [sideSign * TILES_HALF_W, 12, gz]]);
+        }
       }
     }
   }
@@ -2736,7 +2755,35 @@ const tilesCanvases = [];
     mesh.frustumCulled = false;
     tilesGroup.add(mesh);
   });
+  // floating tile blocks drifting through the corridor - spinning, bobbing
+  // cubes wearing the same motif faces (animated in the tiles branch of
+  // animate())
+  const blockGeo = new THREE.BoxGeometry(2.8, 2.8, 2.8);
+  for (let rep = 0; rep < TILES_REPEATS; rep++){
+    for (let i = 0; i < 9; i++){
+      const block = new THREE.Mesh(blockGeo, tilesMats[Math.floor(h(i * 41, 10) * 12)]);
+      const sideSign = i % 2 === 0 ? -1 : 1;
+      block.position.set(sideSign * (5 + h(i, 11) * 6), (h(i, 12) - 0.5) * 24,
+        -h(i, 13) * TILES_CHUNK_LENGTH - rep * TILES_CHUNK_LENGTH);
+      block.userData.baseY = block.position.y;
+      block.userData.phase = h(i, 14) * Math.PI * 2;
+      block.userData.spin = 0.15 + h(i, 15) * 0.3;
+      block.frustumCulled = false;
+      tilesBlocks.push(block);
+      tilesGroup.add(block);
+    }
+  }
 }
+// the corridor flight path: winds left/right AND climbs/dives (periodic
+// over the chunk, so the endless wrap stays seamless)
+function tilesPathAt(dist){
+  const a = (dist / TILES_CHUNK_LENGTH) * Math.PI * 2;
+  return {
+    x: Math.sin(a * 2) * 4.5 + Math.sin(a * 5 + 1) * 2,
+    y: Math.sin(a * 3 + 2) * 6 + Math.sin(a * 7) * 2,
+  };
+}
+let tilesCamX = 0, tilesCamY = 0, tilesCamYaw = 0, tilesCamPitch = 0, tilesCamBank = 0;
 tilesGroup.visible = false;
 scene.add(tilesGroup);
 const tilesFog = new THREE.FogExp2(0x232323, 0.009);
@@ -3019,11 +3066,33 @@ const ringsGroup = new THREE.Group();
 const ringsMats = [];
 {
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+  // every ring renders as a 25%-ish additive overlay in the distance and
+  // climbs to full presence as it reaches the camera: a per-fragment
+  // view-distance fade injected into the shared materials
+  const applyRingsDepthFade = mat => {
+    mat.transparent = true;
+    mat.blending = THREE.AdditiveBlending;
+    mat.depthWrite = false;
+    mat.onBeforeCompile = shader => {
+      shader.vertexShader = "varying float vRingDist;\n" + shader.vertexShader
+        .replace("#include <begin_vertex>",
+          `#include <begin_vertex>
+          vRingDist = -( modelViewMatrix * vec4( transformed, 1.0 ) ).z;`);
+      shader.fragmentShader = "varying float vRingDist;\n" + shader.fragmentShader
+        .replace("#include <fog_fragment>",
+          `#include <fog_fragment>
+          float ringNear = 1.0 - smoothstep( 18.0, 130.0, vRingDist );
+          gl_FragColor.rgb *= mix( 0.25, 1.0, ringNear );`);
+    };
+  };
   for (let i = 0; i < 8; i++){
-    ringsMats.push(new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+    const mat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    applyRingsDepthFade(mat);
+    ringsMats.push(mat);
   }
   const haloMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, transparent: true, opacity: 0.5,
     blending: THREE.AdditiveBlending, depthWrite: false });
+  applyRingsDepthFade(haloMat);
   ringsMats.push(haloMat); // slot 8: additive halo outlines, tinted like slot 0
   const GATE_STEP = 12;
   const gatesPerChunk = RINGS_CHUNK_LENGTH / GATE_STEP;
@@ -3054,12 +3123,22 @@ const ringsMats = [];
       bands.forEach((geo, bi) => {
         const mesh = new THREE.Mesh(geo, ringsMats[Math.floor(h(gi * 13 + bi, 8) * 8)]);
         mesh.position.set(gx, gy, gz);
+        // each ring drifts on its own little orbit (see animate()) so the
+        // gates breathe organically instead of moving as rigid stacks
+        mesh.userData.baseX = gx; mesh.userData.baseY = gy;
+        mesh.userData.drift = 0.4 + h(gi * 17 + bi, 9) * 1.1;
+        mesh.userData.phase = h(gi * 19 + bi, 10) * Math.PI * 2;
+        mesh.userData.rate = 0.05 + h(gi * 23 + bi, 11) * 0.09;
         mesh.frustumCulled = false;
         ringsGroup.add(mesh);
       });
       halos.forEach(geo => {
         const mesh = new THREE.Mesh(geo, haloMat);
         mesh.position.set(gx, gy, gz);
+        mesh.userData.baseX = gx; mesh.userData.baseY = gy;
+        mesh.userData.drift = 0.8;
+        mesh.userData.phase = h(gi, 12) * Math.PI * 2;
+        mesh.userData.rate = 0.06;
         mesh.frustumCulled = false;
         ringsGroup.add(mesh);
       });
@@ -3319,18 +3398,9 @@ function showPanoAt(idx){
   loadPanoFile(PANORAMAS[panoManualIndex]);
   updatePanoLabel();
 }
-// when true the user steers the sphere with the mouse; when false (default)
-// the sphere drifts on its own and reacts to the music (see animate())
-let sphereUserControl = false;
-$("#btn-sphere-control").onclick = e => {
-  sphereUserControl = !sphereUserControl;
-  const btn = e.currentTarget;
-  btn.classList.toggle("on", sphereUserControl);
-  btn.setAttribute("aria-pressed", sphereUserControl ? "true" : "false");
-  btn.setAttribute("aria-label", sphereUserControl
-    ? "Stop controlling the sphere (let it react to the music)"
-    : "Control the sphere with your mouse");
-};
+// manual sphere control is retired (button removed) - the sphere always
+// drifts on its own and reacts to the music (see animate())
+const sphereUserControl = false;
 $("#pano-prev").onclick = () => showPanoAt(panoManualIndex - 1);
 $("#pano-next").onclick = () => showPanoAt(panoManualIndex + 1);
 
@@ -3483,10 +3553,19 @@ function animate(t){
   lastAnimT = t || 0;
   // both the speed factor and the roll rate ease toward their key-driven
   // targets rather than jumping, so a press ramps in and a release ramps
-  // out - motion stays smooth at both ends
-  const speedTarget = flightKeys.up ? 5.2 : flightKeys.down ? -2.4 : 1;
+  // out - motion stays smooth at both ends. The idle cruise itself
+  // breathes (roughly 0.6x-1.4x on two slow uneven beats), so the flight
+  // naturally accelerates into some stretches and eases through others
+  const animSec = (t || 0) * 0.001;
+  const speedTarget = flightKeys.up ? 5.2 : flightKeys.down ? -2.4
+    : 1 + Math.sin(animSec * 0.021) * 0.28 + Math.sin(animSec * 0.009 + 2) * 0.16;
   flightSpeedFactor += (speedTarget - flightSpeedFactor) * 0.035;
   flightDist += dtSec * flightSpeedFactor;
+  // warped sway clock shared by every scene camera: time itself speeds up
+  // and slows down (continuously, never resetting), so the sinusoidal
+  // drifts change direction and pace organically instead of ticking like
+  // a metronome
+  const swayT = animSec + Math.sin(animSec * 0.017) * 7;
   const rollTarget = flightKeys.left ? -0.9 : flightKeys.right ? 0.9 : 0;
   flightRollRate += (rollTarget - flightRollRate) * 0.04;
   cameraRollOffset += flightRollRate * dtSec;
@@ -3568,15 +3647,15 @@ function animate(t){
     // long lookahead + a soft follow factor + slow low-amplitude sways =
     // unhurried, stylish glides instead of abrupt corrections
     const follow = 0.02;
-    roadCamX += (here.x + Math.sin(nowSec * 0.055) * 1.6 - roadCamX) * follow;
-    roadCamY += (here.y + ROAD_CAM_HEIGHT + Math.sin(nowSec * 0.045 + 1) * 1.0 - roadCamY) * follow;
+    roadCamX += (here.x + Math.sin(swayT * 0.055) * 1.6 - roadCamX) * follow;
+    roadCamY += (here.y + ROAD_CAM_HEIGHT + Math.sin(swayT * 0.045 + 1) * 1.0 - roadCamY) * follow;
     // hard floor: whatever the sway/lerp is doing, never sink below the
     // road surface under the camera
     roadCamY = Math.max(roadCamY, here.y + 2.6);
     // look into the curve/hill ahead, with a slow scanning sway on top
-    roadCamYaw += (-Math.atan2(ahead.x - here.x, 14) * 0.6 + Math.sin(nowSec * 0.032) * 0.05 - roadCamYaw) * follow;
-    roadCamPitch += (Math.atan2(ahead.y - here.y, 14) * 0.45 - 0.05 + Math.sin(nowSec * 0.028 + 3) * 0.03 - roadCamPitch) * follow;
-    roadCamBank += (-Math.atan2(ahead.x - here.x, 14) * 0.8 + Math.sin(nowSec * 0.025 + 5) * 0.025 - roadCamBank) * follow;
+    roadCamYaw += (-Math.atan2(ahead.x - here.x, 14) * 0.6 + Math.sin(swayT * 0.032) * 0.05 - roadCamYaw) * follow;
+    roadCamPitch += (Math.atan2(ahead.y - here.y, 14) * 0.45 - 0.05 + Math.sin(swayT * 0.028 + 3) * 0.03 - roadCamPitch) * follow;
+    roadCamBank += (-Math.atan2(ahead.x - here.x, 14) * 0.8 + Math.sin(swayT * 0.025 + 5) * 0.025 - roadCamBank) * follow;
     camera.position.x = roadCamX;
     camera.position.y = roadCamY;
     camera.rotation.x = roadCamPitch;
@@ -3615,18 +3694,18 @@ function animate(t){
     const here = mistPathAt(scroll - 8);
     const ahead = mistPathAt(scroll - 8 + 14);
     const follow = 0.02;
-    mistCamX += (here.x + Math.sin(nowSec * 0.055) * 12 - mistCamX) * follow;
-    mistCamY += (here.y + Math.sin(nowSec * 0.045 + 1) * 9 - mistCamY) * follow;
-    mistCamYaw += (-Math.atan2(ahead.x - here.x, 14) * 0.6 + Math.sin(nowSec * 0.032) * 0.3 - mistCamYaw) * follow;
-    mistCamPitch += (Math.atan2(ahead.y - here.y, 14) * 0.45 + Math.sin(nowSec * 0.028 + 3) * 0.1 - mistCamPitch) * follow;
-    mistCamBank += (-Math.atan2(ahead.x - here.x, 14) * 0.8 + Math.sin(nowSec * 0.025 + 5) * 0.16 - mistCamBank) * follow;
+    mistCamX += (here.x + Math.sin(swayT * 0.055) * 12 - mistCamX) * follow;
+    mistCamY += (here.y + Math.sin(swayT * 0.045 + 1) * 9 - mistCamY) * follow;
+    mistCamYaw += (-Math.atan2(ahead.x - here.x, 14) * 0.6 + Math.sin(swayT * 0.032) * 0.3 - mistCamYaw) * follow;
+    mistCamPitch += (Math.atan2(ahead.y - here.y, 14) * 0.45 + Math.sin(swayT * 0.028 + 3) * 0.1 - mistCamPitch) * follow;
+    mistCamBank += (-Math.atan2(ahead.x - here.x, 14) * 0.8 + Math.sin(swayT * 0.025 + 5) * 0.16 - mistCamBank) * follow;
     camera.position.x = mistCamX;
     camera.position.y = mistCamY;
     // a very slow wander swings the gaze all the way around over minutes -
     // sometimes looking sideways, up, down, even fully backward - layered
     // over the path-follow sways
-    camera.rotation.x = mistCamPitch + Math.sin(nowSec * 0.017 + 2) * 0.5;
-    camera.rotation.y = mistCamYaw + Math.sin(nowSec * 0.013) * 2.6;
+    camera.rotation.x = mistCamPitch + Math.sin(swayT * 0.017 + 2) * 0.5;
+    camera.rotation.y = mistCamYaw + Math.sin(swayT * 0.013) * 2.6;
     // sways on all three axes plus a slow continuous barrel roll (~2.7min
     // per revolution) - the camera is always rotating around every axis
     camera.rotation.z = mistCamBank + cameraRollOffset + nowSec * (Math.PI * 2 / 160);
@@ -3642,13 +3721,13 @@ function animate(t){
     // deepest reach into the corridor
     const nowSec = (t || 0) * 0.001;
     downtownGroup.position.z = wrapScroll(flightDist * DT_SPEED, DT_CHUNK_LENGTH);
-    camera.position.x = Math.sin(nowSec * 0.05) * 24 + Math.sin(nowSec * 0.021 + 3) * 10;
-    camera.position.y = Math.sin(nowSec * 0.042 + 1) * 18 + Math.sin(nowSec * 0.017) * 8;
-    camera.rotation.x = Math.sin(nowSec * 0.036 + 2) * 0.16;
-    camera.rotation.y = Math.sin(nowSec * 0.03) * 0.34;
+    camera.position.x = Math.sin(swayT * 0.05) * 24 + Math.sin(swayT * 0.021 + 3) * 10;
+    camera.position.y = Math.sin(swayT * 0.042 + 1) * 18 + Math.sin(swayT * 0.017) * 8;
+    camera.rotation.x = Math.sin(swayT * 0.036 + 2) * 0.16;
+    camera.rotation.y = Math.sin(swayT * 0.03) * 0.34;
     // one full slow 360deg barrel roll every ~2.5 minutes, with the axis
     // sways and the steered flight roll layered on top
-    camera.rotation.z = nowSec * (Math.PI * 2 / 150) + Math.sin(nowSec * 0.04 + 4) * 0.2 + cameraRollOffset;
+    camera.rotation.z = nowSec * (Math.PI * 2 / 150) + Math.sin(swayT * 0.04 + 4) * 0.2 + cameraRollOffset;
     // the reactive slabs breathe with the music (uIntensity is the same
     // smoothed audio level the sphere shader uses), each on its own phase
     const beat = panoUniforms.uIntensity.value;
@@ -3665,23 +3744,40 @@ function animate(t){
     const lineGlow = 0.35 + beat * 0.65;
     dtLineMats.forEach(lm => { lm.opacity = lineGlow; });
   } else if (tilesGroup.visible){
-    // op-art corridor: steady glide with a gentle look-around
+    // op-art corridor: a true weaving fly-through - the camera follows a
+    // winding path (corners left/right, climbs and dives), looking and
+    // banking into every turn, while tile blocks tumble past
     const nowSec = (t || 0) * 0.001;
-    tilesGroup.position.z = wrapScroll(flightDist * TILES_SPEED, TILES_CHUNK_LENGTH);
-    camera.position.x = Math.sin(nowSec * 0.05) * 4;
-    camera.position.y = Math.sin(nowSec * 0.043 + 1) * 3;
-    camera.rotation.x = Math.sin(nowSec * 0.031 + 2) * 0.12;
-    camera.rotation.y = Math.sin(nowSec * 0.027) * 0.3;
-    camera.rotation.z = Math.sin(nowSec * 0.035 + 4) * 0.08 + cameraRollOffset;
+    const scroll = flightDist * TILES_SPEED;
+    tilesGroup.position.z = wrapScroll(scroll, TILES_CHUNK_LENGTH);
+    const here = tilesPathAt(scroll - 8);
+    const ahead = tilesPathAt(scroll - 8 + 12);
+    const follow = 0.03;
+    tilesCamX += (here.x + Math.sin(swayT * 0.05) * 1.5 - tilesCamX) * follow;
+    tilesCamY += (here.y + Math.sin(swayT * 0.043 + 1) * 1.5 - tilesCamY) * follow;
+    tilesCamYaw += (-Math.atan2(ahead.x - here.x, 12) * 0.7 + Math.sin(swayT * 0.027) * 0.12 - tilesCamYaw) * follow;
+    tilesCamPitch += (Math.atan2(ahead.y - here.y, 12) * 0.55 + Math.sin(swayT * 0.031 + 2) * 0.08 - tilesCamPitch) * follow;
+    tilesCamBank += (-Math.atan2(ahead.x - here.x, 12) * 0.9 + Math.sin(swayT * 0.035 + 4) * 0.06 - tilesCamBank) * follow;
+    camera.position.x = tilesCamX;
+    camera.position.y = tilesCamY;
+    camera.rotation.x = tilesCamPitch;
+    camera.rotation.y = tilesCamYaw;
+    camera.rotation.z = tilesCamBank + cameraRollOffset;
+    // the floating blocks bob and tumble on their own phases
+    tilesBlocks.forEach(b => {
+      b.position.y = b.userData.baseY + Math.sin(nowSec * 0.4 + b.userData.phase) * 1.6;
+      b.rotation.x = nowSec * b.userData.spin + b.userData.phase;
+      b.rotation.y = nowSec * b.userData.spin * 0.7 + b.userData.phase * 2;
+    });
   } else if (beamsGroup.visible){
     // light-bar hall: near-head-on flight, the bars strobing past
     const nowSec = (t || 0) * 0.001;
     beamsGroup.position.z = wrapScroll(flightDist * BEAMS_SPEED, BEAMS_CHUNK_LENGTH);
-    camera.position.x = Math.sin(nowSec * 0.045) * 3;
-    camera.position.y = Math.sin(nowSec * 0.038 + 1) * 2;
-    camera.rotation.x = Math.sin(nowSec * 0.03 + 2) * 0.05;
-    camera.rotation.y = Math.sin(nowSec * 0.026) * 0.09;
-    camera.rotation.z = Math.sin(nowSec * 0.033 + 4) * 0.05 + cameraRollOffset;
+    camera.position.x = Math.sin(swayT * 0.045) * 3;
+    camera.position.y = Math.sin(swayT * 0.038 + 1) * 2;
+    camera.rotation.x = Math.sin(swayT * 0.03 + 2) * 0.05;
+    camera.rotation.y = Math.sin(swayT * 0.026) * 0.09;
+    camera.rotation.z = Math.sin(swayT * 0.033 + 4) * 0.05 + cameraRollOffset;
     // bar glow follows the music level
     const beamBeat = 0.75 + panoUniforms.uIntensity.value * 0.5;
     beamsMats.forEach(m => { m.opacity = Math.min(1, beamBeat); });
@@ -3689,29 +3785,34 @@ function animate(t){
     // slat curtains: slow elegant drift between the glowing rims
     const nowSec = (t || 0) * 0.001;
     prismGroup.position.z = wrapScroll(flightDist * PRISM_SPEED, PRISM_CHUNK_LENGTH);
-    camera.position.x = Math.sin(nowSec * 0.04) * 5;
-    camera.position.y = Math.sin(nowSec * 0.033 + 1) * 4;
-    camera.rotation.x = Math.sin(nowSec * 0.027 + 2) * 0.1;
-    camera.rotation.y = Math.sin(nowSec * 0.023) * 0.24;
-    camera.rotation.z = Math.sin(nowSec * 0.03 + 4) * 0.09 + cameraRollOffset;
+    camera.position.x = Math.sin(swayT * 0.04) * 5;
+    camera.position.y = Math.sin(swayT * 0.033 + 1) * 4;
+    camera.rotation.x = Math.sin(swayT * 0.027 + 2) * 0.1;
+    camera.rotation.y = Math.sin(swayT * 0.023) * 0.24;
+    camera.rotation.z = Math.sin(swayT * 0.03 + 4) * 0.09 + cameraRollOffset;
   } else if (ringsGroup.visible){
     // ring gates: straight through the dark centers, slowly rolling
     const nowSec = (t || 0) * 0.001;
     ringsGroup.position.z = wrapScroll(flightDist * RINGS_SPEED, RINGS_CHUNK_LENGTH);
-    camera.position.x = Math.sin(nowSec * 0.05) * 1.6;
-    camera.position.y = Math.sin(nowSec * 0.041 + 1) * 1.3;
-    camera.rotation.x = Math.sin(nowSec * 0.03 + 2) * 0.04;
-    camera.rotation.y = Math.sin(nowSec * 0.026) * 0.06;
+    camera.position.x = Math.sin(swayT * 0.05) * 1.6;
+    camera.position.y = Math.sin(swayT * 0.041 + 1) * 1.3;
+    camera.rotation.x = Math.sin(swayT * 0.03 + 2) * 0.04;
+    camera.rotation.y = Math.sin(swayT * 0.026) * 0.06;
     camera.rotation.z = nowSec * (Math.PI * 2 / 110) + cameraRollOffset;
+    // every ring wanders its own little orbit around its gate center
+    ringsGroup.children.forEach(m => {
+      m.position.x = m.userData.baseX + Math.sin(nowSec * m.userData.rate * 5 + m.userData.phase) * m.userData.drift;
+      m.position.y = m.userData.baseY + Math.sin(nowSec * m.userData.rate * 4 + m.userData.phase * 2) * m.userData.drift * 0.8;
+    });
   } else if (checkGroup.visible){
     // checker tunnel: the endless op-art bore, slowly rolling around the
     // camera like the reference gif
     const nowSec = (t || 0) * 0.001;
     checkGroup.position.z = wrapScroll(flightDist * CHECK_SPEED, CHECK_CHUNK_LENGTH);
-    camera.position.x = Math.sin(nowSec * 0.045) * 3;
-    camera.position.y = Math.sin(nowSec * 0.038 + 1) * 2.5;
-    camera.rotation.x = Math.sin(nowSec * 0.03 + 2) * 0.06;
-    camera.rotation.y = Math.sin(nowSec * 0.026) * 0.1;
+    camera.position.x = Math.sin(swayT * 0.045) * 3;
+    camera.position.y = Math.sin(swayT * 0.038 + 1) * 2.5;
+    camera.rotation.x = Math.sin(swayT * 0.03 + 2) * 0.06;
+    camera.rotation.y = Math.sin(swayT * 0.026) * 0.1;
     camera.rotation.z = nowSec * (Math.PI * 2 / 85) + cameraRollOffset;
   } else {
     // only the scene branches above ever touch these - reset them so a
