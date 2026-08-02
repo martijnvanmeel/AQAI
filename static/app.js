@@ -2363,6 +2363,7 @@ const MIST_TOPS = [0xff9a8a, 0xffa8c0, 0xf5a087].map(c => new THREE.Color(c).mul
 const MIST_CORES = [0xffc25e, 0xffdd7a, 0xff9a5e].map(c => new THREE.Color(c).multiplyScalar(0.075));
 const MIST_UNDER = [0x7de8c8, 0x9aa8ff, 0x86c8f0, 0xb49aff].map(c => new THREE.Color(c).multiplyScalar(0.055));
 const mistGroup = new THREE.Group();
+const mistReactiveMats = []; // ball-flock materials that pulse with the music
 {
   // hash-driven template (no Math.random) so every tile is an exact copy -
   // that's what makes the scroll wrap invisible and the flight endless.
@@ -2370,15 +2371,20 @@ const mistGroup = new THREE.Group();
   // pixel-size classes - the proven pipeline) plus a field of translucent
   // balls (real spheres at 0.4 opacity) in the same palette.
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
-  // stars, tiled per chunk so they stream and wrap with the scene
+  // stars, tiled per chunk so they stream and wrap with the scene. Tiles
+  // run from +1 chunk BEHIND the camera (rep -1) through the far distance,
+  // so the slow gaze-wander can look fully backward and still find sky -
+  // the field never visibly resets or runs out in any direction
   const starPalette = [0xffffff, 0x9be8ff, 0xffd2e8, 0xc9b8ff].map(c => new THREE.Color(c));
-  [[170, 1.5], [26, 3.5]].forEach(([count, size], si) => {
+  const whiteOnly = [new THREE.Color(0xffffff)];
+  // third class: a dense pure-white population (4x the white stars)
+  [[320, 1.5, starPalette], [48, 3.5, starPalette], [960, 1.6, whiteOnly]].forEach(([count, size, palette], si) => {
     const positions = [], colors = [];
-    for (let rep = 0; rep < MIST_REPEATS; rep++){
+    for (let rep = -1; rep < MIST_REPEATS; rep++){
       for (let i = 0; i < count; i++){
         positions.push((h(i * 3 + si * 97, i) - 0.5) * 700, (h(i * 5 + si * 31, i * 2) - 0.5) * 300,
           -h(i * 7 + si * 53, i * 3) * MIST_CHUNK_LENGTH - rep * MIST_CHUNK_LENGTH);
-        const c = starPalette[i % starPalette.length];
+        const c = palette[i % palette.length];
         colors.push(c.r, c.g, c.b);
       }
     }
@@ -2411,41 +2417,57 @@ const mistGroup = new THREE.Group();
   })();
   const flockPalette = [0xff9a8a, 0xffa8c0, 0x7de8c8, 0x9aa8ff, 0x86c8f0, 0xffc25e]
     .map(c => new THREE.Color(c).multiplyScalar(0.55)); // dimmed against additive stacking
-  const ballBuckets = [
+  // two parallel bucket sets: normal flocks, and "reactive" flocks whose
+  // size/brightness pulse with the music (see the mist branch in animate())
+  const mkBuckets = () => [
     { size: 3, positions: [], colors: [] },
     { size: 6, positions: [], colors: [] },
     { size: 10, positions: [], colors: [] },
     { size: 16, positions: [], colors: [] },
+    { size: 48, positions: [], colors: [] }, // the occasional 3x jumbo circle
   ];
-  const FLOCKS = 22;
-  for (let rep = 0; rep < MIST_REPEATS; rep++){
+  const ballBuckets = mkBuckets(), reactiveBuckets = mkBuckets();
+  const FLOCKS = 88; // 4x more
+  for (let rep = -1; rep < MIST_REPEATS; rep++){ // rep -1: coverage behind the camera too
     for (let fi = 0; fi < FLOCKS; fi++){
-      const fx = (h(fi, 1) - 0.5) * 340;
-      const fy = (h(fi, 2) - 0.5) * 150;
+      const fx = (h(fi, 1) - 0.5) * 500;
+      const fy = (h(fi, 2) - 0.5) * 180;
       const fz = -h(fi, 3) * MIST_CHUNK_LENGTH - rep * MIST_CHUNK_LENGTH;
-      const count = 16 + Math.floor(h(fi, 4) * 18); // 4x denser flocks
+      const count = 16 + Math.floor(h(fi, 4) * 18);
+      const reactive = h(fi, 9) < 0.25; // about a quarter of the flocks follow the music
+      const set = reactive ? reactiveBuckets : ballBuckets;
       for (let bi = 0; bi < count; bi++){
-        const bucket = ballBuckets[Math.floor(h(fi * 41 + bi, 5) * 4) % 4];
+        const pick = h(fi * 41 + bi, 5);
+        // ~7% of a flock's circles are the 3x jumbos
+        const bucket = pick < 0.07 ? set[4] : set[Math.floor(pick * 4) % 4];
+        // tight grouping - the flock reads as one huddled cluster
         bucket.positions.push(
-          fx + (h(fi * 41 + bi, 6) - 0.5) * 26,
-          fy + (h(fi * 41 + bi, 7) - 0.5) * 20,
-          fz + (h(fi * 41 + bi, 8) - 0.5) * 26);
+          fx + (h(fi * 41 + bi, 6) - 0.5) * 14,
+          fy + (h(fi * 41 + bi, 7) - 0.5) * 11,
+          fz + (h(fi * 41 + bi, 8) - 0.5) * 14);
         const c = flockPalette[(fi + bi) % flockPalette.length];
         bucket.colors.push(c.r, c.g, c.b);
       }
     }
   }
-  ballBuckets.forEach(b => {
+  const buildBucketPoints = (b, reactive) => {
     if (!b.positions.length) return;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute(b.positions, 3));
     geo.setAttribute("color", new THREE.Float32BufferAttribute(b.colors, 3));
-    const points = new THREE.Points(geo, new THREE.PointsMaterial({ size: b.size, sizeAttenuation: true,
-      map: mistBallTexture, vertexColors: true, transparent: true, opacity: 0.4,
-      blending: THREE.AdditiveBlending, depthWrite: false }));
+    const mat = new THREE.PointsMaterial({ size: b.size, sizeAttenuation: true,
+      map: mistBallTexture, vertexColors: true, transparent: true, opacity: 0.6,
+      blending: THREE.AdditiveBlending, depthWrite: false });
+    if (reactive){
+      mat.userData.baseSize = b.size;
+      mistReactiveMats.push(mat);
+    }
+    const points = new THREE.Points(geo, mat);
     points.frustumCulled = false;
     mistGroup.add(points);
-  });
+  };
+  ballBuckets.forEach(b => buildBucketPoints(b, false));
+  reactiveBuckets.forEach(b => buildBucketPoints(b, true));
 }
 mistGroup.visible = false;
 scene.add(mistGroup);
@@ -2490,6 +2512,7 @@ const dtMats = DT_BASE_COLORS.map(color => new THREE.MeshPhongMaterial({ color: 
 const dtEdgeMat = new THREE.LineBasicMaterial({ color: 0xd8b088, transparent: true, opacity: 0.55 });
 const dtReactiveSlabs = []; // slabs that light up with the music (see animate())
 const dtBobSlabs = [];      // every box, corridor and outer - all bob up/down in animate()
+const dtLineMats = [];      // every box's vertical-line material - lit by the music
 const downtownGroup = new THREE.Group();
 {
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
@@ -2505,6 +2528,7 @@ const downtownGroup = new THREE.Group();
   const addBoxLine = (box, mat) => {
     const lm = new THREE.LineBasicMaterial({ transparent: true, opacity: 0.55 });
     lm.color = mat.color; // shared reference, not a copy
+    dtLineMats.push(lm);  // opacity pulses with the music in animate()
     const line = new THREE.Line(dtLineGeo, lm);
     line.position.set(box.position.x, 0, box.position.z);
     line.frustumCulled = false;
@@ -2588,22 +2612,23 @@ const downtownGroup = new THREE.Group();
 // when the current track - and so its artistColor - is known), with
 // dedicated red, green and blue slab variants scattered through the scene
 const dtTintColor = new THREE.Color();
-const DT_RGB_VARIANTS = [0xa03028, 0x2f7a3a, 0x2d4fa0].map(c => new THREE.Color(c)); // dark red / green / blue
+// matched-intensity accent boxes: dark muted red, blue and yellow
+const DT_RGB_VARIANTS = [0xa03028, 0x2830a0, 0xa09428].map(c => new THREE.Color(c));
 function applyDowntownTint(artistColor){
   dtTintColor.set(artistColor || "#8a5a2c");
   // complement of the artist color - the scene's contrast accent
   const dtContrast = new THREE.Color(1 - dtTintColor.r, 1 - dtTintColor.g, 1 - dtTintColor.b);
   dtMats.forEach((mat, i) => {
-    if (i < 3){
-      // half the palette: warm base pulled toward the artist color
+    if (i < 2){
+      // two slots: warm base pulled toward the artist color
       mat.color.copy(DT_BASE_COLORS[i]).lerp(dtTintColor, 0.5).multiplyScalar(0.85);
-    } else if (i < 5){
-      // two slots: the red/green/blue-ish variants, barely artist-tinted
-      // so they read as their own contrasting hues
-      mat.color.copy(DT_RGB_VARIANTS[i - 3]).lerp(dtTintColor, 0.1).multiplyScalar(0.85);
-    } else {
-      // last slot: the artist color's complement, the hardest contrast
+    } else if (i === 2){
+      // one slot: the artist color's complement, the hardest contrast
       mat.color.copy(dtContrast).multiplyScalar(0.7);
+    } else {
+      // three slots: matched-intensity red / blue / yellow accents, barely
+      // artist-tinted so they read as their own hues
+      mat.color.copy(DT_RGB_VARIANTS[i - 3]).lerp(dtTintColor, 0.1).multiplyScalar(0.85);
     }
   });
   dtReactiveSlabs.forEach(slab => {
@@ -2655,7 +2680,7 @@ function updateArtistBackground(tr){
   // tighter lens in every constructed environment (incl. the intro
   // tunnel) = a more zoomed, cinematic framing; only the plain video
   // sphere keeps the natural 1x lens
-  camera.zoom = gateActive ? 1.3 : wantRoad ? 1.6 : (wantMist || wantMaze) ? 1.35 : 1;
+  camera.zoom = gateActive ? 1.3 : wantRoad ? 1.6 : wantMist ? 1.5 : wantMaze ? 1.35 : 1;
   camera.updateProjectionMatrix();
   if (wantRoad){
     // transparent clear: the sky is a CSS gradient behind the canvas
@@ -3030,6 +3055,12 @@ function animate(t){
     // sways on all three axes plus a slow continuous barrel roll (~2.7min
     // per revolution) - the camera is always rotating around every axis
     camera.rotation.z = mistCamBank + cameraRollOffset + nowSec * (Math.PI * 2 / 160);
+    // the reactive flocks swell and brighten with the music level
+    const mistBeat = panoUniforms.uIntensity.value;
+    mistReactiveMats.forEach(m => {
+      m.size = m.userData.baseSize * (1 + mistBeat * 0.6);
+      m.opacity = 0.6 + mistBeat * 0.35;
+    });
   } else if (downtownGroup.visible){
     // wide-roaming glide through the big block maze: sweeping left/right/
     // up/down travel plus all three rotations, still clear of the slabs'
@@ -3056,6 +3087,9 @@ function animate(t){
       slab.position.y = slab.userData.baseY + Math.sin(nowSec * slab.userData.bobSpeed + slab.userData.bobPhase) * slab.userData.bobAmp;
       slab.rotation.z = nowSec * slab.userData.spinZ + slab.userData.bobPhase;
     });
+    // the boxes' vertical lines light up with the music
+    const lineGlow = 0.35 + beat * 0.65;
+    dtLineMats.forEach(lm => { lm.opacity = lineGlow; });
   } else {
     // only the scene branches above ever touch these - reset them so a
     // track change away from a 3D scene doesn't leave the sphere/tunnel
