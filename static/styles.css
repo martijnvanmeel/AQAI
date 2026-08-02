@@ -123,7 +123,7 @@ body.gate-active::after{display:none}
      absolutely-positioned children can't establish their parent's size */
   width:min(400px,90vw);aspect-ratio:8/3;
   position:relative;transform-style:preserve-3d;
-  animation:logo3dSpin 9s linear infinite;
+  animation:logo3dSpin 10.8s linear infinite; /* 20% heavier/slower spin */
   font-family:var(--font-display);font-weight:900;letter-spacing:-.02em;
   font-size:min(108px,28.8vw);line-height:1;white-space:nowrap;
 }
@@ -299,7 +299,15 @@ body.scene-mist #stage{background:linear-gradient(to top, #101a3e 0%, #060a1c 55
   0%,100%{color:var(--artist-color, var(--active-green))}
   50%{color:color-mix(in srgb, var(--artist-color, var(--active-green)) 80%, white)}
 }
-.util-btns{position:absolute;right:14px;top:50%;transform:translateY(-50%);display:flex;gap:6px}
+.util-btns{position:absolute;right:14px;top:50%;transform:translateY(-50%);display:flex;gap:6px;align-items:center}
+/* scene navigator: ‹ SCENE › pill next to the sphere-control button */
+#scene-nav{display:flex;align-items:center;gap:5px}
+#scene-label{
+  font-family:var(--font-title);font-weight:700;font-size:11px;letter-spacing:.1em;
+  text-transform:uppercase;text-align:center;min-width:56px;
+  color:var(--artist-color, var(--active-green));
+  position:relative;top:1px;
+}
 .pano-btns{
   position:absolute;left:14px;top:14px;
   display:flex;align-items:center;gap:6px;z-index:2;

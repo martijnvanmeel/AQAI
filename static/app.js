@@ -1758,6 +1758,10 @@ const TUNNEL_RING_SPACING = 5;    // world units between rings
 const TUNNEL_RADIUS_BASE = 4.5;
 const TUNNEL_CHUNK_LENGTH = TUNNEL_CHUNK_RINGS * TUNNEL_RING_SPACING;
 const TUNNEL_SPEED = 5.5; // world units/sec scrolled toward the camera ("flying backwards" through it)
+// view-distance of the traveling light pulse that occasionally sweeps the
+// tunnel from the far end toward the camera (driven in animate(); parked
+// far negative = no pulse visible)
+const tunnelPulseUniform = { value: -100 };
 const TUNNEL_COLOR_CYCLE_RINGS = 9; // divides TUNNEL_CHUNK_RINGS evenly so the color band pattern loops seamlessly too
 // white -> every artist accent color (mirrors ARTIST_COLORS in server.py) ->
 // the app's default green -> back to white, so the wireframe cycles through
@@ -1836,7 +1840,7 @@ function buildTunnelFatLineGeometry(edgesGeo){
 }
 function buildTunnelFatLineMaterial(){
   return new THREE.ShaderMaterial({
-    uniforms: { uResolution: { value: tunnelLineResolution }, uLineWidth: { value: 3.2 } },
+    uniforms: { uResolution: { value: tunnelLineResolution }, uLineWidth: { value: 3.2 }, uTunnelPulse: tunnelPulseUniform },
     side: THREE.DoubleSide,
     vertexShader: `
       attribute vec3 aOther;
@@ -1873,11 +1877,15 @@ function buildTunnelFatLineMaterial(){
     fragmentShader: `
       varying vec3 vColor;
       varying float vTunnelFadeDist;
+      uniform float uTunnelPulse;
       void main(){
         // same distance fade as applyTunnelProximityGrow(): the deeper
         // into the tunnel, the darker AND more transparent it gets
         float tunnelFade = 1.0 - smoothstep( 35.0, 130.0, vTunnelFadeDist );
-        gl_FragColor = vec4( vColor * tunnelFade, tunnelFade );
+        // and the same traveling back-to-front light pulse
+        float tunnelPulseGlow = exp( -pow( ( vTunnelFadeDist - uTunnelPulse ) * 0.09, 2.0 ) );
+        gl_FragColor = vec4( vColor * tunnelFade * ( 1.0 + tunnelPulseGlow * 1.5 ),
+          min( 1.0, tunnelFade * ( 1.0 + tunnelPulseGlow ) ) );
       }
     `,
     transparent: true,
@@ -1893,6 +1901,7 @@ function buildTunnelFatLineMaterial(){
 function applyTunnelProximityGrow(material){
   material.transparent = true;
   material.onBeforeCompile = (shader) => {
+    shader.uniforms.uTunnelPulse = tunnelPulseUniform;
     shader.vertexShader = "varying float vTunnelFadeDist;\n" + shader.vertexShader
       .replace(
         "#include <begin_vertex>",
@@ -1903,13 +1912,16 @@ function applyTunnelProximityGrow(material){
         float tGrowAmt = smoothstep( 42.0, 3.0, tGrowDist ) * 0.28;
         transformed.xy *= ( 1.0 + tGrowAmt );`
       );
-    shader.fragmentShader = "varying float vTunnelFadeDist;\n" + shader.fragmentShader
+    shader.fragmentShader = "varying float vTunnelFadeDist;\nuniform float uTunnelPulse;\n" + shader.fragmentShader
       .replace(
         "#include <fog_fragment>",
         `#include <fog_fragment>
         float tunnelFade = 1.0 - smoothstep( 35.0, 130.0, vTunnelFadeDist );
-        gl_FragColor.rgb *= tunnelFade;
-        gl_FragColor.a *= tunnelFade;`
+        // traveling light band: fragments near the pulse's current
+        // distance flash up as it sweeps from the deep end to the camera
+        float tunnelPulseGlow = exp( -pow( ( vTunnelFadeDist - uTunnelPulse ) * 0.09, 2.0 ) );
+        gl_FragColor.rgb *= tunnelFade * ( 1.0 + tunnelPulseGlow * 1.5 );
+        gl_FragColor.a *= min( 1.0, tunnelFade * ( 1.0 + tunnelPulseGlow ) );`
       );
   };
 }
@@ -2653,6 +2665,520 @@ downtownAmbient.visible = false;
 scene.add(downtownAmbient);
 const downtownFog = new THREE.FogExp2(0x120a05, 0.02 / DT_SCALE);
 
+/* ---------- shared palette rule for the numbered scenes: the current
+   artist's color dominates (~50% of surfaces), and the other artists'
+   colors fill the rest ---------- */
+function artistScenePalette(tr){
+  const domHex = (tr && tr.artistColor) || "#7CFF9E";
+  const dominant = new THREE.Color(domHex);
+  const others = [...new Set(TRACKS.map(t => t.artistColor).filter(c => c && c !== domHex))]
+    .map(c => new THREE.Color(c));
+  return { dominant, others: others.length ? others : [new THREE.Color("#7FD6FF")] };
+}
+
+/* ---------- Scene 1 "TILES": an op-art corridor of big square tiles -
+   quarter circles, semicircles, arrows, slats and scallops on charcoal,
+   straight from the mod/op-art reference boards. Two walls plus a floor,
+   chunk-tiled and scrolled like every other fly-through; tile faces are
+   canvas textures regenerated per artist (dominant color on ~half the
+   tiles, the other artists' colors on the rest). ---------- */
+const TILES_TILE = 8;
+const TILES_DEPTH_TILES = 12;
+const TILES_CHUNK_LENGTH = TILES_TILE * TILES_DEPTH_TILES;
+const TILES_REPEATS = 3;
+const TILES_SPEED = 12;
+const TILES_HALF_W = 14;
+const tilesGroup = new THREE.Group();
+const tilesMats = [];
+const tilesCanvases = [];
+{
+  const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+  for (let i = 0; i < 12; i++){
+    const cv = document.createElement("canvas");
+    cv.width = cv.height = 256;
+    tilesCanvases.push(cv);
+    const tex = new THREE.CanvasTexture(cv);
+    tilesMats.push(new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
+  }
+  // merged geometry per material: one draw call each instead of ~600 meshes
+  const buffers = tilesMats.map(() => ({ pos: [], uv: [], idx: [] }));
+  const pushQuad = (mi, corners) => {
+    const b = buffers[mi];
+    const base = b.pos.length / 3;
+    corners.forEach(c => b.pos.push(...c));
+    b.uv.push(0, 0, 1, 0, 1, 1, 0, 1);
+    b.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  };
+  const s = TILES_TILE / 2;
+  for (let rep = 0; rep < TILES_REPEATS; rep++){
+    for (let zi = 0; zi < TILES_DEPTH_TILES; zi++){
+      const z = -(zi + 0.5) * TILES_TILE - rep * TILES_CHUNK_LENGTH;
+      for (let yi = 0; yi < 6; yi++){
+        const y = (yi - 2.5) * TILES_TILE;
+        pushQuad(Math.floor(h(zi * 7 + yi * 13, 1) * 12),
+          [[-TILES_HALF_W, y - s, z + s], [-TILES_HALF_W, y - s, z - s], [-TILES_HALF_W, y + s, z - s], [-TILES_HALF_W, y + s, z + s]]);
+        pushQuad(Math.floor(h(zi * 7 + yi * 13, 2) * 12),
+          [[TILES_HALF_W, y - s, z - s], [TILES_HALF_W, y - s, z + s], [TILES_HALF_W, y + s, z + s], [TILES_HALF_W, y + s, z - s]]);
+      }
+      for (let xi = 0; xi < 3; xi++){
+        const x = (xi - 1) * TILES_TILE;
+        pushQuad(Math.floor(h(zi * 7 + xi * 17, 3) * 12),
+          [[x - s, -20, z + s], [x + s, -20, z + s], [x + s, -20, z - s], [x - s, -20, z - s]]);
+      }
+    }
+  }
+  buffers.forEach((b, mi) => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(b.pos, 3));
+    geo.setAttribute("uv", new THREE.Float32BufferAttribute(b.uv, 2));
+    geo.setIndex(b.idx);
+    const mesh = new THREE.Mesh(geo, tilesMats[mi]);
+    mesh.frustumCulled = false;
+    tilesGroup.add(mesh);
+  });
+}
+tilesGroup.visible = false;
+scene.add(tilesGroup);
+const tilesFog = new THREE.FogExp2(0x232323, 0.009);
+function drawTileMotif(g, fg, bg){
+  g.fillStyle = bg; g.fillRect(0, 0, 256, 256);
+  g.fillStyle = fg;
+  const m = Math.floor(Math.random() * 6);
+  if (m === 0){ // quarter circle from a random corner
+    const cx = Math.random() < 0.5 ? 0 : 256, cy = Math.random() < 0.5 ? 0 : 256;
+    g.beginPath(); g.moveTo(cx, cy); g.arc(cx, cy, 256, 0, Math.PI * 2); g.fill();
+  } else if (m === 1){ // half circle on a random edge
+    const edge = Math.floor(Math.random() * 4);
+    g.beginPath();
+    if (edge === 0) g.arc(128, 0, 128, 0, Math.PI);
+    else if (edge === 1) g.arc(128, 256, 128, Math.PI, Math.PI * 2);
+    else if (edge === 2) g.arc(0, 128, 128, -Math.PI / 2, Math.PI / 2);
+    else g.arc(256, 128, 128, Math.PI / 2, Math.PI * 1.5);
+    g.fill();
+  } else if (m === 2){ // full circle
+    g.beginPath(); g.arc(128, 128, 96, 0, Math.PI * 2); g.fill();
+  } else if (m === 3){ // arrow triangle, random direction
+    const dir = Math.floor(Math.random() * 4);
+    g.save(); g.translate(128, 128); g.rotate(dir * Math.PI / 2);
+    g.beginPath(); g.moveTo(0, -120); g.lineTo(115, 110); g.lineTo(-115, 110); g.closePath(); g.fill();
+    g.restore();
+  } else if (m === 4){ // vertical slats
+    const n = 3 + Math.floor(Math.random() * 3);
+    const w = 256 / (n * 2);
+    for (let i = 0; i < n; i++) g.fillRect((i * 2 + 0.5) * w, 12, w, 232);
+  } else { // stacked scallops (two semicircles)
+    g.beginPath(); g.arc(128, 64, 62, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.arc(128, 192, 62, 0, Math.PI * 2); g.fill();
+  }
+}
+function tilesRetint(tr){
+  const { dominant, others } = artistScenePalette(tr);
+  const charcoal = "#262626";
+  tilesCanvases.forEach((cv, i) => {
+    // half the tile faces lead with the artist color, the rest cycle the
+    // other artists' colors; a few invert to color-on-color
+    const color = "#" + (i < 6 ? dominant : others[i % others.length]).getHexString();
+    const inverted = Math.random() < 0.25;
+    drawTileMotif(cv.getContext("2d"), inverted ? charcoal : color, inverted ? color : charcoal);
+    tilesMats[i].map.needsUpdate = true;
+  });
+}
+
+/* ---------- Scene 2 "BEAMS": a pitch-black hall of glowing light bars -
+   receding floor/ceiling ladders and vertical wall slats (the blue-corridor
+   and blind-curtain references), plus a static fan of long rays and a
+   far bright orb (the laser-fan reference). All additive glow; bar colors
+   follow the 50% artist / 50% others rule via 6 material slots. ---------- */
+const BEAMS_CHUNK_LENGTH = 120;
+const BEAMS_REPEATS = 3;
+const BEAMS_SPEED = 18;
+const beamsGroup = new THREE.Group();
+const beamsScenery = new THREE.Group();
+const beamsMats = [];
+{
+  const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+  // soft-edged glow bar texture (white core, feathered rim; tinted per slot)
+  const cv = document.createElement("canvas");
+  cv.width = 16; cv.height = 64;
+  const g = cv.getContext("2d");
+  const grad = g.createLinearGradient(0, 0, 0, 64);
+  grad.addColorStop(0, "rgba(255,255,255,0)");
+  grad.addColorStop(0.35, "rgba(255,255,255,0.85)");
+  grad.addColorStop(0.5, "rgba(255,255,255,1)");
+  grad.addColorStop(0.65, "rgba(255,255,255,0.85)");
+  grad.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = grad; g.fillRect(0, 0, 16, 64);
+  const glowTex = new THREE.CanvasTexture(cv);
+  for (let i = 0; i < 6; i++){
+    beamsMats.push(new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false,
+      blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+  }
+  const buffers = beamsMats.map(() => ({ pos: [], uv: [], idx: [] }));
+  const pushQuad = (mi, corners) => {
+    const b = buffers[mi];
+    const base = b.pos.length / 3;
+    corners.forEach(c => b.pos.push(...c));
+    b.uv.push(0, 0, 1, 0, 1, 1, 0, 1);
+    b.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  };
+  const BAR_STEP = 6, HALF_SPAN = 60, T = 0.7;
+  for (let rep = 0; rep < BEAMS_REPEATS; rep++){
+    for (let zi = 0; zi < BEAMS_CHUNK_LENGTH / BAR_STEP; zi++){
+      const z = -(zi + 0.5) * BAR_STEP - rep * BEAMS_CHUNK_LENGTH;
+      // floor + ceiling ladder bars
+      pushQuad(Math.floor(h(zi, 1) * 6), [[-HALF_SPAN, -9, z - T], [HALF_SPAN, -9, z - T], [HALF_SPAN, -9, z + T], [-HALF_SPAN, -9, z + T]]);
+      pushQuad(Math.floor(h(zi, 2) * 6), [[-HALF_SPAN, 9, z - T], [HALF_SPAN, 9, z - T], [HALF_SPAN, 9, z + T], [-HALF_SPAN, 9, z + T]]);
+      // vertical wall slats
+      pushQuad(Math.floor(h(zi, 3) * 6), [[-30, -9, z - T], [-30, 9, z - T], [-30, 9, z + T], [-30, -9, z + T]]);
+      pushQuad(Math.floor(h(zi, 4) * 6), [[30, -9, z - T], [30, 9, z - T], [30, 9, z + T], [30, -9, z + T]]);
+    }
+  }
+  buffers.forEach((b, mi) => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(b.pos, 3));
+    geo.setAttribute("uv", new THREE.Float32BufferAttribute(b.uv, 2));
+    geo.setIndex(b.idx);
+    const mesh = new THREE.Mesh(geo, beamsMats[mi]);
+    mesh.frustumCulled = false;
+    beamsGroup.add(mesh);
+  });
+  // static fan of long rays sweeping down from high-left toward the camera
+  const rayGeo = new THREE.PlaneGeometry(2.2, 1);
+  for (let i = 0; i < 6; i++){
+    const from = new THREE.Vector3(-34, 30, -250);
+    const to = new THREE.Vector3(-30 + i * 24, -6, 30);
+    const dir = to.clone().sub(from);
+    const len = dir.length();
+    [0, Math.PI / 2].forEach(roll => {
+      const ray = new THREE.Mesh(rayGeo, beamsMats[0]);
+      ray.position.copy(from).add(to).multiplyScalar(0.5);
+      ray.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+      ray.rotateY(roll); // crossed pair so the ray reads from every angle
+      ray.scale.set(1, len, 1);
+      ray.frustumCulled = false;
+      beamsScenery.add(ray);
+    });
+  }
+  // the far bright orb
+  const orbCv = document.createElement("canvas");
+  orbCv.width = orbCv.height = 64;
+  const og = orbCv.getContext("2d");
+  const orad = og.createRadialGradient(32, 32, 2, 32, 32, 30);
+  orad.addColorStop(0, "rgba(255,250,240,1)");
+  orad.addColorStop(0.4, "rgba(255,240,220,0.7)");
+  orad.addColorStop(1, "rgba(255,240,220,0)");
+  og.fillStyle = orad; og.fillRect(0, 0, 64, 64);
+  const orbMat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(orbCv), transparent: true,
+    blending: THREE.AdditiveBlending, depthWrite: false });
+  orbMat.fog = false;
+  const orb = new THREE.Mesh(new THREE.PlaneGeometry(14, 14), orbMat);
+  orb.position.set(14, -3, -240);
+  beamsScenery.add(orb);
+}
+beamsGroup.visible = false;
+beamsScenery.visible = false;
+scene.add(beamsGroup);
+scene.add(beamsScenery);
+const beamsFog = new THREE.FogExp2(0x000000, 0.0042);
+function beamsRetint(tr){
+  const { dominant, others } = artistScenePalette(tr);
+  // slots 0-2 carry the artist color (half of all bars), 3-5 cycle the rest
+  beamsMats.forEach((mat, i) => {
+    mat.color.copy(i < 3 ? dominant : others[i % others.length]);
+  });
+}
+
+/* ---------- Scene 3 "PRISM": black space filled with curtains of tall
+   dark slats whose vertical edges glow neon (the edge-lit grid and wavy
+   slat references), drifting past huge soft prism blooms (the rainbow
+   caustic references). Additive edge glow in 6 palette slots - half the
+   edges carry the artist color, half the other artists'. ---------- */
+const PRISM_CHUNK_LENGTH = 110;
+const PRISM_REPEATS = 3;
+const PRISM_SPEED = 10;
+const prismGroup = new THREE.Group();
+const prismMats = [];
+const prismBloomMats = [];
+{
+  const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+  // vertical glow-line texture (horizontal feather, tinted per slot)
+  const cv = document.createElement("canvas");
+  cv.width = 64; cv.height = 16;
+  const g = cv.getContext("2d");
+  const grad = g.createLinearGradient(0, 0, 64, 0);
+  grad.addColorStop(0, "rgba(255,255,255,0)");
+  grad.addColorStop(0.35, "rgba(255,255,255,0.85)");
+  grad.addColorStop(0.5, "rgba(255,255,255,1)");
+  grad.addColorStop(0.65, "rgba(255,255,255,0.85)");
+  grad.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = grad; g.fillRect(0, 0, 64, 16);
+  const edgeTex = new THREE.CanvasTexture(cv);
+  for (let i = 0; i < 6; i++){
+    prismMats.push(new THREE.MeshBasicMaterial({ map: edgeTex, transparent: true, depthWrite: false,
+      blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+  }
+  const panelMat = new THREE.MeshBasicMaterial({ color: 0x0a0a0e, side: THREE.DoubleSide });
+  const panelBuf = { pos: [], idx: [] };
+  const edgeBufs = prismMats.map(() => ({ pos: [], uv: [], idx: [] }));
+  const pushPanel = corners => {
+    const base = panelBuf.pos.length / 3;
+    corners.forEach(c => panelBuf.pos.push(...c));
+    panelBuf.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  };
+  const pushEdge = (mi, corners) => {
+    const b = edgeBufs[mi];
+    const base = b.pos.length / 3;
+    corners.forEach(c => b.pos.push(...c));
+    b.uv.push(0, 0, 1, 0, 1, 1, 0, 1);
+    b.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  };
+  const SLAT_W = 2.4, SLAT_H = 26, STEP = 3.4, EDGE_W = 0.5;
+  const perChunk = Math.floor(PRISM_CHUNK_LENGTH / STEP);
+  for (let rep = 0; rep < PRISM_REPEATS; rep++){
+    for (let zi = 0; zi < perChunk; zi++){
+      [-1, 1].forEach((sideSign, si) => {
+        // slight per-slat x jitter gives the curtain its wavy depth
+        const x = sideSign * (16 + h(zi * 3 + si, 1) * 6);
+        const z = -(zi + 0.5) * STEP - rep * PRISM_CHUNK_LENGTH;
+        const yOff = (h(zi * 5 + si, 2) - 0.5) * 6;
+        pushPanel([[x, yOff - SLAT_H / 2, z - SLAT_W / 2], [x, yOff - SLAT_H / 2, z + SLAT_W / 2],
+          [x, yOff + SLAT_H / 2, z + SLAT_W / 2], [x, yOff + SLAT_H / 2, z - SLAT_W / 2]]);
+        // glowing rims on both vertical edges of the slat
+        [z - SLAT_W / 2, z + SLAT_W / 2].forEach((ze, ei) => {
+          const mi = Math.floor(h(zi * 11 + si * 29 + ei, 3) * 6);
+          pushEdge(mi, [[x, yOff - SLAT_H / 2, ze - EDGE_W], [x, yOff - SLAT_H / 2, ze + EDGE_W],
+            [x, yOff + SLAT_H / 2, ze + EDGE_W], [x, yOff + SLAT_H / 2, ze - EDGE_W]]);
+        });
+      });
+    }
+  }
+  const panelGeo = new THREE.BufferGeometry();
+  panelGeo.setAttribute("position", new THREE.Float32BufferAttribute(panelBuf.pos, 3));
+  panelGeo.setIndex(panelBuf.idx);
+  const panelMesh = new THREE.Mesh(panelGeo, panelMat);
+  panelMesh.frustumCulled = false;
+  prismGroup.add(panelMesh);
+  edgeBufs.forEach((b, mi) => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(b.pos, 3));
+    geo.setAttribute("uv", new THREE.Float32BufferAttribute(b.uv, 2));
+    geo.setIndex(b.idx);
+    const mesh = new THREE.Mesh(geo, prismMats[mi]);
+    mesh.frustumCulled = false;
+    prismGroup.add(mesh);
+  });
+  // huge soft prism blooms floating through the black
+  const bloomCv = document.createElement("canvas");
+  bloomCv.width = bloomCv.height = 128;
+  const bg = bloomCv.getContext("2d");
+  const brad = bg.createRadialGradient(64, 64, 4, 64, 64, 62);
+  brad.addColorStop(0, "rgba(255,255,255,0.9)");
+  brad.addColorStop(0.45, "rgba(255,255,255,0.4)");
+  brad.addColorStop(1, "rgba(255,255,255,0)");
+  bg.fillStyle = brad; bg.fillRect(0, 0, 128, 128);
+  const bloomTex = new THREE.CanvasTexture(bloomCv);
+  const bloomGeo = new THREE.PlaneGeometry(1, 1);
+  for (let rep = 0; rep < PRISM_REPEATS; rep++){
+    for (let i = 0; i < 4; i++){
+      const mat = new THREE.MeshBasicMaterial({ map: bloomTex, transparent: true, opacity: 0.5,
+        blending: THREE.AdditiveBlending, depthWrite: false });
+      mat.fog = false;
+      if (rep === 0) prismBloomMats.push(mat);
+      const bloom = new THREE.Mesh(bloomGeo, rep === 0 ? mat : prismBloomMats[i]);
+      const size = 26 + h(i, 5) * 34;
+      bloom.scale.set(size, size, 1);
+      bloom.position.set((h(i, 6) - 0.5) * 44, (h(i, 7) - 0.5) * 24,
+        -h(i, 8) * PRISM_CHUNK_LENGTH - rep * PRISM_CHUNK_LENGTH);
+      bloom.frustumCulled = false;
+      prismGroup.add(bloom);
+    }
+  }
+}
+prismGroup.visible = false;
+scene.add(prismGroup);
+const prismFog = new THREE.FogExp2(0x000000, 0.006);
+function prismRetint(tr){
+  const { dominant, others } = artistScenePalette(tr);
+  prismMats.forEach((mat, i) => {
+    mat.color.copy(i < 3 ? dominant : others[i % others.length]);
+  });
+  prismBloomMats.forEach((mat, i) => {
+    mat.color.copy(i % 2 === 0 ? dominant : others[i % others.length]);
+  });
+}
+
+/* ---------- Scene 4 "RINGS": gates of concentric color-banded rings
+   receding into the black (the concentric-rainbow and spirograph
+   references) - the flight passes straight through their dark centers,
+   with thin halo outlines orbiting the larger gates. Band colors use 8
+   slots: four shades of the artist color, four cycling the others. ---------- */
+const RINGS_CHUNK_LENGTH = 120;
+const RINGS_REPEATS = 3;
+const RINGS_SPEED = 14;
+const ringsGroup = new THREE.Group();
+const ringsMats = [];
+{
+  const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+  for (let i = 0; i < 8; i++){
+    ringsMats.push(new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+  }
+  const haloMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, transparent: true, opacity: 0.5,
+    blending: THREE.AdditiveBlending, depthWrite: false });
+  ringsMats.push(haloMat); // slot 8: additive halo outlines, tinted like slot 0
+  const GATE_STEP = 12;
+  const gatesPerChunk = RINGS_CHUNK_LENGTH / GATE_STEP;
+  // geometry templates shared across the chunk repeats
+  const gateGeos = [];
+  for (let gi = 0; gi < gatesPerChunk; gi++){
+    const bands = [];
+    const bandCount = 5 + Math.floor(h(gi, 1) * 3);
+    const holeR = 3.5 + h(gi, 2) * 4;      // the dark center the camera flies through
+    const bandW = 1.1 + h(gi, 3) * 0.9;
+    for (let bi = 0; bi < bandCount; bi++){
+      bands.push(new THREE.RingGeometry(holeR + bi * bandW, holeR + (bi + 1) * bandW - 0.12, 48));
+    }
+    const halos = [];
+    if (h(gi, 4) < 0.5){
+      const hr = holeR + bandCount * bandW + 2 + h(gi, 5) * 5;
+      halos.push(new THREE.RingGeometry(hr, hr + 0.22, 64));
+      halos.push(new THREE.RingGeometry(hr + 1.1, hr + 1.32, 64));
+    }
+    gateGeos.push({ bands, halos });
+  }
+  for (let rep = 0; rep < RINGS_REPEATS; rep++){
+    for (let gi = 0; gi < gatesPerChunk; gi++){
+      const { bands, halos } = gateGeos[gi];
+      const gx = (h(gi, 6) - 0.5) * 7;
+      const gy = (h(gi, 7) - 0.5) * 5;
+      const gz = -(gi + 0.5) * GATE_STEP - rep * RINGS_CHUNK_LENGTH;
+      bands.forEach((geo, bi) => {
+        const mesh = new THREE.Mesh(geo, ringsMats[Math.floor(h(gi * 13 + bi, 8) * 8)]);
+        mesh.position.set(gx, gy, gz);
+        mesh.frustumCulled = false;
+        ringsGroup.add(mesh);
+      });
+      halos.forEach(geo => {
+        const mesh = new THREE.Mesh(geo, haloMat);
+        mesh.position.set(gx, gy, gz);
+        mesh.frustumCulled = false;
+        ringsGroup.add(mesh);
+      });
+    }
+  }
+}
+ringsGroup.visible = false;
+scene.add(ringsGroup);
+const ringsFog = new THREE.FogExp2(0x000000, 0.009);
+function ringsRetint(tr){
+  const { dominant, others } = artistScenePalette(tr);
+  ringsMats.forEach((mat, i) => {
+    if (i === 8){ mat.color.copy(dominant); return; } // halo outlines
+    if (i < 4){
+      // four shades of the artist color, from full to deep
+      mat.color.copy(dominant).multiplyScalar([1, 0.72, 0.5, 0.32][i]);
+    } else {
+      mat.color.copy(others[i % others.length]);
+    }
+  });
+}
+
+/* ---------- Scene 5 "CHECKER": the op-art checkerboard tunnel - four
+   checkered walls rolling around the camera (the checker-tunnel
+   reference), the floor swapped for marching semicircle "scales" rows
+   (the red/blue scale posters). Checker = artist color on near-black;
+   scales cycle the other artists' colors. ---------- */
+const CHECK_CHUNK_LENGTH = 96; // multiple of the 12-unit checker period, so the wrap is invisible
+const CHECK_REPEATS = 3;
+const CHECK_SPEED = 15;
+const CHECK_LEN = CHECK_CHUNK_LENGTH * CHECK_REPEATS;
+const checkGroup = new THREE.Group();
+const checkCanvases = { checker: null, scales: null };
+const checkTextures = [];
+{
+  const mkCanvas = () => { const cv = document.createElement("canvas"); cv.width = cv.height = 256; return cv; };
+  checkCanvases.checker = mkCanvas();
+  checkCanvases.scales = mkCanvas();
+  const mkTex = (cv, ru, rv) => {
+    const tex = new THREE.CanvasTexture(cv);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(ru, rv);
+    checkTextures.push(tex);
+    return tex;
+  };
+  // walls run their texture u along z; floor/ceiling run v along z
+  const wallTex = mkTex(checkCanvases.checker, CHECK_LEN / 24, 1);
+  const flatTex = mkTex(checkCanvases.checker, 1, CHECK_LEN / 24);
+  const scalesTex = mkTex(checkCanvases.scales, 1, CHECK_LEN / 24);
+  const mkMat = tex => new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
+  const HALF = 12;
+  const addPanel = (geo, mat, px, py, rot) => {
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(px, py, -CHECK_LEN / 2);
+    if (rot) rot(mesh);
+    mesh.frustumCulled = false;
+    checkGroup.add(mesh);
+  };
+  const wallGeo = new THREE.PlaneGeometry(CHECK_LEN, HALF * 2);
+  const flatGeo = new THREE.PlaneGeometry(HALF * 2, CHECK_LEN);
+  addPanel(wallGeo, mkMat(wallTex), -HALF, 0, m => m.rotateY(Math.PI / 2));
+  addPanel(wallGeo, mkMat(wallTex), HALF, 0, m => m.rotateY(-Math.PI / 2));
+  addPanel(flatGeo, mkMat(flatTex), 0, HALF, m => m.rotateX(Math.PI / 2));   // ceiling: checker
+  addPanel(flatGeo, mkMat(scalesTex), 0, -HALF, m => m.rotateX(-Math.PI / 2)); // floor: scales
+}
+checkGroup.visible = false;
+scene.add(checkGroup);
+const checkFog = new THREE.FogExp2(0x000000, 0.0085);
+function checkRetint(tr){
+  const { dominant, others } = artistScenePalette(tr);
+  const domCss = "#" + dominant.getHexString();
+  // checker: artist color vs near-black, 4x4 cells per canvas tile
+  const cg = checkCanvases.checker.getContext("2d");
+  for (let cy = 0; cy < 4; cy++){
+    for (let cx = 0; cx < 4; cx++){
+      cg.fillStyle = (cx + cy) % 2 === 0 ? domCss : "#0a0a0a";
+      cg.fillRect(cx * 64, cy * 64, 64, 64);
+    }
+  }
+  // scales: two rows of semicircles per tile, cycling the other artists
+  const sg = checkCanvases.scales.getContext("2d");
+  sg.fillStyle = "#0a0a0a"; sg.fillRect(0, 0, 256, 256);
+  for (let row = 0; row < 2; row++){
+    sg.fillStyle = "#" + others[row % others.length].getHexString();
+    for (let i = 0; i < 4; i++){
+      sg.beginPath();
+      sg.arc(i * 64 + 32 + (row % 2) * 32, row * 128 + 96, 60, Math.PI, Math.PI * 2);
+      sg.fill();
+    }
+  }
+  checkTextures.forEach(t => { t.needsUpdate = true; });
+}
+
+/* ---------- scene navigator: cycle between AUTO (per-artist pick) and
+   every world directly, whatever track is playing ---------- */
+const SCENE_LIST = [
+  { id: "auto",   label: "AUTO" },
+  { id: "sphere", label: "SPHERE" },
+  { id: "road",   label: "ROAD" },
+  { id: "mist",   label: "DREAM" },
+  { id: "maze",   label: "BLOCKS" },
+  { id: "tiles",  label: "TILES" },
+  { id: "beams",  label: "BEAMS" },
+  { id: "prism",  label: "PRISM" },
+  { id: "rings",  label: "RINGS" },
+  { id: "check",  label: "CHECKER" },
+];
+let sceneOverride = "auto";
+let sceneNavIdx = 0;
+function setSceneByIndex(idx){
+  sceneNavIdx = ((idx % SCENE_LIST.length) + SCENE_LIST.length) % SCENE_LIST.length;
+  sceneOverride = SCENE_LIST[sceneNavIdx].id;
+  const label = $("#scene-label");
+  if (label) label.textContent = SCENE_LIST[sceneNavIdx].label;
+  if (TRACKS.length) updateArtistBackground(TRACKS[cur]);
+}
+if ($("#scene-prev")) $("#scene-prev").onclick = () => setSceneByIndex(sceneNavIdx - 1);
+if ($("#scene-next")) $("#scene-next").onclick = () => setSceneByIndex(sceneNavIdx + 1);
+
 // swaps the sphere for a per-artist 3D scene: Polaroid gets the synthwave
 // road, Aveluna gets the mist world. Called on every track load (see
 // load()) and once more from the gate handoff, since the very first
@@ -2660,19 +3186,39 @@ const downtownFog = new THREE.FogExp2(0x120a05, 0.02 / DT_SCALE);
 // color + scene fog to match whichever scene is up.
 function updateArtistBackground(tr){
   const gateActive = document.body.classList.contains("gate-active");
-  const wantRoad = !gateActive && !!tr && tr.artist === ROAD_ARTIST_NAME;
-  const wantMist = !gateActive && !!tr && tr.artist === MIST_ARTIST_NAME;
-  const wantMaze = !gateActive && !!tr && tr.artist === DT_ARTIST_NAME;
+  // AUTO keeps the original per-artist picks; any other navigator choice
+  // forces that world for every track (colors still follow the artist)
+  const byArtist = !tr ? "sphere"
+    : tr.artist === ROAD_ARTIST_NAME ? "road"
+    : tr.artist === MIST_ARTIST_NAME ? "mist"
+    : tr.artist === DT_ARTIST_NAME ? "maze"
+    : "sphere";
+  const sceneId = sceneOverride === "auto" ? byArtist : sceneOverride;
+  const wantRoad = !gateActive && sceneId === "road";
+  const wantMist = !gateActive && sceneId === "mist";
+  const wantMaze = !gateActive && sceneId === "maze";
+  const wantTiles = !gateActive && sceneId === "tiles";
+  const wantBeams = !gateActive && sceneId === "beams";
+  const wantPrism = !gateActive && sceneId === "prism";
+  const wantRings = !gateActive && sceneId === "rings";
+  const wantCheck = !gateActive && sceneId === "check";
+  const want3d = wantRoad || wantMist || wantMaze || wantTiles || wantBeams || wantPrism || wantRings || wantCheck;
   roadGroup.visible = wantRoad;
   roadScenery.visible = wantRoad;
   mistGroup.visible = wantMist;
   downtownGroup.visible = wantMaze;
   downtownLight.visible = wantMaze;
   downtownAmbient.visible = wantMaze;
-  if (panoMesh) panoMesh.visible = !gateActive && !wantRoad && !wantMist && !wantMaze;
+  tilesGroup.visible = wantTiles;
+  beamsGroup.visible = wantBeams;
+  beamsScenery.visible = wantBeams;
+  prismGroup.visible = wantPrism;
+  ringsGroup.visible = wantRings;
+  checkGroup.visible = wantCheck;
+  if (panoMesh) panoMesh.visible = !gateActive && !want3d;
   // vertical-grid overlay shows over every 3D environment (see styles.css;
   // the intro tunnel is covered by its own body.gate-active selector)
-  document.body.classList.toggle("scene-3d", wantRoad || wantMist || wantMaze);
+  document.body.classList.toggle("scene-3d", want3d);
   // road and mist scenes render over CSS gradient skies (see
   // body.scene-road / body.scene-mist #stage in styles.css)
   document.body.classList.toggle("scene-road", wantRoad);
@@ -2680,7 +3226,8 @@ function updateArtistBackground(tr){
   // tighter lens in every constructed environment (incl. the intro
   // tunnel) = a more zoomed, cinematic framing; only the plain video
   // sphere keeps the natural 1x lens
-  camera.zoom = gateActive ? 1.3 : wantRoad ? 1.6 : wantMist ? 1.5 : wantMaze ? 1.35 : 1;
+  camera.zoom = gateActive ? 1.3 : wantRoad ? 1.6 : wantMist ? 1.5 : wantMaze ? 1.35
+    : (wantTiles || wantCheck) ? 1.4 : (wantBeams || wantPrism || wantRings) ? 1.45 : 1;
   camera.updateProjectionMatrix();
   if (wantRoad){
     // transparent clear: the sky is a CSS gradient behind the canvas
@@ -2699,9 +3246,31 @@ function updateArtistBackground(tr){
     scene.fog = mistFog;
   } else if (wantMaze){
     // near-black warm brown: the corridor's far end vanishes into it
-    applyDowntownTint(tr.artistColor);
+    applyDowntownTint(tr ? tr.artistColor : null);
     renderer.setClearColor(0x120a05, 1);
     scene.fog = downtownFog;
+  } else if (wantTiles){
+    // op-art charcoal box, tiles regenerated in the current palette
+    tilesRetint(tr);
+    renderer.setClearColor(0x232323, 1);
+    scene.fog = tilesFog;
+  } else if (wantBeams){
+    // pitch black, additive glow bars fade out into it with distance
+    beamsRetint(tr);
+    renderer.setClearColor(0x030303, 1);
+    scene.fog = beamsFog;
+  } else if (wantPrism){
+    prismRetint(tr);
+    renderer.setClearColor(0x000000, 1);
+    scene.fog = prismFog;
+  } else if (wantRings){
+    ringsRetint(tr);
+    renderer.setClearColor(0x000000, 1);
+    scene.fog = ringsFog;
+  } else if (wantCheck){
+    checkRetint(tr);
+    renderer.setClearColor(0x000000, 1);
+    scene.fog = checkFog;
   } else {
     renderer.setClearColor(0x000000, 0);
     scene.fog = null;
@@ -2972,8 +3541,14 @@ function animate(t){
     // scrolled by exactly one chunk-length wraps seamlessly, since chunk 2
     // is an identical copy of chunk 1 (see buildTunnelGeometry)
     tunnelGroup.position.z = wrapScroll(flightDist * TUNNEL_SPEED, TUNNEL_CHUNK_LENGTH);
-    // same 9s period as the intro logo's own CSS spin (logo3dSpin)
-    tunnelGroup.rotation.z = (nowSec / 9) * Math.PI * 2;
+    // same 10.8s period as the intro logo's own CSS spin (logo3dSpin),
+    // both slowed 20% for a heavier feel
+    tunnelGroup.rotation.z = (nowSec / 10.8) * Math.PI * 2;
+    // once in a while a light band sweeps the rock from the deep end
+    // toward the camera: for the first 30% of every 9s cycle the pulse
+    // distance runs 140 -> 0, then parks off-range until the next cycle
+    const pulsePhase = (nowSec % 9) / 9;
+    tunnelPulseUniform.value = pulsePhase < 0.3 ? 140 * (1 - pulsePhase / 0.3) : -100;
   }
 
   if (roadGroup.visible){
@@ -3089,6 +3664,55 @@ function animate(t){
     // the boxes' vertical lines light up with the music
     const lineGlow = 0.35 + beat * 0.65;
     dtLineMats.forEach(lm => { lm.opacity = lineGlow; });
+  } else if (tilesGroup.visible){
+    // op-art corridor: steady glide with a gentle look-around
+    const nowSec = (t || 0) * 0.001;
+    tilesGroup.position.z = wrapScroll(flightDist * TILES_SPEED, TILES_CHUNK_LENGTH);
+    camera.position.x = Math.sin(nowSec * 0.05) * 4;
+    camera.position.y = Math.sin(nowSec * 0.043 + 1) * 3;
+    camera.rotation.x = Math.sin(nowSec * 0.031 + 2) * 0.12;
+    camera.rotation.y = Math.sin(nowSec * 0.027) * 0.3;
+    camera.rotation.z = Math.sin(nowSec * 0.035 + 4) * 0.08 + cameraRollOffset;
+  } else if (beamsGroup.visible){
+    // light-bar hall: near-head-on flight, the bars strobing past
+    const nowSec = (t || 0) * 0.001;
+    beamsGroup.position.z = wrapScroll(flightDist * BEAMS_SPEED, BEAMS_CHUNK_LENGTH);
+    camera.position.x = Math.sin(nowSec * 0.045) * 3;
+    camera.position.y = Math.sin(nowSec * 0.038 + 1) * 2;
+    camera.rotation.x = Math.sin(nowSec * 0.03 + 2) * 0.05;
+    camera.rotation.y = Math.sin(nowSec * 0.026) * 0.09;
+    camera.rotation.z = Math.sin(nowSec * 0.033 + 4) * 0.05 + cameraRollOffset;
+    // bar glow follows the music level
+    const beamBeat = 0.75 + panoUniforms.uIntensity.value * 0.5;
+    beamsMats.forEach(m => { m.opacity = Math.min(1, beamBeat); });
+  } else if (prismGroup.visible){
+    // slat curtains: slow elegant drift between the glowing rims
+    const nowSec = (t || 0) * 0.001;
+    prismGroup.position.z = wrapScroll(flightDist * PRISM_SPEED, PRISM_CHUNK_LENGTH);
+    camera.position.x = Math.sin(nowSec * 0.04) * 5;
+    camera.position.y = Math.sin(nowSec * 0.033 + 1) * 4;
+    camera.rotation.x = Math.sin(nowSec * 0.027 + 2) * 0.1;
+    camera.rotation.y = Math.sin(nowSec * 0.023) * 0.24;
+    camera.rotation.z = Math.sin(nowSec * 0.03 + 4) * 0.09 + cameraRollOffset;
+  } else if (ringsGroup.visible){
+    // ring gates: straight through the dark centers, slowly rolling
+    const nowSec = (t || 0) * 0.001;
+    ringsGroup.position.z = wrapScroll(flightDist * RINGS_SPEED, RINGS_CHUNK_LENGTH);
+    camera.position.x = Math.sin(nowSec * 0.05) * 1.6;
+    camera.position.y = Math.sin(nowSec * 0.041 + 1) * 1.3;
+    camera.rotation.x = Math.sin(nowSec * 0.03 + 2) * 0.04;
+    camera.rotation.y = Math.sin(nowSec * 0.026) * 0.06;
+    camera.rotation.z = nowSec * (Math.PI * 2 / 110) + cameraRollOffset;
+  } else if (checkGroup.visible){
+    // checker tunnel: the endless op-art bore, slowly rolling around the
+    // camera like the reference gif
+    const nowSec = (t || 0) * 0.001;
+    checkGroup.position.z = wrapScroll(flightDist * CHECK_SPEED, CHECK_CHUNK_LENGTH);
+    camera.position.x = Math.sin(nowSec * 0.045) * 3;
+    camera.position.y = Math.sin(nowSec * 0.038 + 1) * 2.5;
+    camera.rotation.x = Math.sin(nowSec * 0.03 + 2) * 0.06;
+    camera.rotation.y = Math.sin(nowSec * 0.026) * 0.1;
+    camera.rotation.z = nowSec * (Math.PI * 2 / 85) + cameraRollOffset;
   } else {
     // only the scene branches above ever touch these - reset them so a
     // track change away from a 3D scene doesn't leave the sphere/tunnel
