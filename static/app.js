@@ -3226,7 +3226,7 @@ const prismBloomMats = [];
   // slats stretch from far out of sight above to far below (SLAT_H 150),
   // and every slat and every glow rim gets its own random thickness -
   // rims span roughly 1px hairlines to fat 10px bars on screen
-  const SLAT_H = 150, STEP = 3.4;
+  const SLAT_H = 150, STEP = 3.4, CURVE_SEGS = 8;
   const perChunk = Math.floor(PRISM_CHUNK_LENGTH / STEP);
   for (let rep = 0; rep < PRISM_REPEATS; rep++){
     for (let zi = 0; zi < perChunk; zi++){
@@ -3236,19 +3236,28 @@ const prismBloomMats = [];
         const z = -(zi + 0.5) * STEP - rep * PRISM_CHUNK_LENGTH;
         const yOff = (h(zi * 5 + si, 2) - 0.5) * 10;
         const slatW = 1 + h(zi * 7 + si, 4) * 3.2;
-        pushPanel([[x, yOff - SLAT_H / 2, z - slatW / 2], [x, yOff - SLAT_H / 2, z + slatW / 2],
-          [x, yOff + SLAT_H / 2, z + slatW / 2], [x, yOff + SLAT_H / 2, z - slatW / 2]]);
-        // glowing rims on both vertical edges, nudged a hair off the
-        // panel's own plane toward the corridor so the two never sit
-        // coplanar - that shared plane was what caused the buggy
-        // interference flicker
-        const xe = x - sideSign * 0.12;
-        [z - slatW / 2, z + slatW / 2].forEach((ze, ei) => {
-          const mi = Math.floor(h(zi * 11 + si * 29 + ei, 3) * 6);
-          const edgeW = 0.1 + h(zi * 13 + si * 37 + ei, 5) * 1.1;
-          pushEdge(mi, [[xe, yOff - SLAT_H / 2, ze - edgeW], [xe, yOff - SLAT_H / 2, ze + edgeW],
-            [xe, yOff + SLAT_H / 2, ze + edgeW], [xe, yOff + SLAT_H / 2, ze - edgeW]]);
-        });
+        // gentle bow: the slat curves toward the corridor at its middle
+        const bow = (0.6 + h(zi * 17 + si, 6) * 1.4) * -sideSign;
+        const xAt = t => x + bow * Math.sin(Math.PI * t);
+        // built as CURVE_SEGS stacked strips so the whole slat (panel and
+        // rims alike) bends smoothly instead of standing dead straight
+        for (let seg = 0; seg < CURVE_SEGS; seg++){
+          const t0 = seg / CURVE_SEGS, t1 = (seg + 1) / CURVE_SEGS;
+          const y0 = yOff - SLAT_H / 2 + SLAT_H * t0;
+          const y1 = yOff - SLAT_H / 2 + SLAT_H * t1;
+          const x0 = xAt(t0), x1 = xAt(t1);
+          pushPanel([[x0, y0, z - slatW / 2], [x0, y0, z + slatW / 2],
+            [x1, y1, z + slatW / 2], [x1, y1, z - slatW / 2]]);
+          // glowing rims on both vertical edges, nudged a hair off the
+          // panel's plane toward the corridor so they never sit coplanar
+          const xe0 = x0 - sideSign * 0.12, xe1 = x1 - sideSign * 0.12;
+          [z - slatW / 2, z + slatW / 2].forEach((ze, ei) => {
+            const mi = Math.floor(h(zi * 11 + si * 29 + ei, 3) * 6);
+            const edgeW = 0.1 + h(zi * 13 + si * 37 + ei, 5) * 1.1;
+            pushEdge(mi, [[xe0, y0, ze - edgeW], [xe0, y0, ze + edgeW],
+              [xe1, y1, ze + edgeW], [xe1, y1, ze - edgeW]]);
+          });
+        }
       });
     }
   }
@@ -3328,11 +3337,12 @@ scene.add(prismGroup);
 const prismFog = new THREE.FogExp2(0x000000, 0.006);
 function prismRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
+  // whole scene pulled 40% down
   prismMats.forEach((mat, i) => {
-    mat.color.copy(i < 3 ? dominant : others[i % others.length]);
+    mat.color.copy(i < 3 ? dominant : others[i % others.length]).multiplyScalar(0.6);
   });
   prismBloomMats.forEach((mat, i) => {
-    mat.color.copy(i % 2 === 0 ? dominant : others[i % others.length]);
+    mat.color.copy(i % 2 === 0 ? dominant : others[i % others.length]).multiplyScalar(0.6);
   });
 }
 
@@ -3461,12 +3471,13 @@ function ringsRetint(tr){
   // shade at the innermost ring, through the full artist color, out into
   // the other artists' hues - every circle sits on the same ramp, so all
   // rings match
+  // whole ramp pulled 25% down
   const stops = [
-    dominant.clone().multiplyScalar(0.35),
-    dominant.clone().multiplyScalar(0.7),
-    dominant.clone(),
-    others[0].clone(),
-    others[1 % others.length].clone(),
+    dominant.clone().multiplyScalar(0.26),
+    dominant.clone().multiplyScalar(0.52),
+    dominant.clone().multiplyScalar(0.75),
+    others[0].clone().multiplyScalar(0.75),
+    others[1 % others.length].clone().multiplyScalar(0.75),
   ];
   const gradientAt = t => {
     const f = t * (stops.length - 1);
@@ -3659,6 +3670,8 @@ function updateArtistBackground(tr){
   document.body.classList.toggle("scene-road", wantRoad);
   document.body.classList.toggle("scene-mist", wantMist);
   document.body.classList.toggle("scene-beams", wantBeams);
+  // prism gets a left/right 10% fade overlay (see #prism-fade in styles.css)
+  document.body.classList.toggle("scene-prism", wantPrism);
   // tighter lens in every constructed environment (incl. the intro
   // tunnel) = a more zoomed, cinematic framing; only the plain video
   // sphere keeps the natural 1x lens
@@ -3705,7 +3718,7 @@ function updateArtistBackground(tr){
     ringsRetint(tr);
     // the whole background sits in a DARK variant of the artist color,
     // with the fog matched so far rings melt into it seamlessly
-    const ringsBgColor = new THREE.Color((tr && tr.artistColor) || "#7CFF9E").multiplyScalar(0.12);
+    const ringsBgColor = new THREE.Color((tr && tr.artistColor) || "#7CFF9E").multiplyScalar(0.09);
     renderer.setClearColor(ringsBgColor, 1);
     ringsFog.color.copy(ringsBgColor);
     scene.fog = ringsFog;
@@ -4183,7 +4196,9 @@ function animate(t){
     // down-tilt tuned so the horizon sits at the profile picture's
     // vertical midpoint (~60% down the frame)
     camera.rotation.x = -0.09 + Math.sin(swayT * 0.03 + 2) * 0.04;
-    camera.rotation.y = Math.sin(swayT * 0.026) * 0.09;
+    // continuous slight left/right gaze on two overlapping slow beats -
+    // never still, never abrupt
+    camera.rotation.y = Math.sin(swayT * 0.026) * 0.14 + Math.sin(swayT * 0.011 + 2) * 0.08;
     camera.rotation.z = Math.sin(swayT * 0.021 + 4) * 0.436 + cameraRollOffset;
     beamsCubes.forEach(c => {
       if (c.state === "wait"){

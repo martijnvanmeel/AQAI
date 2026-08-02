@@ -239,6 +239,13 @@ body.gate-active::after{display:none}
 }
 body.scene-3d #dim-overlay,
 body.gate-active #dim-overlay{display:block}
+/* PRISM only: the beams fade out into black across the left and right
+   10% of the frame */
+#prism-fade{
+  position:fixed;inset:0;z-index:1;pointer-events:none;display:none;
+  background:linear-gradient(90deg, #000000 0%, transparent 10%, transparent 90%, #000000 100%);
+}
+body.scene-prism #prism-fade{display:block}
 /* Polaroid road sky: the WebGL canvas clears transparent there, revealing
    this gradient - a little brighter near the horizon, darker up top */
 body.scene-road #stage{background:linear-gradient(to top, #282153 0%, #131034 55%, #0a0618 100%)}
