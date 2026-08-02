@@ -2539,8 +2539,8 @@ const downtownGroup = new THREE.Group();
     slab.userData.bobPhase = h(i, 20) * Math.PI * 2;
     slab.userData.bobSpeed = 0.1 + h(i, 21) * 0.18;
     slab.userData.bobAmp = amp;
-    // slow signed spin around each box's own z-axis (see animate())
-    slab.userData.spinZ = (h(i, 23) - 0.5) * 0.12;
+    // no spin - every box holds the same fixed 45-degree tilt
+    slab.rotation.z = Math.PI / 4;
     dtBobSlabs.push(slab);
   };
   // per-chunk template of slabs on all four sides, tiled DT_REPEATS times
@@ -2876,7 +2876,7 @@ let autoMotionStartT = null;
    of raw clock time, which is what makes variable/reverse speed possible
    without any scene-visible seam. ---------- */
 const flightKeys = { up: false, down: false, left: false, right: false };
-let flightSpeedFactor = 1; // smoothed: 1 cruise, up to 2.6 boosted, -1.2 reverse
+let flightSpeedFactor = 1; // smoothed: 1 cruise, up to 5.2 boosted, -2.4 reverse
 let flightDist = 0;        // accumulated "seconds of cruise flight" all scenes scroll from
 let cameraRollOffset = 0;  // steered roll applied on top of every scene's own bank
 let flightRollRate = 0;    // smoothed roll velocity, so key presses ease in/out
@@ -2915,7 +2915,7 @@ function animate(t){
   // both the speed factor and the roll rate ease toward their key-driven
   // targets rather than jumping, so a press ramps in and a release ramps
   // out - motion stays smooth at both ends
-  const speedTarget = flightKeys.up ? 2.6 : flightKeys.down ? -1.2 : 1;
+  const speedTarget = flightKeys.up ? 5.2 : flightKeys.down ? -2.4 : 1;
   flightSpeedFactor += (speedTarget - flightSpeedFactor) * 0.035;
   flightDist += dtSec * flightSpeedFactor;
   const rollTarget = flightKeys.left ? -0.9 : flightKeys.right ? 0.9 : 0;
@@ -3081,11 +3081,10 @@ function animate(t){
       slab.material.emissiveIntensity = beat * (0.55 + Math.sin(nowSec * 2.2 + slab.userData.pulsePhase) * 0.45);
     });
     // every box floats smoothly up and down on its own slow phase (outer
-    // boxes with a wider travel than the corridor slabs), and slowly
-    // spins around its own z-axis
+    // boxes with a wider travel than the corridor slabs); rotation stays
+    // fixed at the shared 45-degree tilt set at build time
     dtBobSlabs.forEach(slab => {
       slab.position.y = slab.userData.baseY + Math.sin(nowSec * slab.userData.bobSpeed + slab.userData.bobPhase) * slab.userData.bobAmp;
-      slab.rotation.z = nowSec * slab.userData.spinZ + slab.userData.bobPhase;
     });
     // the boxes' vertical lines light up with the music
     const lineGlow = 0.35 + beat * 0.65;
