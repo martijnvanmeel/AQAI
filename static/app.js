@@ -3473,18 +3473,31 @@ function ringsRetint(tr){
     const i0 = Math.min(stops.length - 2, Math.floor(f));
     return stops[i0].clone().lerp(stops[i0 + 1], f - i0);
   };
-  // redraw every band's own canvas: a clean hard-edged annulus (only the
-  // canvas's natural 1px anti-aliasing, no blur)
+  // redraw every band's own canvas: a hard-edged but UNEVEN ring - the
+  // inner and outer edges wobble on their own phases, so the band's
+  // thickness swells and thins around its circumference (hand-drawn feel)
   ringsGates.forEach(gate => {
     gate.bands.forEach(band => {
       const g = band.canvas.getContext("2d");
       g.clearRect(0, 0, 256, 256);
-      const r0 = (band.r0 / band.r1) * 128;
       const c = gradientAt(band.t);
       g.fillStyle = `rgb(${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)})`;
+      const seed = band.r0 * 7.13 + band.t * 11;
+      const rInner = (band.r0 / band.r1) * 128;
+      const PTS = 72;
       g.beginPath();
-      g.arc(128, 128, 128, 0, Math.PI * 2);
-      g.arc(128, 128, Math.max(0, r0), 0, Math.PI * 2, true);
+      for (let i = 0; i <= PTS; i++){
+        const th = (i / PTS) * Math.PI * 2;
+        const rr = 122 * (1 + Math.sin(th * 3 + seed) * 0.03 + Math.sin(th * 5 + seed * 2) * 0.018);
+        const x = 128 + Math.cos(th) * rr, y = 128 + Math.sin(th) * rr;
+        if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+      }
+      for (let i = PTS; i >= 0; i--){
+        const th = (i / PTS) * Math.PI * 2;
+        const rr = Math.max(2, rInner * (1 + Math.sin(th * 4 + seed * 3) * 0.06 + Math.sin(th * 7 + seed) * 0.035));
+        g.lineTo(128 + Math.cos(th) * rr, 128 + Math.sin(th) * rr);
+      }
+      g.closePath();
       g.fill();
       band.tex.needsUpdate = true;
     });
