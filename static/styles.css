@@ -231,6 +231,14 @@ body.gate-active::after{display:none}
    retired: the vertical-grid/VCR overlay is gone - the 3D scenes render
    clean with no scanline treatment */
 #grid-overlay{display:none}
+/* a plain 10% black wash over every 3D scene (and the intro tunnel) -
+   sits above the WebGL stage, below all UI */
+#dim-overlay{
+  position:fixed;inset:0;z-index:1;pointer-events:none;display:none;
+  background:#000000;opacity:.1;
+}
+body.scene-3d #dim-overlay,
+body.gate-active #dim-overlay{display:block}
 /* Polaroid road sky: the WebGL canvas clears transparent there, revealing
    this gradient - a little brighter near the horizon, darker up top */
 body.scene-road #stage{background:linear-gradient(to top, #282153 0%, #131034 55%, #0a0618 100%)}

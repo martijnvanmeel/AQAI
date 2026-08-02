@@ -2703,6 +2703,9 @@ const tilesBlocks = []; // floating animated cubes, driven in animate()
     cv.width = cv.height = 256;
     tilesCanvases.push(cv);
     const tex = new THREE.CanvasTexture(cv);
+    // repeat-wrapped: whole surfaces run one continuous self-tileable
+    // pattern, every tile matching its neighbours exactly
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     // Lambert instead of Basic: the scene's directional light shades each
     // face by orientation and the blocks cast real soft shadows
     tilesMats.push(new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide }));
@@ -2711,49 +2714,60 @@ const tilesBlocks = []; // floating animated cubes, driven in animate()
   // Every vertex is offset by the flight path at its own depth, so the
   // whole corridor genuinely bends - corners left/right, climbs and dives -
   // instead of being a straight square bore
+  // each surface runs ONE material with grid-aligned UVs, so its
+  // self-tileable pattern continues seamlessly from tile to tile - the
+  // whole wall/floor/ceiling always reads as one matched image
   const buffers = tilesMats.map(() => ({ pos: [], uv: [], idx: [] }));
-  const pushQuad = (mi, corners) => {
+  const pushQuad = (mi, corners, u0, v0, uw = 1, vh = 1) => {
     const b = buffers[mi];
     const base = b.pos.length / 3;
     corners.forEach(c => {
       const bend = tilesPathAt(-c[2]);
       b.pos.push(c[0] + bend.x, c[1] + bend.y, c[2]);
     });
-    b.uv.push(0, 0, 1, 0, 1, 1, 0, 1);
+    b.uv.push(u0, v0, u0 + uw, v0, u0 + uw, v0 + vh, u0, v0 + vh);
     b.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
   };
+  const MAT_WALL_L = 0, MAT_WALL_R = 1, MAT_FLOOR = 2, MAT_CEIL = 3, MAT_GATE = 4;
   const s = TILES_TILE / 2;
   for (let rep = 0; rep < TILES_REPEATS; rep++){
     for (let zi = 0; zi < TILES_DEPTH_TILES; zi++){
       const z = -(zi + 0.5) * TILES_TILE - rep * TILES_CHUNK_LENGTH;
       for (let yi = 0; yi < 6; yi++){
         const y = (yi - 2.5) * TILES_TILE;
-        pushQuad(Math.floor(h(zi * 7 + yi * 13, 1) * 12),
-          [[-TILES_HALF_W, y - s, z + s], [-TILES_HALF_W, y - s, z - s], [-TILES_HALF_W, y + s, z - s], [-TILES_HALF_W, y + s, z + s]]);
-        pushQuad(Math.floor(h(zi * 7 + yi * 13, 2) * 12),
-          [[TILES_HALF_W, y - s, z - s], [TILES_HALF_W, y - s, z + s], [TILES_HALF_W, y + s, z + s], [TILES_HALF_W, y + s, z - s]]);
+        pushQuad(MAT_WALL_L,
+          [[-TILES_HALF_W, y - s, z + s], [-TILES_HALF_W, y - s, z - s], [-TILES_HALF_W, y + s, z - s], [-TILES_HALF_W, y + s, z + s]],
+          zi, yi);
+        pushQuad(MAT_WALL_R,
+          [[TILES_HALF_W, y - s, z - s], [TILES_HALF_W, y - s, z + s], [TILES_HALF_W, y + s, z + s], [TILES_HALF_W, y + s, z - s]],
+          zi, yi);
       }
       for (let xi = 0; xi < 3; xi++){
         const x = (xi - 1) * TILES_TILE;
-        pushQuad(Math.floor(h(zi * 7 + xi * 17, 3) * 12),
-          [[x - s, -20, z + s], [x + s, -20, z + s], [x + s, -20, z - s], [x - s, -20, z - s]]);
+        pushQuad(MAT_FLOOR,
+          [[x - s, -20, z + s], [x + s, -20, z + s], [x + s, -20, z - s], [x - s, -20, z - s]],
+          xi, zi);
         // matching tiled ceiling closes the corridor into a full box
-        pushQuad(Math.floor(h(zi * 7 + xi * 17, 4) * 12),
-          [[x - s, 20, z - s], [x + s, 20, z - s], [x + s, 20, z + s], [x - s, 20, z + s]]);
+        pushQuad(MAT_CEIL,
+          [[x - s, 20, z - s], [x + s, 20, z - s], [x + s, 20, z + s], [x - s, 20, z + s]],
+          xi, zi);
       }
       // stage gates: every 4th step a tiled frame crosses the corridor -
       // top and bottom bars, plus an occasional side panel that narrows
       // the passage so the weaving flight path has real corners to thread
       if (zi % 4 === 0){
         const gz = z - s;
-        pushQuad(Math.floor(h(zi * 31, 5) * 12),
-          [[-TILES_HALF_W, 12, gz], [TILES_HALF_W, 12, gz], [TILES_HALF_W, 20, gz], [-TILES_HALF_W, 20, gz]]);
-        pushQuad(Math.floor(h(zi * 31, 6) * 12),
-          [[-TILES_HALF_W, -20, gz], [TILES_HALF_W, -20, gz], [TILES_HALF_W, -12, gz], [-TILES_HALF_W, -12, gz]]);
+        pushQuad(MAT_GATE,
+          [[-TILES_HALF_W, 12, gz], [TILES_HALF_W, 12, gz], [TILES_HALF_W, 20, gz], [-TILES_HALF_W, 20, gz]],
+          0, 0, 3.5, 1);
+        pushQuad(MAT_GATE,
+          [[-TILES_HALF_W, -20, gz], [TILES_HALF_W, -20, gz], [TILES_HALF_W, -12, gz], [-TILES_HALF_W, -12, gz]],
+          0, 1, 3.5, 1);
         if (h(zi * 31, 7) < 0.6){
           const sideSign = h(zi * 31, 8) < 0.5 ? -1 : 1;
-          pushQuad(Math.floor(h(zi * 31, 9) * 12),
-            [[sideSign * TILES_HALF_W, -12, gz], [sideSign * 5, -12, gz], [sideSign * 5, 12, gz], [sideSign * TILES_HALF_W, 12, gz]]);
+          pushQuad(MAT_GATE,
+            [[sideSign * TILES_HALF_W, -12, gz], [sideSign * 5, -12, gz], [sideSign * 5, 12, gz], [sideSign * TILES_HALF_W, 12, gz]],
+            0, 0, 1.1, 3);
         }
       }
     }
@@ -3822,11 +3836,12 @@ function animate(t){
     camera.rotation.x = tilesCamPitch;
     camera.rotation.y = tilesCamYaw;
     camera.rotation.z = tilesCamBank + cameraRollOffset;
-    // the floating blocks bob and tumble gently on their own phases
+    // every block bobs and rotates continuously on all three axes
     tilesBlocks.forEach(b => {
       b.position.y = b.userData.baseY + Math.sin(nowSec * 0.25 + b.userData.phase) * 1.4;
       b.rotation.x = nowSec * b.userData.spin + b.userData.phase;
       b.rotation.y = nowSec * b.userData.spin * 0.7 + b.userData.phase * 2;
+      b.rotation.z = nowSec * b.userData.spin * 0.45 + b.userData.phase * 3;
     });
   } else if (beamsGroup.visible){
     // light-bar hall: near-head-on flight, the bars strobing past
