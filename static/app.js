@@ -3056,6 +3056,7 @@ const beamsStripMats = [];
 const beamsCubeMats = [];
 const beamsMirrorMats = [];
 const beamsCubes = [];
+const BEAMS_CUBE_COUNT = 42; // 3x the original pool
 let beamsFloorCanvas = null;
 let beamsFloorTex = null;
 {
@@ -3101,7 +3102,7 @@ let beamsFloorTex = null;
   // solid specular cubes + their mirror clones (the floor reflections) -
   // every cube gets its OWN material, so each carries one unique color
   const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
-  for (let i = 0; i < 14; i++){
+  for (let i = 0; i < BEAMS_CUBE_COUNT; i++){
     beamsCubeMats.push(new THREE.MeshPhongMaterial({ specular: 0xffffff, shininess: 90 }));
     beamsMirrorMats.push(new THREE.MeshPhongMaterial({ specular: 0x888888, shininess: 90,
       transparent: true, opacity: 0.4 }));
@@ -3138,7 +3139,7 @@ let beamsFloorTex = null;
       beamsScenery.add(mirrorStars);
     });
   }
-  for (let i = 0; i < 14; i++){
+  for (let i = 0; i < BEAMS_CUBE_COUNT; i++){
     const mi = i;
     const cube = new THREE.Mesh(cubeGeo, beamsCubeMats[mi]);
     const mirror = new THREE.Mesh(cubeGeo, beamsMirrorMats[mi]);
@@ -3147,7 +3148,7 @@ let beamsFloorTex = null;
     cube.frustumCulled = mirror.frustumCulled = false;
     beamsScenery.add(cube);
     beamsScenery.add(mirror);
-    beamsCubes.push({ mesh: cube, mirror, size: 1, state: "wait", timer: i * 0.9, vy: 0,
+    beamsCubes.push({ mesh: cube, mirror, size: 1, state: "wait", timer: i * 0.35, vy: 0,
       av: new THREE.Vector3() });
   }
 }
@@ -3175,6 +3176,7 @@ const beamsAmbient = new THREE.AmbientLight(0xffffff, 0.28);
 beamsAmbient.visible = false;
 scene.add(beamsAmbient);
 let beamsPrevFlight = 0;
+let beamsLastBigDrop = 0; // clock of the once-per-~5s giant cube
 const beamsFog = new THREE.FogExp2(0x05050a, 0.007);
 function beamsRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
@@ -3185,11 +3187,11 @@ function beamsRetint(tr){
     else if (i % 2 === 0) mat.color.copy(dominant).multiplyScalar(0.5);
     else mat.color.copy(others[i % others.length]).multiplyScalar(0.7);
   });
-  // cubes: 14 unique colors - alternating distinct artist shades and the
+  // cubes: unique colors - alternating distinct artist shades and the
   // other artists' colors at varied brightness, no two alike
   beamsCubeMats.forEach((mat, i) => {
     const c = i % 2 === 0
-      ? dominant.clone().multiplyScalar(1 - (i / 14) * 0.55)
+      ? dominant.clone().multiplyScalar(1 - (i / BEAMS_CUBE_COUNT) * 0.55)
       : others[Math.floor(i / 2) % others.length].clone().multiplyScalar(0.7 + (i % 5) * 0.09);
     mat.color.copy(c);
     beamsMirrorMats[i].color.copy(c).multiplyScalar(0.6);
@@ -3221,6 +3223,9 @@ const PRISM_SPEED = 10;
 const prismGroup = new THREE.Group();
 const prismMats = [];
 const prismMovers = []; // slats that breathe toward the camera line and back
+// step-and-glide gaze: every ~11s a new rotation target is picked, and the
+// camera eases over to it at a slow pace (see the prism branch in animate)
+let prismCamYaw = 0, prismCamPitch = 0, prismCamRoll = 0;
 const prismBloomMats = [];
 {
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
@@ -4299,11 +4304,18 @@ function animate(t){
         if (c.timer <= 0){
           // launch: a fresh size, somewhere over the lanes ahead, well
           // above the top of the frame
-          c.size = 1.2 + Math.random() * 2.6;
+          // half-size cubes, spread deeper into the scene, and kept OUT of
+          // the camera's own sweep lane (a clear corridor down the middle).
+          // A fifth spawn 2x bigger, and once every ~5s a true giant drops.
+          c.size = 0.6 + Math.random() * 1.3;
+          if (Math.random() < 0.2) c.size *= 2;
+          if (nowSec - beamsLastBigDrop > 5){
+            c.size = 2.8 + Math.random() * 1.4;
+            beamsLastBigDrop = nowSec;
+          }
           c.mesh.scale.setScalar(c.size);
-          // close enough that the fall, impact and bounces all happen in
-          // clear view of the camera
-          c.mesh.position.set((Math.random() - 0.5) * 30, 30 + Math.random() * 12, -(25 + Math.random() * 65));
+          const dropSide = Math.random() < 0.5 ? -1 : 1;
+          c.mesh.position.set(dropSide * (12 + Math.random() * 34), 30 + Math.random() * 12, -(50 + Math.random() * 120));
           c.mesh.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
           c.vy = 0;
           c.vx = 0;
@@ -4388,9 +4400,16 @@ function animate(t){
     prismGroup.position.z = wrapScroll(flightDist * PRISM_SPEED, PRISM_CHUNK_LENGTH);
     camera.position.x = Math.sin(swayT * 0.04) * 5;
     camera.position.y = Math.sin(swayT * 0.033 + 1) * 4;
-    camera.rotation.x = Math.sin(swayT * 0.027 + 2) * 0.1;
-    camera.rotation.y = Math.sin(swayT * 0.023) * 0.24;
-    camera.rotation.z = Math.sin(swayT * 0.03 + 4) * 0.09 + cameraRollOffset;
+    // every ~11s a fresh gaze target (yaw/pitch/roll) is picked, and the
+    // camera glides over to it slowly; small sways ride on top
+    const stepI = Math.floor(nowSec / 11);
+    const hs = k => { const s = Math.sin((stepI * 7 + k) * 127.1) * 43758.5453; return s - Math.floor(s); };
+    prismCamYaw += ((hs(1) - 0.5) * 1.0 - prismCamYaw) * 0.006;
+    prismCamPitch += ((hs(2) - 0.5) * 0.3 - prismCamPitch) * 0.006;
+    prismCamRoll += ((hs(3) - 0.5) * 0.7 - prismCamRoll) * 0.006;
+    camera.rotation.x = prismCamPitch + Math.sin(swayT * 0.027 + 2) * 0.06;
+    camera.rotation.y = prismCamYaw + Math.sin(swayT * 0.023) * 0.1;
+    camera.rotation.z = prismCamRoll + Math.sin(swayT * 0.03 + 4) * 0.05 + cameraRollOffset;
     // the free slats ease in toward the camera's base line and back out
     prismMovers.forEach(m => {
       const s01 = 0.5 + 0.5 * Math.sin(nowSec * m.userData.speed + m.userData.phase);
