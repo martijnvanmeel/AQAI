@@ -1325,6 +1325,10 @@ const stage = $("#stage");
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setClearColor(0x000000, 0);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+// soft shadow maps - only the TILES scene casts/receives (its directional
+// light is the lone shadow-casting light), so other scenes pay nothing
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 stage.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -2699,14 +2703,22 @@ const tilesBlocks = []; // floating animated cubes, driven in animate()
     cv.width = cv.height = 256;
     tilesCanvases.push(cv);
     const tex = new THREE.CanvasTexture(cv);
-    tilesMats.push(new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
+    // Lambert instead of Basic: the scene's directional light shades each
+    // face by orientation and the blocks cast real soft shadows
+    tilesMats.push(new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide }));
   }
-  // merged geometry per material: one draw call each instead of ~600 meshes
+  // merged geometry per material: one draw call each instead of ~600 meshes.
+  // Every vertex is offset by the flight path at its own depth, so the
+  // whole corridor genuinely bends - corners left/right, climbs and dives -
+  // instead of being a straight square bore
   const buffers = tilesMats.map(() => ({ pos: [], uv: [], idx: [] }));
   const pushQuad = (mi, corners) => {
     const b = buffers[mi];
     const base = b.pos.length / 3;
-    corners.forEach(c => b.pos.push(...c));
+    corners.forEach(c => {
+      const bend = tilesPathAt(-c[2]);
+      b.pos.push(c[0] + bend.x, c[1] + bend.y, c[2]);
+    });
     b.uv.push(0, 0, 1, 0, 1, 1, 0, 1);
     b.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
   };
@@ -2751,36 +2763,61 @@ const tilesBlocks = []; // floating animated cubes, driven in animate()
     geo.setAttribute("position", new THREE.Float32BufferAttribute(b.pos, 3));
     geo.setAttribute("uv", new THREE.Float32BufferAttribute(b.uv, 2));
     geo.setIndex(b.idx);
+    geo.computeVertexNormals(); // Lambert shading needs real normals
     const mesh = new THREE.Mesh(geo, tilesMats[mi]);
+    mesh.receiveShadow = true;
     mesh.frustumCulled = false;
     tilesGroup.add(mesh);
   });
   // floating tile blocks drifting through the corridor - spinning, bobbing
   // cubes wearing the same motif faces (animated in the tiles branch of
-  // animate())
+  // animate()); they cast real shadows onto the tiled walls
   const blockGeo = new THREE.BoxGeometry(2.8, 2.8, 2.8);
   for (let rep = 0; rep < TILES_REPEATS; rep++){
     for (let i = 0; i < 9; i++){
       const block = new THREE.Mesh(blockGeo, tilesMats[Math.floor(h(i * 41, 10) * 12)]);
       const sideSign = i % 2 === 0 ? -1 : 1;
-      block.position.set(sideSign * (5 + h(i, 11) * 6), (h(i, 12) - 0.5) * 24,
-        -h(i, 13) * TILES_CHUNK_LENGTH - rep * TILES_CHUNK_LENGTH);
+      const bz = -h(i, 13) * TILES_CHUNK_LENGTH - rep * TILES_CHUNK_LENGTH;
+      const bend = tilesPathAt(-bz);
+      block.position.set(bend.x + sideSign * (5 + h(i, 11) * 6), bend.y + (h(i, 12) - 0.5) * 24, bz);
       block.userData.baseY = block.position.y;
       block.userData.phase = h(i, 14) * Math.PI * 2;
       block.userData.spin = 0.15 + h(i, 15) * 0.3;
+      block.castShadow = true;
+      block.receiveShadow = true;
       block.frustumCulled = false;
       tilesBlocks.push(block);
       tilesGroup.add(block);
     }
   }
 }
-// the corridor flight path: winds left/right AND climbs/dives (periodic
-// over the chunk, so the endless wrap stays seamless)
+// warm-white key light raking the corridor from high front-left - what
+// shades the tile faces and draws the blocks' cast shadows
+const tilesDirLight = new THREE.DirectionalLight(0xfff4e8, 1.05);
+tilesDirLight.position.set(30, 55, 20);
+tilesDirLight.castShadow = true;
+tilesDirLight.shadow.mapSize.set(1024, 1024);
+tilesDirLight.shadow.camera.left = -80;
+tilesDirLight.shadow.camera.right = 80;
+tilesDirLight.shadow.camera.top = 80;
+tilesDirLight.shadow.camera.bottom = -80;
+tilesDirLight.shadow.camera.near = 1;
+tilesDirLight.shadow.camera.far = 220;
+tilesDirLight.target.position.set(0, 0, -60);
+tilesDirLight.visible = false;
+scene.add(tilesDirLight);
+scene.add(tilesDirLight.target);
+const tilesAmbient = new THREE.AmbientLight(0xffffff, 0.55);
+tilesAmbient.visible = false;
+scene.add(tilesAmbient);
+// the corridor flight path: long, gentle curves left/right AND climbs/
+// dives (periodic over the chunk, so the endless wrap stays seamless) -
+// the corridor geometry itself is bent along this same path
 function tilesPathAt(dist){
   const a = (dist / TILES_CHUNK_LENGTH) * Math.PI * 2;
   return {
-    x: Math.sin(a * 2) * 4.5 + Math.sin(a * 5 + 1) * 2,
-    y: Math.sin(a * 3 + 2) * 6 + Math.sin(a * 7) * 2,
+    x: Math.sin(a) * 6.5 + Math.sin(a * 3 + 1) * 2.5,
+    y: Math.sin(a * 2 + 2) * 7 + Math.sin(a * 5) * 1.5,
   };
 }
 let tilesCamX = 0, tilesCamY = 0, tilesCamYaw = 0, tilesCamPitch = 0, tilesCamBank = 0;
@@ -2791,31 +2828,49 @@ function drawTileMotif(g, fg, bg){
   g.fillStyle = bg; g.fillRect(0, 0, 256, 256);
   g.fillStyle = fg;
   const m = Math.floor(Math.random() * 6);
-  if (m === 0){ // quarter circle from a random corner
+  // small random nudge on every shape, redrawn at all nine wrap offsets so
+  // the pattern stays perfectly tileable - shapes sliding off one edge
+  // re-enter on the opposite edge, and neighbouring tiles read as one
+  // continuous poster instead of isolated stamps
+  const jx = (Math.random() - 0.5) * 44;
+  const jy = (Math.random() - 0.5) * 44;
+  const wrapDraw = draw => {
+    for (let ox = -256; ox <= 256; ox += 256){
+      for (let oy = -256; oy <= 256; oy += 256){
+        g.save(); g.translate(ox + jx, oy + jy); draw(); g.restore();
+      }
+    }
+  };
+  if (m === 0){ // quarter circle from a corner
     const cx = Math.random() < 0.5 ? 0 : 256, cy = Math.random() < 0.5 ? 0 : 256;
-    g.beginPath(); g.moveTo(cx, cy); g.arc(cx, cy, 256, 0, Math.PI * 2); g.fill();
-  } else if (m === 1){ // half circle on a random edge
+    wrapDraw(() => { g.beginPath(); g.moveTo(cx, cy); g.arc(cx, cy, 200, 0, Math.PI * 2); g.fill(); });
+  } else if (m === 1){ // half circle off an edge
     const edge = Math.floor(Math.random() * 4);
-    g.beginPath();
-    if (edge === 0) g.arc(128, 0, 128, 0, Math.PI);
-    else if (edge === 1) g.arc(128, 256, 128, Math.PI, Math.PI * 2);
-    else if (edge === 2) g.arc(0, 128, 128, -Math.PI / 2, Math.PI / 2);
-    else g.arc(256, 128, 128, Math.PI / 2, Math.PI * 1.5);
-    g.fill();
+    wrapDraw(() => {
+      g.beginPath();
+      if (edge === 0) g.arc(128, 0, 128, 0, Math.PI);
+      else if (edge === 1) g.arc(128, 256, 128, Math.PI, Math.PI * 2);
+      else if (edge === 2) g.arc(0, 128, 128, -Math.PI / 2, Math.PI / 2);
+      else g.arc(256, 128, 128, Math.PI / 2, Math.PI * 1.5);
+      g.fill();
+    });
   } else if (m === 2){ // full circle
-    g.beginPath(); g.arc(128, 128, 96, 0, Math.PI * 2); g.fill();
-  } else if (m === 3){ // arrow triangle, random direction
+    wrapDraw(() => { g.beginPath(); g.arc(128, 128, 96, 0, Math.PI * 2); g.fill(); });
+  } else if (m === 3){ // arrow triangle
     const dir = Math.floor(Math.random() * 4);
-    g.save(); g.translate(128, 128); g.rotate(dir * Math.PI / 2);
-    g.beginPath(); g.moveTo(0, -120); g.lineTo(115, 110); g.lineTo(-115, 110); g.closePath(); g.fill();
-    g.restore();
-  } else if (m === 4){ // vertical slats
+    wrapDraw(() => {
+      g.translate(128, 128); g.rotate(dir * Math.PI / 2);
+      g.beginPath(); g.moveTo(0, -120); g.lineTo(115, 110); g.lineTo(-115, 110); g.closePath(); g.fill();
+    });
+  } else if (m === 4){ // vertical slats (already edge-to-edge tileable)
     const n = 3 + Math.floor(Math.random() * 3);
     const w = 256 / (n * 2);
-    for (let i = 0; i < n; i++) g.fillRect((i * 2 + 0.5) * w, 12, w, 232);
+    for (let i = 0; i < n; i++) g.fillRect((i * 2 + 0.5) * w, 0, w, 256);
   } else { // stacked scallops (two semicircles)
-    g.beginPath(); g.arc(128, 64, 62, 0, Math.PI * 2); g.fill();
-    g.beginPath(); g.arc(128, 192, 62, 0, Math.PI * 2); g.fill();
+    wrapDraw(() => {
+      g.beginPath(); g.arc(128, 64, 62, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.arc(128, 192, 62, 0, Math.PI * 2); g.fill();
+    });
   }
 }
 function tilesRetint(tr){
@@ -3289,6 +3344,8 @@ function updateArtistBackground(tr){
   downtownLight.visible = wantMaze;
   downtownAmbient.visible = wantMaze;
   tilesGroup.visible = wantTiles;
+  tilesDirLight.visible = wantTiles;
+  tilesAmbient.visible = wantTiles;
   beamsGroup.visible = wantBeams;
   beamsScenery.visible = wantBeams;
   prismGroup.visible = wantPrism;
@@ -3750,22 +3807,24 @@ function animate(t){
     const nowSec = (t || 0) * 0.001;
     const scroll = flightDist * TILES_SPEED;
     tilesGroup.position.z = wrapScroll(scroll, TILES_CHUNK_LENGTH);
+    // long lookahead + very soft follow + tiny sways: the camera glides
+    // through the bends without any quick jiggling
     const here = tilesPathAt(scroll - 8);
-    const ahead = tilesPathAt(scroll - 8 + 12);
-    const follow = 0.03;
-    tilesCamX += (here.x + Math.sin(swayT * 0.05) * 1.5 - tilesCamX) * follow;
-    tilesCamY += (here.y + Math.sin(swayT * 0.043 + 1) * 1.5 - tilesCamY) * follow;
-    tilesCamYaw += (-Math.atan2(ahead.x - here.x, 12) * 0.7 + Math.sin(swayT * 0.027) * 0.12 - tilesCamYaw) * follow;
-    tilesCamPitch += (Math.atan2(ahead.y - here.y, 12) * 0.55 + Math.sin(swayT * 0.031 + 2) * 0.08 - tilesCamPitch) * follow;
-    tilesCamBank += (-Math.atan2(ahead.x - here.x, 12) * 0.9 + Math.sin(swayT * 0.035 + 4) * 0.06 - tilesCamBank) * follow;
+    const ahead = tilesPathAt(scroll - 8 + 18);
+    const follow = 0.016;
+    tilesCamX += (here.x + Math.sin(swayT * 0.03) * 0.7 - tilesCamX) * follow;
+    tilesCamY += (here.y + Math.sin(swayT * 0.026 + 1) * 0.7 - tilesCamY) * follow;
+    tilesCamYaw += (-Math.atan2(ahead.x - here.x, 18) * 0.65 + Math.sin(swayT * 0.019) * 0.05 - tilesCamYaw) * follow;
+    tilesCamPitch += (Math.atan2(ahead.y - here.y, 18) * 0.5 + Math.sin(swayT * 0.022 + 2) * 0.035 - tilesCamPitch) * follow;
+    tilesCamBank += (-Math.atan2(ahead.x - here.x, 18) * 0.7 + Math.sin(swayT * 0.024 + 4) * 0.025 - tilesCamBank) * follow;
     camera.position.x = tilesCamX;
     camera.position.y = tilesCamY;
     camera.rotation.x = tilesCamPitch;
     camera.rotation.y = tilesCamYaw;
     camera.rotation.z = tilesCamBank + cameraRollOffset;
-    // the floating blocks bob and tumble on their own phases
+    // the floating blocks bob and tumble gently on their own phases
     tilesBlocks.forEach(b => {
-      b.position.y = b.userData.baseY + Math.sin(nowSec * 0.4 + b.userData.phase) * 1.6;
+      b.position.y = b.userData.baseY + Math.sin(nowSec * 0.25 + b.userData.phase) * 1.4;
       b.rotation.x = nowSec * b.userData.spin + b.userData.phase;
       b.rotation.y = nowSec * b.userData.spin * 0.7 + b.userData.phase * 2;
     });
