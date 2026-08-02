@@ -3817,8 +3817,8 @@ function updateArtistBackground(tr){
     ringsRetint(tr);
     // the whole background sits in a DARK variant of the artist color,
     // with the fog matched so far rings melt into it seamlessly
-    // the whole distance sits in the artist color at half brightness
-    const ringsBgColor = new THREE.Color((tr && tr.artistColor) || "#7CFF9E").multiplyScalar(0.5);
+    // dark variant of the artist color (the previous look)
+    const ringsBgColor = new THREE.Color((tr && tr.artistColor) || "#7CFF9E").multiplyScalar(0.09);
     renderer.setClearColor(ringsBgColor, 1);
     ringsFog.color.copy(ringsBgColor);
     scene.fog = ringsFog;
