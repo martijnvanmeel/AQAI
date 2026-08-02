@@ -3503,8 +3503,9 @@ let ringsGlowMat = null;
     }
     bands.forEach(band => {
       band.canvas = document.createElement("canvas");
-      band.canvas.width = band.canvas.height = 256;
+      band.canvas.width = band.canvas.height = 512; // high-res: no pixelated edges up close
       band.tex = new THREE.CanvasTexture(band.canvas);
+      band.tex.anisotropy = 8;
       // smaller rings recede further behind the gate plane
       band.zOff = (outerR - band.r1) * 0.6;
       // position along the gate's radial sweep, 0 innermost .. 1 outermost -
@@ -3585,23 +3586,23 @@ function ringsRetint(tr){
   ringsGates.forEach(gate => {
     gate.bands.forEach(band => {
       const g = band.canvas.getContext("2d");
-      g.clearRect(0, 0, 256, 256);
+      g.clearRect(0, 0, 512, 512);
       const c = gradientAt(band.t);
       g.fillStyle = `rgb(${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)})`;
       const seed = band.r0 * 7.13 + band.t * 11;
-      const rInner = (band.r0 / band.r1) * 128;
-      const PTS = 72;
+      const rInner = (band.r0 / band.r1) * 256;
+      const PTS = 180; // dense sampling keeps the wobble curve silky
       g.beginPath();
       for (let i = 0; i <= PTS; i++){
         const th = (i / PTS) * Math.PI * 2;
-        const rr = 122 * (1 + Math.sin(th * 3 + seed) * 0.03 + Math.sin(th * 5 + seed * 2) * 0.018);
-        const x = 128 + Math.cos(th) * rr, y = 128 + Math.sin(th) * rr;
+        const rr = 244 * (1 + Math.sin(th * 3 + seed) * 0.03 + Math.sin(th * 5 + seed * 2) * 0.018);
+        const x = 256 + Math.cos(th) * rr, y = 256 + Math.sin(th) * rr;
         if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
       }
       for (let i = PTS; i >= 0; i--){
         const th = (i / PTS) * Math.PI * 2;
-        const rr = Math.max(2, rInner * (1 + Math.sin(th * 4 + seed * 3) * 0.06 + Math.sin(th * 7 + seed) * 0.035));
-        g.lineTo(128 + Math.cos(th) * rr, 128 + Math.sin(th) * rr);
+        const rr = Math.max(4, rInner * (1 + Math.sin(th * 4 + seed * 3) * 0.06 + Math.sin(th * 7 + seed) * 0.035));
+        g.lineTo(256 + Math.cos(th) * rr, 256 + Math.sin(th) * rr);
       }
       g.closePath();
       g.fill();
@@ -3816,7 +3817,8 @@ function updateArtistBackground(tr){
     ringsRetint(tr);
     // the whole background sits in a DARK variant of the artist color,
     // with the fog matched so far rings melt into it seamlessly
-    const ringsBgColor = new THREE.Color((tr && tr.artistColor) || "#7CFF9E").multiplyScalar(0.09);
+    // the whole distance sits in the artist color at half brightness
+    const ringsBgColor = new THREE.Color((tr && tr.artistColor) || "#7CFF9E").multiplyScalar(0.5);
     renderer.setClearColor(ringsBgColor, 1);
     ringsFog.color.copy(ringsBgColor);
     scene.fog = ringsFog;
