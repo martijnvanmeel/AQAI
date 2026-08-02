@@ -3145,15 +3145,16 @@ function beamsRetint(tr){
     mat.color.copy(c);
     beamsMirrorMats[i].color.copy(c).multiplyScalar(0.6);
   });
-  // floor gradient: near-black under the camera warming into the artist
-  // color at the horizon
+  // floor gradient: LIGHT under the camera, falling off into darkness at
+  // the far end
   if (beamsFloorCanvas){
     const g = beamsFloorCanvas.getContext("2d");
-    const domCss = "#" + dominant.clone().multiplyScalar(0.4).getHexString();
+    const nearCss = "#" + dominant.clone().multiplyScalar(0.45).lerp(new THREE.Color(0xdddde6), 0.5).getHexString();
+    const midCss = "#" + dominant.clone().multiplyScalar(0.28).getHexString();
     const grad = g.createLinearGradient(0, 256, 0, 0);
-    grad.addColorStop(0, "#0a0a10");
-    grad.addColorStop(0.55, "#14141f");
-    grad.addColorStop(1, domCss);
+    grad.addColorStop(0, nearCss);
+    grad.addColorStop(0.45, midCss);
+    grad.addColorStop(1, "#050508");
     g.fillStyle = grad;
     g.fillRect(0, 0, 4, 256);
     beamsFloorTex.needsUpdate = true;
@@ -3559,6 +3560,7 @@ function updateArtistBackground(tr){
   // body.scene-road / body.scene-mist #stage in styles.css)
   document.body.classList.toggle("scene-road", wantRoad);
   document.body.classList.toggle("scene-mist", wantMist);
+  document.body.classList.toggle("scene-beams", wantBeams);
   // tighter lens in every constructed environment (incl. the intro
   // tunnel) = a more zoomed, cinematic framing; only the plain video
   // sphere keeps the natural 1x lens
@@ -3591,9 +3593,11 @@ function updateArtistBackground(tr){
     renderer.setClearColor(0x232323, 1);
     scene.fog = tilesFog;
   } else if (wantBeams){
-    // deep blue-black over the glossy five-lane floor
+    // transparent clear: a subtle vertical CSS gradient stands behind the
+    // scene (body.scene-beams #stage), while the fog still swallows the
+    // far floor
     beamsRetint(tr);
-    renderer.setClearColor(0x05050a, 1);
+    renderer.setClearColor(0x000000, 0);
     scene.fog = beamsFog;
   } else if (wantPrism){
     prismRetint(tr);
