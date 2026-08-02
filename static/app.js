@@ -3409,15 +3409,11 @@ const prismStarLayers = [];
 // and genuinely lighting the slat panels as they pass
 const prismStarLights = [];
 for (let i = 0; i < 3; i++){
+  // invisible light sources only - no visible ball, just their glow
+  // washing across the slats
   const light = new THREE.PointLight(0xffffff, 1.5, 55, 2);
   light.visible = false;
   scene.add(light);
-  // a small bright core so the light reads as one of the stars
-  const core = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6),
-    new THREE.MeshBasicMaterial({ map: roadDotTexture, transparent: true,
-      blending: THREE.AdditiveBlending, depthWrite: false }));
-  core.frustumCulled = false;
-  light.add(core);
   prismStarLights.push(light);
 }
 const prismAmbient = new THREE.AmbientLight(0xffffff, 0.22);
@@ -3437,7 +3433,6 @@ function prismRetint(tr){
   prismStarLights.forEach((light, i) => {
     const c = i === 0 ? dominant.clone() : others[i % others.length].clone();
     light.color.copy(c.lerp(new THREE.Color(0xffffff), 0.35));
-    light.children[0].material.color.copy(light.color);
   });
 }
 
@@ -3769,8 +3764,6 @@ function updateArtistBackground(tr){
   document.body.classList.toggle("scene-road", wantRoad);
   document.body.classList.toggle("scene-mist", wantMist);
   document.body.classList.toggle("scene-beams", wantBeams);
-  // prism gets a left/right 10% fade overlay (see #prism-fade in styles.css)
-  document.body.classList.toggle("scene-prism", wantPrism);
   // tighter lens in every constructed environment (incl. the intro
   // tunnel) = a more zoomed, cinematic framing; only the plain video
   // sphere keeps the natural 1x lens
@@ -4402,13 +4395,14 @@ function animate(t){
     prismGroup.position.z = wrapScroll(flightDist * PRISM_SPEED, PRISM_CHUNK_LENGTH);
     camera.position.x = Math.sin(swayT * 0.04) * 5;
     camera.position.y = Math.sin(swayT * 0.033 + 1) * 4;
-    // every ~11s a fresh gaze target (yaw/pitch/roll) is picked, and the
-    // camera glides over to it slowly; small sways ride on top
-    const stepI = Math.floor(nowSec / 11);
+    // every ~22s a fresh gaze target (yaw/pitch/roll) is picked, and the
+    // camera glides over to it at half the previous pace - each move takes
+    // twice as long; small sways ride on top
+    const stepI = Math.floor(nowSec / 22);
     const hs = k => { const s = Math.sin((stepI * 7 + k) * 127.1) * 43758.5453; return s - Math.floor(s); };
-    prismCamYaw += ((hs(1) - 0.5) * 1.0 - prismCamYaw) * 0.006;
-    prismCamPitch += ((hs(2) - 0.5) * 0.3 - prismCamPitch) * 0.006;
-    prismCamRoll += ((hs(3) - 0.5) * 0.7 - prismCamRoll) * 0.006;
+    prismCamYaw += ((hs(1) - 0.5) * 1.0 - prismCamYaw) * 0.003;
+    prismCamPitch += ((hs(2) - 0.5) * 0.3 - prismCamPitch) * 0.003;
+    prismCamRoll += ((hs(3) - 0.5) * 0.7 - prismCamRoll) * 0.003;
     camera.rotation.x = prismCamPitch + Math.sin(swayT * 0.027 + 2) * 0.06;
     camera.rotation.y = prismCamYaw + Math.sin(swayT * 0.023) * 0.1;
     camera.rotation.z = prismCamRoll + Math.sin(swayT * 0.03 + 4) * 0.05 + cameraRollOffset;
