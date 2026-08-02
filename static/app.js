@@ -3690,7 +3690,11 @@ function updateArtistBackground(tr){
     scene.fog = prismFog;
   } else if (wantRings){
     ringsRetint(tr);
-    renderer.setClearColor(0x000000, 1);
+    // the whole background sits in a DARK variant of the artist color,
+    // with the fog matched so far rings melt into it seamlessly
+    const ringsBgColor = new THREE.Color((tr && tr.artistColor) || "#7CFF9E").multiplyScalar(0.12);
+    renderer.setClearColor(ringsBgColor, 1);
+    ringsFog.color.copy(ringsBgColor);
     scene.fog = ringsFog;
   } else if (wantCheck){
     checkRetint(tr);
