@@ -2686,11 +2686,11 @@ scene.add(downtownGroup);
 // warm light near the camera - the corridor darkens with distance, like
 // the reference's vanishing point; plus a dim warm ambient fill
 // parked BELOW the corridor, shining upward - undersides glow, tops fall dark
-const downtownLight = new THREE.PointLight(0xffd9a0, 1.2, 70 * DT_SCALE, 1.8);
+const downtownLight = new THREE.PointLight(0xffd9a0, 0.84, 70 * DT_SCALE, 1.8); // 30% darker scene
 downtownLight.position.set(0, -DT_HALF_H - 20, 2);
 downtownLight.visible = false;
 scene.add(downtownLight);
-const downtownAmbient = new THREE.AmbientLight(0x2a180c, 0.68);
+const downtownAmbient = new THREE.AmbientLight(0x2a180c, 0.48); // 30% darker scene
 downtownAmbient.visible = false;
 scene.add(downtownAmbient);
 const downtownFog = new THREE.FogExp2(0x120a05, 0.02 / DT_SCALE);
@@ -3071,6 +3071,7 @@ let beamsFloorTex = null;
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(240, 460), floorMat);
   floor.rotateX(-Math.PI / 2);
   floor.position.set(0, 0, -160);
+  floor.receiveShadow = true; // the falling cubes cast onto it
   beamsScenery.add(floor);
   // five parallel ribbons with a soft brightness banding along their length
   const totalRows = 60 * BEAMS_REPEATS;
@@ -3097,17 +3098,19 @@ let beamsFloorTex = null;
     mesh.frustumCulled = false;
     beamsGroup.add(mesh);
   }
-  // solid specular cubes + their mirror clones (the floor reflections)
+  // solid specular cubes + their mirror clones (the floor reflections) -
+  // every cube gets its OWN material, so each carries one unique color
   const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
-  for (let i = 0; i < 6; i++){
+  for (let i = 0; i < 14; i++){
     beamsCubeMats.push(new THREE.MeshPhongMaterial({ specular: 0xffffff, shininess: 90 }));
     beamsMirrorMats.push(new THREE.MeshPhongMaterial({ specular: 0x888888, shininess: 90,
       transparent: true, opacity: 0.4 }));
   }
   for (let i = 0; i < 14; i++){
-    const mi = i % 6;
+    const mi = i;
     const cube = new THREE.Mesh(cubeGeo, beamsCubeMats[mi]);
     const mirror = new THREE.Mesh(cubeGeo, beamsMirrorMats[mi]);
+    cube.castShadow = true; // real shadows onto the glossy floor
     cube.visible = mirror.visible = false;
     cube.frustumCulled = mirror.frustumCulled = false;
     beamsScenery.add(cube);
@@ -3123,8 +3126,19 @@ scene.add(beamsScenery);
 // lighting for the specular cubes and glossy floor
 const beamsLight = new THREE.DirectionalLight(0xffffff, 0.7); // 30% darker scene
 beamsLight.position.set(24, 45, 15);
+beamsLight.castShadow = true; // cubes throw soft shadows onto the floor
+beamsLight.shadow.radius = 7;
+beamsLight.shadow.mapSize.set(1024, 1024);
+beamsLight.shadow.camera.left = -130;
+beamsLight.shadow.camera.right = 130;
+beamsLight.shadow.camera.top = 130;
+beamsLight.shadow.camera.bottom = -130;
+beamsLight.shadow.camera.near = 1;
+beamsLight.shadow.camera.far = 320;
+beamsLight.target.position.set(0, 0, -80);
 beamsLight.visible = false;
 scene.add(beamsLight);
+scene.add(beamsLight.target);
 const beamsAmbient = new THREE.AmbientLight(0xffffff, 0.28);
 beamsAmbient.visible = false;
 scene.add(beamsAmbient);
@@ -3139,9 +3153,12 @@ function beamsRetint(tr){
     else if (i % 2 === 0) mat.color.copy(dominant).multiplyScalar(0.5);
     else mat.color.copy(others[i % others.length]).multiplyScalar(0.7);
   });
-  // cubes: three artist shades + the other artists' colors
+  // cubes: 14 unique colors - alternating distinct artist shades and the
+  // other artists' colors at varied brightness, no two alike
   beamsCubeMats.forEach((mat, i) => {
-    const c = i < 3 ? dominant.clone().multiplyScalar([1, 0.75, 0.55][i]) : others[i % others.length].clone();
+    const c = i % 2 === 0
+      ? dominant.clone().multiplyScalar(1 - (i / 14) * 0.55)
+      : others[Math.floor(i / 2) % others.length].clone().multiplyScalar(0.7 + (i % 5) * 0.09);
     mat.color.copy(c);
     beamsMirrorMats[i].color.copy(c).multiplyScalar(0.6);
   });
@@ -3150,11 +3167,11 @@ function beamsRetint(tr){
   if (beamsFloorCanvas){
     const g = beamsFloorCanvas.getContext("2d");
     const nearCss = "#" + dominant.clone().multiplyScalar(0.45).lerp(new THREE.Color(0xdddde6), 0.5).getHexString();
-    const midCss = "#" + dominant.clone().multiplyScalar(0.28).getHexString();
+    const midCss = "#" + dominant.clone().multiplyScalar(0.16).getHexString();
     const grad = g.createLinearGradient(0, 256, 0, 0);
     grad.addColorStop(0, nearCss);
-    grad.addColorStop(0.45, midCss);
-    grad.addColorStop(1, "#050508");
+    grad.addColorStop(0.4, midCss);
+    grad.addColorStop(1, "#000000");
     g.fillStyle = grad;
     g.fillRect(0, 0, 4, 256);
     beamsFloorTex.needsUpdate = true;
@@ -3300,16 +3317,10 @@ function ringsPathAt(dist){
 let ringsCamX = 0, ringsCamY = 0, ringsCamYaw = 0, ringsCamPitch = 0, ringsCamBank = 0;
 const ringsGroup = new THREE.Group();
 const ringsScenery = new THREE.Group(); // the light at the end of the tunnel
-const ringsMats = [];
+const ringsGates = []; // per-gate canvas + band layout, redrawn in ringsRetint
 let ringsGlowMat = null;
 {
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
-  // solid, fully opaque rings
-  for (let i = 0; i < 8; i++){
-    ringsMats.push(new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
-  }
-  const haloMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
-  ringsMats.push(haloMat); // slot 8: halo outlines, tinted like slot 0
   // gate spacing varies 10-30 units along z (normalized so the gaps sum
   // exactly to the chunk length, keeping the endless wrap seamless)
   const gatesPerChunk = 6;
@@ -3323,51 +3334,50 @@ let ringsGlowMat = null;
     gateZ.push(-(gapAcc + g / 2));
     gapAcc += g;
   }
-  // geometry templates shared across the chunk repeats
-  const gateGeos = [];
+  // each gate is ONE textured plane: its concentric bands are drawn into a
+  // canvas with soft (blurred) inner/outer edges - no stacked coplanar
+  // geometry, so nothing z-fights, and edges feather naturally
   for (let gi = 0; gi < gatesPerChunk; gi++){
-    const bands = [];
     const bandCount = 5 + Math.floor(h(gi, 1) * 3);
     const holeR = 7 + h(gi, 2) * 8;        // 2x bore: the dark center the camera flies through
     const bandW = 2.2 + h(gi, 3) * 1.8;
+    const bands = [];
     for (let bi = 0; bi < bandCount; bi++){
-      bands.push(new THREE.RingGeometry(holeR + bi * bandW, holeR + (bi + 1) * bandW - 0.12, 48));
+      bands.push({ r0: holeR + bi * bandW, r1: holeR + (bi + 1) * bandW - 0.12,
+        slot: Math.floor(h(gi * 13 + bi, 8) * 8) });
     }
     const halos = [];
+    let outerR = holeR + bandCount * bandW;
     if (h(gi, 4) < 0.5){
-      const hr = holeR + bandCount * bandW + 2 + h(gi, 5) * 5;
-      halos.push(new THREE.RingGeometry(hr, hr + 0.22, 64));
-      halos.push(new THREE.RingGeometry(hr + 1.1, hr + 1.32, 64));
+      const hr = outerR + 2 + h(gi, 5) * 5;
+      halos.push(hr, hr + 1.1);
+      outerR = hr + 1.4;
     }
-    gateGeos.push({ bands, halos });
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 512;
+    const tex = new THREE.CanvasTexture(canvas);
+    ringsGates.push({ canvas, tex, bands, halos, outerR });
   }
+  const planeGeo = new THREE.PlaneGeometry(1, 1);
   for (let rep = 0; rep < RINGS_REPEATS; rep++){
     for (let gi = 0; gi < gatesPerChunk; gi++){
-      const { bands, halos } = gateGeos[gi];
+      const gate = ringsGates[gi];
       const gz = gateZ[gi] - rep * RINGS_CHUNK_LENGTH;
       // the gate sits on the serpentine spine at its own depth
       const bend = ringsPathAt(-gz);
-      const gx = bend.x, gy = bend.y;
-      const gateIndex = gi + rep * gatesPerChunk;
-      const place = (mesh, drift, phase, rate) => {
-        mesh.position.set(gx, gy, gz);
-        // each ring drifts on its own little orbit and carries its gate
-        // index for the traveling snake-pulse (see animate())
-        mesh.userData.baseX = gx; mesh.userData.baseY = gy;
-        mesh.userData.drift = drift;
-        mesh.userData.phase = phase;
-        mesh.userData.rate = rate;
-        mesh.userData.gate = gateIndex;
-        mesh.frustumCulled = false;
-        ringsGroup.add(mesh);
-      };
-      bands.forEach((geo, bi) => {
-        place(new THREE.Mesh(geo, ringsMats[Math.floor(h(gi * 13 + bi, 8) * 8)]),
-          1.2 + h(gi * 17 + bi, 9) * 2.6, h(gi * 19 + bi, 10) * Math.PI * 2, 0.03 + h(gi * 23 + bi, 11) * 0.05);
-      });
-      halos.forEach(geo => {
-        place(new THREE.Mesh(geo, haloMat), 2, h(gi, 12) * Math.PI * 2, 0.04);
-      });
+      const mesh = new THREE.Mesh(planeGeo, new THREE.MeshBasicMaterial({ map: gate.tex,
+        transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+      mesh.position.set(bend.x, bend.y, gz);
+      const baseScale = gate.outerR * 2;
+      mesh.scale.set(baseScale, baseScale, 1);
+      mesh.userData.baseX = bend.x; mesh.userData.baseY = bend.y;
+      mesh.userData.baseScale = baseScale;
+      mesh.userData.drift = 1.2 + h(gi * 17, 9) * 2.6;
+      mesh.userData.phase = h(gi * 19, 10) * Math.PI * 2;
+      mesh.userData.rate = 0.03 + h(gi * 23, 11) * 0.05;
+      mesh.userData.gate = gi + rep * gatesPerChunk;
+      mesh.frustumCulled = false;
+      ringsGroup.add(mesh);
     }
   }
   // the light at the end of the tunnel: a big soft glow far down the spine
@@ -3395,14 +3405,47 @@ scene.add(ringsScenery);
 const ringsFog = new THREE.FogExp2(0x000000, 0.013); // far gates melt into the black
 function ringsRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
-  ringsMats.forEach((mat, i) => {
-    if (i === 8){ mat.color.copy(dominant); return; } // halo outlines
-    if (i < 4){
-      // four shades of the artist color, from full to deep
-      mat.color.copy(dominant).multiplyScalar([1, 0.72, 0.5, 0.32][i]);
-    } else {
-      mat.color.copy(others[i % others.length]);
-    }
+  const slotColor = i => {
+    if (i < 4) return dominant.clone().multiplyScalar([1, 0.72, 0.5, 0.32][i]);
+    return others[i % others.length].clone();
+  };
+  // redraw every gate: concentric bands with feathered (blurred) inner and
+  // outer edges, plus soft thin halo circles
+  ringsGates.forEach(gate => {
+    const g = gate.canvas.getContext("2d");
+    g.clearRect(0, 0, 512, 512);
+    const px = r => (r / gate.outerR) * 256; // world radius -> canvas px
+    gate.bands.forEach(band => {
+      const r0 = px(band.r0), r1 = px(band.r1);
+      const feather = Math.min(6, (r1 - r0) * 0.3);
+      const c = slotColor(band.slot);
+      const css = `${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)}`;
+      const grad = g.createRadialGradient(256, 256, Math.max(0, r0 - feather), 256, 256, r1 + feather);
+      const span = (r1 + feather) - (r0 - feather);
+      grad.addColorStop(0, `rgba(${css},0)`);
+      grad.addColorStop(Math.min(0.49, feather * 2 / span), `rgba(${css},1)`);
+      grad.addColorStop(Math.max(0.51, 1 - feather * 2 / span), `rgba(${css},1)`);
+      grad.addColorStop(1, `rgba(${css},0)`);
+      g.fillStyle = grad;
+      g.beginPath();
+      g.arc(256, 256, r1 + feather, 0, Math.PI * 2);
+      g.arc(256, 256, Math.max(0, r0 - feather), 0, Math.PI * 2, true);
+      g.fill();
+    });
+    const hc = dominant;
+    const hcss = `${Math.round(hc.r * 255)},${Math.round(hc.g * 255)},${Math.round(hc.b * 255)}`;
+    gate.halos.forEach(hr => {
+      const r = px(hr);
+      g.strokeStyle = `rgba(${hcss},0.75)`;
+      g.lineWidth = 2.5;
+      g.shadowColor = `rgba(${hcss},0.9)`;
+      g.shadowBlur = 6;
+      g.beginPath();
+      g.arc(256, 256, r, 0, Math.PI * 2);
+      g.stroke();
+      g.shadowBlur = 0;
+    });
+    gate.tex.needsUpdate = true;
   });
   // the end-of-tunnel light warms toward the artist color
   if (ringsGlowMat) ringsGlowMat.color.copy(dominant).lerp(new THREE.Color(0xfff6e8), 0.6);
@@ -4074,13 +4117,15 @@ function animate(t){
     // how far the ground moved this frame - landed cubes ride along
     const beamsScrollDz = (flightDist - beamsPrevFlight) * BEAMS_SPEED;
     beamsPrevFlight = flightDist;
-    camera.position.x = Math.sin(swayT * 0.045) * 4;
-    camera.position.y = 5.5 + Math.sin(swayT * 0.038 + 1) * 1.5;
+    // wide sweeps left/right and up/down, plus a roll swinging up to
+    // ~25 degrees each way
+    camera.position.x = Math.sin(swayT * 0.045) * 10 + Math.sin(swayT * 0.019 + 3) * 4;
+    camera.position.y = 5.5 + Math.sin(swayT * 0.038 + 1) * 4 + Math.sin(swayT * 0.016) * 1.5;
     // down-tilt tuned so the horizon sits at the profile picture's
     // vertical midpoint (~60% down the frame)
     camera.rotation.x = -0.09 + Math.sin(swayT * 0.03 + 2) * 0.04;
     camera.rotation.y = Math.sin(swayT * 0.026) * 0.09;
-    camera.rotation.z = Math.sin(swayT * 0.033 + 4) * 0.05 + cameraRollOffset;
+    camera.rotation.z = Math.sin(swayT * 0.021 + 4) * 0.436 + cameraRollOffset;
     beamsCubes.forEach(c => {
       if (c.state === "wait"){
         c.timer -= dtSec;
@@ -4089,7 +4134,9 @@ function animate(t){
           // above the top of the frame
           c.size = 1.2 + Math.random() * 2.6;
           c.mesh.scale.setScalar(c.size);
-          c.mesh.position.set((Math.random() - 0.5) * 40, 30 + Math.random() * 12, -(70 + Math.random() * 100));
+          // close enough that the fall, impact and bounces all happen in
+          // clear view of the camera
+          c.mesh.position.set((Math.random() - 0.5) * 30, 30 + Math.random() * 12, -(25 + Math.random() * 65));
           c.mesh.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
           c.vy = 0;
           c.vx = 0;
@@ -4204,9 +4251,9 @@ function animate(t){
     ringsScenery.children[0].position.x = glowBend.x;
     ringsScenery.children[0].position.y = glowBend.y;
     // the snake pulse: a swell travels gate by gate down the spine, and
-    // every ring still wanders its own little orbit on top
+    // every gate still wanders its own little orbit on top
     ringsGroup.children.forEach(m => {
-      const pulse = 1 + Math.sin(nowSec * 1.8 - m.userData.gate * 0.7) * 0.12;
+      const pulse = m.userData.baseScale * (1 + Math.sin(nowSec * 1.8 - m.userData.gate * 0.7) * 0.12);
       m.scale.set(pulse, pulse, 1);
       m.position.x = m.userData.baseX + Math.sin(nowSec * m.userData.rate * 5 + m.userData.phase) * m.userData.drift;
       m.position.y = m.userData.baseY + Math.sin(nowSec * m.userData.rate * 4 + m.userData.phase * 2) * m.userData.drift * 0.8;
