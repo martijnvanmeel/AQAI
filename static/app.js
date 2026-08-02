@@ -2683,9 +2683,10 @@ const dtStars = (() => {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  // fogged like the blocks, so far stars sit darker and brighten as they
+  // rush toward the camera
   const mat = new THREE.PointsMaterial({ size: 2.4, vertexColors: true, sizeAttenuation: false,
     map: roadDotTexture, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
-  mat.fog = false;
   const points = new THREE.Points(geo, mat);
   points.frustumCulled = false;
   points.visible = false;
@@ -3015,11 +3016,18 @@ const beamsStripMats = [];
 const beamsCubeMats = [];
 const beamsMirrorMats = [];
 const beamsCubes = [];
+let beamsFloorCanvas = null;
+let beamsFloorTex = null;
 {
-  // glossy near-black floor: semi-transparent so the mirrored cube clones
-  // beneath read as reflections in a polished surface
-  const floorMat = new THREE.MeshPhongMaterial({ color: 0x0b0b12, specular: 0x8888a0, shininess: 80,
-    transparent: true, opacity: 0.82, side: THREE.DoubleSide });
+  // glossy floor with a length-wise color gradient (near-black under the
+  // camera, warming into the artist color toward the horizon - redrawn in
+  // beamsRetint); semi-transparent so the mirrored cube clones beneath
+  // read as reflections in a polished surface
+  beamsFloorCanvas = document.createElement("canvas");
+  beamsFloorCanvas.width = 4; beamsFloorCanvas.height = 256;
+  beamsFloorTex = new THREE.CanvasTexture(beamsFloorCanvas);
+  const floorMat = new THREE.MeshPhongMaterial({ map: beamsFloorTex, color: 0xffffff, specular: 0x8888a0,
+    shininess: 80, transparent: true, opacity: 0.82, side: THREE.DoubleSide });
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(240, 460), floorMat);
   floor.rotateX(-Math.PI / 2);
   floor.position.set(0, 0, -160);
@@ -3073,11 +3081,11 @@ beamsScenery.visible = false;
 scene.add(beamsGroup);
 scene.add(beamsScenery);
 // lighting for the specular cubes and glossy floor
-const beamsLight = new THREE.DirectionalLight(0xffffff, 1.0);
+const beamsLight = new THREE.DirectionalLight(0xffffff, 0.7); // 30% darker scene
 beamsLight.position.set(24, 45, 15);
 beamsLight.visible = false;
 scene.add(beamsLight);
-const beamsAmbient = new THREE.AmbientLight(0xffffff, 0.4);
+const beamsAmbient = new THREE.AmbientLight(0xffffff, 0.28);
 beamsAmbient.visible = false;
 scene.add(beamsAmbient);
 let beamsPrevFlight = 0;
@@ -3085,10 +3093,11 @@ const beamsFog = new THREE.FogExp2(0x05050a, 0.007);
 function beamsRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
   // ribbons: dominant on the center and outer lanes, others between
+  // (all pulled down 30% for the darker look)
   beamsStripMats.forEach((mat, i) => {
-    if (i === 2) mat.color.copy(dominant);
-    else if (i % 2 === 0) mat.color.copy(dominant).multiplyScalar(0.7);
-    else mat.color.copy(others[i % others.length]);
+    if (i === 2) mat.color.copy(dominant).multiplyScalar(0.7);
+    else if (i % 2 === 0) mat.color.copy(dominant).multiplyScalar(0.5);
+    else mat.color.copy(others[i % others.length]).multiplyScalar(0.7);
   });
   // cubes: three artist shades + the other artists' colors
   beamsCubeMats.forEach((mat, i) => {
@@ -3096,6 +3105,19 @@ function beamsRetint(tr){
     mat.color.copy(c);
     beamsMirrorMats[i].color.copy(c).multiplyScalar(0.6);
   });
+  // floor gradient: near-black under the camera warming into the artist
+  // color at the horizon
+  if (beamsFloorCanvas){
+    const g = beamsFloorCanvas.getContext("2d");
+    const domCss = "#" + dominant.clone().multiplyScalar(0.4).getHexString();
+    const grad = g.createLinearGradient(0, 256, 0, 0);
+    grad.addColorStop(0, "#0a0a10");
+    grad.addColorStop(0.55, "#14141f");
+    grad.addColorStop(1, domCss);
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 4, 256);
+    beamsFloorTex.needsUpdate = true;
+  }
 }
 
 /* ---------- Scene 3 "PRISM": black space filled with curtains of tall
@@ -4001,7 +4023,8 @@ function animate(t){
     beamsPrevFlight = flightDist;
     camera.position.x = Math.sin(swayT * 0.045) * 4;
     camera.position.y = 5.5 + Math.sin(swayT * 0.038 + 1) * 1.5;
-    camera.rotation.x = -0.16 + Math.sin(swayT * 0.03 + 2) * 0.04;
+    // stronger down-tilt sits the horizon ~100px lower in frame
+    camera.rotation.x = -0.25 + Math.sin(swayT * 0.03 + 2) * 0.04;
     camera.rotation.y = Math.sin(swayT * 0.026) * 0.09;
     camera.rotation.z = Math.sin(swayT * 0.033 + 4) * 0.05 + cameraRollOffset;
     beamsCubes.forEach(c => {
@@ -4015,6 +4038,8 @@ function animate(t){
           c.mesh.position.set((Math.random() - 0.5) * 40, 30 + Math.random() * 12, -(70 + Math.random() * 100));
           c.mesh.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
           c.vy = 0;
+          c.vx = 0;
+          c.vz = 0;
           c.av.set((Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5);
           c.state = "fall";
           c.mesh.visible = c.mirror.visible = true;
@@ -4023,6 +4048,12 @@ function animate(t){
         // landed or airborne, everything drifts with the ground scroll
         c.mesh.position.z += beamsScrollDz;
         const half = c.size / 2;
+        // knock-on velocity from cube-cube collisions, air/ground damped
+        c.mesh.position.x += (c.vx || 0) * dtSec;
+        c.mesh.position.z += (c.vz || 0) * dtSec;
+        const hDamp = Math.max(0, 1 - (c.state === "rest" ? 2.2 : 0.5) * dtSec);
+        c.vx = (c.vx || 0) * hDamp;
+        c.vz = (c.vz || 0) * hDamp;
         if (c.state === "fall"){
           c.vy -= 26 * dtSec;           // gravity
           c.mesh.position.y += c.vy * dtSec;
@@ -4039,16 +4070,49 @@ function animate(t){
         c.mesh.rotation.x += c.av.x * dtSec;
         c.mesh.rotation.y += c.av.y * dtSec;
         c.mesh.rotation.z += c.av.z * dtSec;
-        // mirror clone: the floor reflection
-        c.mirror.position.set(c.mesh.position.x, -c.mesh.position.y, c.mesh.position.z);
-        c.mirror.rotation.copy(c.mesh.rotation);
-        c.mirror.scale.set(c.size, -c.size, c.size);
         if (c.mesh.position.z > 30){
           c.state = "wait";
           c.timer = Math.random() * 3;
           c.mesh.visible = c.mirror.visible = false;
         }
       }
+    });
+    // cube-vs-cube: overlapping cubes shove apart and bounce off each
+    // other (sphere-approximate impulse along the contact normal)
+    for (let i = 0; i < beamsCubes.length; i++){
+      const a = beamsCubes[i];
+      if (a.state === "wait") continue;
+      for (let j = i + 1; j < beamsCubes.length; j++){
+        const b = beamsCubes[j];
+        if (b.state === "wait") continue;
+        const dx = a.mesh.position.x - b.mesh.position.x;
+        const dy = a.mesh.position.y - b.mesh.position.y;
+        const dz = a.mesh.position.z - b.mesh.position.z;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        const minDist = (a.size + b.size) * 0.55;
+        if (dist > 0.001 && dist < minDist){
+          const nx = dx / dist, ny = dy / dist, nz = dz / dist;
+          const push = (minDist - dist) / 2;
+          a.mesh.position.x += nx * push; a.mesh.position.y += ny * push; a.mesh.position.z += nz * push;
+          b.mesh.position.x -= nx * push; b.mesh.position.y -= ny * push; b.mesh.position.z -= nz * push;
+          const kick = 2.4;
+          a.vx = (a.vx || 0) + nx * kick; a.vz = (a.vz || 0) + nz * kick; a.vy += Math.max(0, ny * kick);
+          b.vx = (b.vx || 0) - nx * kick; b.vz = (b.vz || 0) - nz * kick; b.vy += Math.max(0, -ny * kick);
+          if (a.state === "rest" && a.vy > 0.5) a.state = "fall";
+          if (b.state === "rest" && b.vy > 0.5) b.state = "fall";
+          a.av.x += (Math.random() - 0.5) * 2;
+          b.av.y += (Math.random() - 0.5) * 2;
+          if (a.mesh.position.y < a.size / 2) a.mesh.position.y = a.size / 2;
+          if (b.mesh.position.y < b.size / 2) b.mesh.position.y = b.size / 2;
+        }
+      }
+    }
+    // mirror clones follow after all position corrections
+    beamsCubes.forEach(c => {
+      if (!c.mesh.visible) return;
+      c.mirror.position.set(c.mesh.position.x, -c.mesh.position.y, c.mesh.position.z);
+      c.mirror.rotation.copy(c.mesh.rotation);
+      c.mirror.scale.set(c.size, -c.size, c.size);
     });
   } else if (prismGroup.visible){
     // slat curtains: slow elegant drift between the glowing rims
