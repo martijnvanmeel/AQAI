@@ -3222,7 +3222,10 @@ const prismBloomMats = [];
     b.uv.push(0, 0, 1, 0, 1, 1, 0, 1);
     b.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
   };
-  const SLAT_W = 2.4, SLAT_H = 26, STEP = 3.4, EDGE_W = 0.5;
+  // slats tower far above and below the view (SLAT_H 110), and every slat
+  // and every glow rim gets its own random thickness - rims span roughly
+  // 1px hairlines to fat 10px bars on screen
+  const SLAT_H = 110, STEP = 3.4;
   const perChunk = Math.floor(PRISM_CHUNK_LENGTH / STEP);
   for (let rep = 0; rep < PRISM_REPEATS; rep++){
     for (let zi = 0; zi < perChunk; zi++){
@@ -3230,14 +3233,16 @@ const prismBloomMats = [];
         // slight per-slat x jitter gives the curtain its wavy depth
         const x = sideSign * (16 + h(zi * 3 + si, 1) * 6);
         const z = -(zi + 0.5) * STEP - rep * PRISM_CHUNK_LENGTH;
-        const yOff = (h(zi * 5 + si, 2) - 0.5) * 6;
-        pushPanel([[x, yOff - SLAT_H / 2, z - SLAT_W / 2], [x, yOff - SLAT_H / 2, z + SLAT_W / 2],
-          [x, yOff + SLAT_H / 2, z + SLAT_W / 2], [x, yOff + SLAT_H / 2, z - SLAT_W / 2]]);
+        const yOff = (h(zi * 5 + si, 2) - 0.5) * 10;
+        const slatW = 1 + h(zi * 7 + si, 4) * 3.2;
+        pushPanel([[x, yOff - SLAT_H / 2, z - slatW / 2], [x, yOff - SLAT_H / 2, z + slatW / 2],
+          [x, yOff + SLAT_H / 2, z + slatW / 2], [x, yOff + SLAT_H / 2, z - slatW / 2]]);
         // glowing rims on both vertical edges of the slat
-        [z - SLAT_W / 2, z + SLAT_W / 2].forEach((ze, ei) => {
+        [z - slatW / 2, z + slatW / 2].forEach((ze, ei) => {
           const mi = Math.floor(h(zi * 11 + si * 29 + ei, 3) * 6);
-          pushEdge(mi, [[x, yOff - SLAT_H / 2, ze - EDGE_W], [x, yOff - SLAT_H / 2, ze + EDGE_W],
-            [x, yOff + SLAT_H / 2, ze + EDGE_W], [x, yOff + SLAT_H / 2, ze - EDGE_W]]);
+          const edgeW = 0.1 + h(zi * 13 + si * 37 + ei, 5) * 1.1;
+          pushEdge(mi, [[x, yOff - SLAT_H / 2, ze - edgeW], [x, yOff - SLAT_H / 2, ze + edgeW],
+            [x, yOff + SLAT_H / 2, ze + edgeW], [x, yOff + SLAT_H / 2, ze - edgeW]]);
         });
       });
     }
