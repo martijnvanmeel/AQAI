@@ -2765,10 +2765,9 @@ const tilesBlocks = []; // floating animated cubes, driven in animate()
     // repeat-wrapped: whole surfaces run one continuous self-tileable
     // pattern, every tile matching its neighbours exactly
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    // Phong: the key light shades each face by orientation AND lays a
-    // strong specular sheen over the whole world; everything receives the
-    // blocks' cast shadows and reacts clearly to the traveling light
-    tilesMats.push(new THREE.MeshPhongMaterial({ map: tex, specular: 0x777777, shininess: 40, side: THREE.DoubleSide }));
+    // unlit: the walls show their patterns flat, with no reaction to the
+    // traveling light (only the cubes stay lit/shaded)
+    tilesMats.push(new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
   }
   for (let i = 0; i < 4; i++){
     const cv = document.createElement("canvas");
@@ -2860,10 +2859,8 @@ const tilesBlocks = []; // floating animated cubes, driven in animate()
     geo.setAttribute("position", new THREE.Float32BufferAttribute(b.pos, 3));
     geo.setAttribute("uv", new THREE.Float32BufferAttribute(b.uv, 2));
     geo.setIndex(b.idx);
-    geo.computeVertexNormals(); // lit shading needs real normals
+    geo.computeVertexNormals();
     const mesh = new THREE.Mesh(geo, tilesMats[mi]);
-    mesh.receiveShadow = true;
-    mesh.castShadow = true; // the angled facets shadow each other too
     mesh.frustumCulled = false;
     tilesGroup.add(mesh);
   });
