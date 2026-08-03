@@ -3452,9 +3452,9 @@ function prismRetint(tr){
    references) - the flight passes straight through their dark centers,
    with thin halo outlines orbiting the larger gates. Band colors use 8
    slots: four shades of the artist color, four cycling the others. ---------- */
-const RINGS_CHUNK_LENGTH = 120;
+const RINGS_CHUNK_LENGTH = 180; // stretched: much more z-space between gates
 const RINGS_REPEATS = 3;
-const RINGS_SPEED = 4; // halved - everything glides
+const RINGS_SPEED = 6; // 1.5x forward pace
 // the serpentine spine the ring tunnel bends along - left/right, up/down,
 // periodic over the chunk so the endless wrap stays seamless
 function ringsPathAt(dist){
