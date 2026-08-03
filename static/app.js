@@ -3196,16 +3196,14 @@ function beamsRetint(tr){
     mat.color.copy(c);
     beamsMirrorMats[i].color.copy(c).multiplyScalar(0.6);
   });
-  // floor gradient: LIGHT under the camera, falling off into darkness at
-  // the far end
+  // floor gradient: dark blue under the camera sweeping into a
+  // medium-light red at the far end
   if (beamsFloorCanvas){
     const g = beamsFloorCanvas.getContext("2d");
-    const nearCss = "#" + dominant.clone().multiplyScalar(0.45).lerp(new THREE.Color(0xdddde6), 0.5).getHexString();
-    const midCss = "#" + dominant.clone().multiplyScalar(0.16).getHexString();
     const grad = g.createLinearGradient(0, 256, 0, 0);
-    grad.addColorStop(0, nearCss);
-    grad.addColorStop(0.4, midCss);
-    grad.addColorStop(1, "#000000");
+    grad.addColorStop(0, "#0b1030");
+    grad.addColorStop(0.5, "#3a1a3c");
+    grad.addColorStop(1, "#b04c4c");
     g.fillStyle = grad;
     g.fillRect(0, 0, 4, 256);
     beamsFloorTex.needsUpdate = true;
@@ -3567,13 +3565,17 @@ function ringsRetint(tr){
   // shade at the innermost ring, through the full artist color, out into
   // the other artists' hues - every circle sits on the same ramp, so all
   // rings match
-  // intense ramp: full-strength artist and other-artist colors
+  // intense ramp with far more variety: artist shades interleaved with
+  // four different other-artist hues and a bright tint
   const stops = [
     dominant.clone().multiplyScalar(0.5),
-    dominant.clone().multiplyScalar(0.85),
     dominant.clone(),
     others[0].clone(),
+    dominant.clone().lerp(new THREE.Color(0xffffff), 0.25),
     others[1 % others.length].clone(),
+    dominant.clone().multiplyScalar(0.75),
+    others[2 % others.length].clone(),
+    others[3 % others.length].clone(),
   ];
   const gradientAt = t => {
     const f = t * (stops.length - 1);
@@ -3587,9 +3589,12 @@ function ringsRetint(tr){
     gate.bands.forEach(band => {
       const g = band.canvas.getContext("2d");
       g.clearRect(0, 0, 512, 512);
-      const c = gradientAt(band.t);
-      g.fillStyle = `rgb(${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)})`;
       const seed = band.r0 * 7.13 + band.t * 11;
+      // per-band brightness jitter (+/-15%) on top of the ramp adds even
+      // more ring-to-ring variety
+      const jitter = 0.85 + ((Math.sin(seed * 91.7) * 43758.5453) % 1 + 1) % 1 * 0.3;
+      const c = gradientAt(band.t).multiplyScalar(jitter);
+      g.fillStyle = `rgb(${Math.round(Math.min(255, c.r * 255))},${Math.round(Math.min(255, c.g * 255))},${Math.round(Math.min(255, c.b * 255))})`;
       const rInner = (band.r0 / band.r1) * 256;
       const PTS = 180; // dense sampling keeps the wobble curve silky
       g.beginPath();
@@ -4341,11 +4346,20 @@ function animate(t){
             c.mesh.position.y = half;
             c.vy = -c.vy * 0.42;        // restitution: each bounce lower
             c.av.multiplyScalar(0.7);   // impacts bleed off spin too
-            if (c.vy < 1.4){ c.vy = 0; c.state = "rest"; }
+            if (c.vy < 1.4){
+              c.vy = 0;
+              c.state = "rest";
+              // settle target: the nearest flat face-down orientation
+              const snap = v => Math.round(v / (Math.PI / 2)) * (Math.PI / 2);
+              c.restRot = { x: snap(c.mesh.rotation.x), y: c.mesh.rotation.y, z: snap(c.mesh.rotation.z) };
+            }
           }
         } else {
-          // resting: rolling slowly damps to a stop
-          c.av.multiplyScalar(Math.max(0, 1 - 1.4 * dtSec));
+          // resting: spin dies out and the cube eases onto a flat face
+          c.av.multiplyScalar(Math.max(0, 1 - 3 * dtSec));
+          const ease = Math.min(1, 3 * dtSec);
+          c.mesh.rotation.x += (c.restRot.x - c.mesh.rotation.x) * ease;
+          c.mesh.rotation.z += (c.restRot.z - c.mesh.rotation.z) * ease;
         }
         c.mesh.rotation.x += c.av.x * dtSec;
         c.mesh.rotation.y += c.av.y * dtSec;
