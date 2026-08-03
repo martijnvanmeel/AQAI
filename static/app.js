@@ -3210,22 +3210,9 @@ let beamsFloorTex = null;
   // strongly reflective glossy floor, brightened ~30%
   const floorMat = new THREE.MeshPhongMaterial({ map: beamsFloorTex, color: 0xffffff, specular: 0xffffff,
     shininess: 130, transparent: true, opacity: 0.74, side: THREE.DoubleSide });
-  // terrain everywhere: gentle little hills roll through the central band
-  // too (the cubes land on them - see beamsGroundY), with the big hills
-  // climbing beyond the sides
-  const floorGeo = new THREE.PlaneGeometry(240, 460, 60, 110);
+  // flat ground again - the hills are gone
+  const floorGeo = new THREE.PlaneGeometry(240, 460);
   floorGeo.rotateX(-Math.PI / 2);
-  {
-    const pos = floorGeo.attributes.position;
-    for (let i = 0; i < pos.count; i++){
-      const x = pos.getX(i), z = pos.getZ(i);
-      const t = Math.min(1, Math.max(0, (Math.abs(x) - 26) / 84));
-      const edge = t * t * (3 - 2 * t); // smoothstep out of the central band
-      pos.setY(i, beamsGroundY(x, z)
-        + edge * (6 + Math.sin(x * 0.05) * 3 + Math.sin(z * 0.04 + x * 0.02) * 4 + Math.sin(z * 0.09) * 2));
-    }
-    floorGeo.computeVertexNormals();
-  }
   const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.position.set(0, 0, -160);
   floor.receiveShadow = true; // the falling cubes cast onto it
@@ -3359,10 +3346,10 @@ scene.add(beamsAmbient);
 let beamsPrevFlight = 0;
 let beamsLastBigDrop = 0; // clock of the once-per-~5s giant cube
 const beamsRotMat = new THREE.Matrix4(); // scratch for cube support-height math
-// gentle undulation of the landing ground - little hills the cubes
-// actually rest on (shared by the floor mesh and the physics)
+// flat landing ground (kept as a function so the floor mesh and the
+// physics stay in sync if terrain ever comes back)
 function beamsGroundY(x, z){
-  return Math.sin(x * 0.15) * 0.5 + Math.sin(z * 0.07 + x * 0.1) * 0.6;
+  return 0;
 }
 const beamsFog = new THREE.FogExp2(0x05050a, 0.007);
 function beamsRetint(tr){
@@ -3942,6 +3929,272 @@ function checkRetint(tr){
 
 /* ---------- scene navigator: cycle between AUTO (per-artist pick) and
    every world directly, whatever track is playing ---------- */
+/* ================================================================
+   FIVE REFERENCE SCENES — PORTAL (rounded-rect tunnel), BURST
+   (radial teardrops), DOMINO (toppling rows), EYES (blinking field),
+   HANDS (waving fans). All chunk-wrapped off the shared flight clock;
+   colors follow the artist palette rule (dominant ~50%, others rest)
+   ================================================================ */
+
+// -- PORTAL: flying through endless concentric rounded-rectangle frames --
+const PORTAL_CHUNK_LENGTH = 180, PORTAL_SPEED = 9;
+const portalGroup = new THREE.Group();
+const portalFrames = [];
+{
+  const cv = document.createElement("canvas");
+  cv.width = 512; cv.height = 384;
+  const g = cv.getContext("2d");
+  const rr = (x, y, w, hh, r) => {
+    g.beginPath();
+    g.moveTo(x + r, y);
+    g.arcTo(x + w, y, x + w, y + hh, r);
+    g.arcTo(x + w, y + hh, x, y + hh, r);
+    g.arcTo(x, y + hh, x, y, r);
+    g.arcTo(x, y, x + w, y, r);
+    g.closePath();
+  };
+  g.strokeStyle = "#ffffff";
+  g.lineWidth = 30;
+  rr(24, 20, 464, 344, 110); g.stroke();
+  const tex = new THREE.CanvasTexture(cv);
+  tex.anisotropy = 8;
+  const FRAME_STEP = 9;
+  for (let rep = -1; rep <= 2; rep++){
+    for (let i = 0; i < PORTAL_CHUNK_LENGTH / FRAME_STEP; i++){
+      const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide, depthWrite: false });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(96, 72), mat);
+      mesh.position.z = -(rep * PORTAL_CHUNK_LENGTH + i * FRAME_STEP);
+      mesh.userData.ci = i; // color index - stable per ring so the rainbow order holds
+      portalFrames.push(mesh);
+      portalGroup.add(mesh);
+    }
+  }
+}
+portalGroup.visible = false;
+scene.add(portalGroup);
+const portalFog = new THREE.FogExp2(0x070707, 0.014);
+function portalRetint(tr){
+  const { dominant, others } = artistScenePalette(tr);
+  const cols = [
+    dominant, dominant.clone().lerp(new THREE.Color(0xffffff), 0.35),
+    others[0], dominant.clone().multiplyScalar(0.7),
+    others[1 % others.length], dominant,
+    others[2 % others.length], others[3 % others.length],
+  ];
+  portalFrames.forEach(m => m.material.color.copy(cols[m.userData.ci % cols.length]));
+}
+
+// -- BURST: radial teardrop/spike explosions we fly straight through --
+const BURST_CHUNK_LENGTH = 120, BURST_SPEED = 10;
+const burstGroup = new THREE.Group();
+const burstMats = [];
+{
+  const cv = document.createElement("canvas");
+  cv.width = 128; cv.height = 512;
+  const g = cv.getContext("2d");
+  g.fillStyle = "#ffffff";
+  // teardrop: round head up top, tapering to a point at the bottom (the
+  // point aims at the burst's center once rotated into place)
+  g.beginPath();
+  g.arc(64, 80, 56, Math.PI, 0);
+  g.quadraticCurveTo(120, 300, 64, 500);
+  g.quadraticCurveTo(8, 300, 8, 80);
+  g.closePath(); g.fill();
+  const tex = new THREE.CanvasTexture(cv);
+  for (let i = 0; i < 6; i++) burstMats.push(new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+  const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+  const STATIONS = 2;
+  for (let rep = -1; rep <= 1; rep++){
+    for (let s = 0; s < STATIONS; s++){
+      const station = new THREE.Group();
+      station.position.z = -(rep * BURST_CHUNK_LENGTH + s * (BURST_CHUNK_LENGTH / STATIONS));
+      station.userData.spin = (h(rep * 7 + s, 3) - 0.5) * 0.06;
+      const N = 44;
+      for (let k = 0; k < N; k++){
+        const a = (k / N) * Math.PI * 2 + h(s * 31 + k, 1) * 0.1;
+        const len = 9 + h(s * 31 + k, 2) * 26;
+        const wdt = len * (0.16 + h(s * 31 + k, 4) * 0.1);
+        const rad = 7 + h(s * 31 + k, 5) * 30;
+        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(wdt, len), burstMats[k % burstMats.length]);
+        mesh.position.set(Math.cos(a) * (rad + len / 2), Math.sin(a) * (rad + len / 2), 0);
+        mesh.rotation.z = a - Math.PI / 2;
+        station.add(mesh);
+      }
+      burstGroup.add(station);
+    }
+  }
+}
+burstGroup.visible = false;
+scene.add(burstGroup);
+const burstFog = new THREE.FogExp2(0x050505, 0.006);
+function burstRetint(tr){
+  const { dominant, others } = artistScenePalette(tr);
+  const w = new THREE.Color(0xffffff);
+  // mostly near-white like the reference, half of them pulled toward the
+  // artist's color, the rest hinting at the other artists
+  const cols = [
+    w, dominant.clone().lerp(w, 0.55), dominant.clone().lerp(w, 0.3),
+    others[0].clone().lerp(w, 0.4), w, others[2 % others.length].clone().lerp(w, 0.4),
+  ];
+  burstMats.forEach((m, i) => m.color.copy(cols[i % cols.length]));
+}
+
+// -- DOMINO: rows of dominoes toppling in a travelling wave as we pass --
+const DOMINO_CHUNK_LENGTH = 150, DOMINO_SPEED = 8;
+const dominoGroup = new THREE.Group();
+const dominoPivots = [];
+const dominoDarkMat = new THREE.MeshBasicMaterial({ color: 0x101010 });
+const dominoAltMats = [0, 1, 2, 3].map(() => new THREE.MeshBasicMaterial({ color: 0x101010 }));
+const dominoFloorMat = new THREE.MeshBasicMaterial({ color: 0x992222 });
+{
+  const boxGeo = new THREE.BoxGeometry(2.6, 5.4, 0.9);
+  const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+  const LINES = [-21, -8, 8, 21];
+  for (let rep = -1; rep <= 1; rep++){
+    LINES.forEach((lx, li) => {
+      for (let i = 0; i < DOMINO_CHUNK_LENGTH / 6; i++){
+        // pivot at the ground line so the topple rotates around the base
+        const pv = new THREE.Group();
+        pv.position.set(lx + (h(li * 40 + i, 6) - 0.5) * 2, 0, -(rep * DOMINO_CHUNK_LENGTH + i * 6 + li * 1.5));
+        // palette rule: half the dominoes near-black like the reference,
+        // half in dark variants of the other artists' colors
+        const useAlt = h(li * 40 + i, 7) < 0.5;
+        const mesh = new THREE.Mesh(boxGeo, useAlt ? dominoAltMats[(li + i) % 4] : dominoDarkMat);
+        mesh.position.y = 2.7;
+        pv.add(mesh);
+        pv.userData.stagger = li * 1.5 + h(li * 40 + i, 8) * 1.2;
+        dominoPivots.push(pv);
+        dominoGroup.add(pv);
+      }
+    });
+  }
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 700), dominoFloorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.z = -200;
+  dominoGroup.add(floor);
+}
+dominoGroup.visible = false;
+scene.add(dominoGroup);
+const dominoBgColor = new THREE.Color(0x220808);
+const dominoFog = new THREE.FogExp2(0x220808, 0.01);
+function dominoRetint(tr){
+  const { dominant, others } = artistScenePalette(tr);
+  dominoFloorMat.color.copy(dominant.clone().multiplyScalar(0.8));
+  dominoAltMats.forEach((m, i) => m.color.copy(others[i % others.length].clone().multiplyScalar(0.4)));
+  dominoBgColor.copy(dominant.clone().multiplyScalar(0.5));
+  dominoFog.color.copy(dominoBgColor);
+}
+
+// -- EYES: a floating field of blinking eyes on an artist-color sky --
+const EYES_CHUNK_LENGTH = 220, EYES_SPEED = 5;
+const eyesGroup = new THREE.Group();
+const eyesList = [];
+const eyesIrisMats = [];
+{
+  // sclera + pupil (never tinted): white almond, black pupil
+  const cvS = document.createElement("canvas"); cvS.width = 512; cvS.height = 256;
+  const gS = cvS.getContext("2d");
+  gS.fillStyle = "#ffffff";
+  gS.beginPath(); gS.moveTo(10, 128);
+  gS.quadraticCurveTo(256, -70, 502, 128);
+  gS.quadraticCurveTo(256, 326, 10, 128);
+  gS.closePath(); gS.fill();
+  gS.fillStyle = "#000000";
+  gS.beginPath(); gS.arc(256, 128, 52, 0, Math.PI * 2); gS.fill();
+  const texS = new THREE.CanvasTexture(cvS);
+  // iris ring, tinted per artist palette
+  const cvI = document.createElement("canvas"); cvI.width = 256; cvI.height = 256;
+  const gI = cvI.getContext("2d");
+  gI.fillStyle = "#ffffff";
+  gI.beginPath(); gI.arc(128, 128, 96, 0, Math.PI * 2);
+  gI.arc(128, 128, 52, 0, Math.PI * 2, true); gI.fill();
+  const texI = new THREE.CanvasTexture(cvI);
+  for (let i = 0; i < 5; i++) eyesIrisMats.push(new THREE.MeshBasicMaterial({ map: texI, transparent: true, depthWrite: false }));
+  const sclMat = new THREE.MeshBasicMaterial({ map: texS, transparent: true, depthWrite: false });
+  const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+  const N = 14;
+  for (let rep = -1; rep <= 1; rep++){
+    for (let i = 0; i < N; i++){
+      const eye = new THREE.Group();
+      const size = 10 + h(i, 11) * 18;
+      const scl = new THREE.Mesh(new THREE.PlaneGeometry(size, size / 2), sclMat);
+      const iris = new THREE.Mesh(new THREE.PlaneGeometry(size * 0.375, size * 0.375), eyesIrisMats[i % eyesIrisMats.length]);
+      iris.position.z = 0.3;
+      eye.add(scl); eye.add(iris);
+      eye.position.set((h(i, 12) - 0.5) * 90, (h(i, 13) - 0.5) * 60,
+        -(rep * EYES_CHUNK_LENGTH + (i / N) * EYES_CHUNK_LENGTH + h(i, 14) * 8));
+      eye.userData.blinkPhase = h(i, 15) * Math.PI * 2;
+      eye.userData.blinkSpeed = 0.5 + h(i, 16) * 0.7;
+      eyesList.push(eye);
+      eyesGroup.add(eye);
+    }
+  }
+}
+eyesGroup.visible = false;
+scene.add(eyesGroup);
+const eyesBgColor = new THREE.Color(0x102040);
+const eyesFog = new THREE.FogExp2(0x102040, 0.008);
+function eyesRetint(tr){
+  const { dominant, others } = artistScenePalette(tr);
+  // irises: half in the artist's color, the rest in the other artists'
+  eyesIrisMats.forEach((m, i) => m.color.copy(i % 2 === 0 ? dominant : others[i % others.length]));
+  eyesBgColor.copy(dominant.clone().multiplyScalar(0.55));
+  eyesFog.color.copy(eyesBgColor);
+}
+
+// -- HANDS: stylized fanned-finger hands waving as they drift past --
+const HANDS_CHUNK_LENGTH = 220, HANDS_SPEED = 5;
+const handsGroup = new THREE.Group();
+const handsList = [];
+const handsMats = [];
+{
+  const cv = document.createElement("canvas"); cv.width = 512; cv.height = 512;
+  const g = cv.getContext("2d");
+  g.fillStyle = "#ffffff";
+  g.beginPath(); g.ellipse(256, 370, 118, 105, 0, 0, Math.PI * 2); g.fill();
+  // five fanned fingers, varying lengths, round tips
+  for (let f = 0; f < 5; f++){
+    const a = (-64 + f * 32) * Math.PI / 180;
+    const len = 170 + Math.sin(f * 1.7) * 30;
+    g.save();
+    g.translate(256, 340);
+    g.rotate(a);
+    g.fillRect(-26, -len, 52, len);
+    g.beginPath(); g.arc(0, -len, 26, 0, Math.PI * 2); g.fill();
+    g.restore();
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  for (let i = 0; i < 5; i++) handsMats.push(new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+  const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+  const N = 12;
+  for (let rep = -1; rep <= 1; rep++){
+    for (let i = 0; i < N; i++){
+      const size = 14 + h(i, 21) * 22;
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), handsMats[i % handsMats.length]);
+      mesh.position.set((h(i, 22) - 0.5) * 80, (h(i, 23) - 0.5) * 55,
+        -(rep * HANDS_CHUNK_LENGTH + (i / N) * HANDS_CHUNK_LENGTH + h(i, 24) * 10));
+      mesh.userData.wavePhase = h(i, 25) * Math.PI * 2;
+      mesh.userData.waveSpeed = 0.8 + h(i, 26) * 1.2;
+      handsList.push(mesh);
+      handsGroup.add(mesh);
+    }
+  }
+}
+handsGroup.visible = false;
+scene.add(handsGroup);
+const handsBgColor = new THREE.Color(0x401008);
+const handsFog = new THREE.FogExp2(0x401008, 0.008);
+function handsRetint(tr){
+  const { dominant, others } = artistScenePalette(tr);
+  // hands: half in bright artist color (some pulled toward white), the
+  // rest in the other artists' colors
+  const w = new THREE.Color(0xffffff);
+  const cols = [dominant, dominant.clone().lerp(w, 0.35), others[0], dominant.clone().multiplyScalar(0.75), others[2 % others.length]];
+  handsMats.forEach((m, i) => m.color.copy(cols[i % cols.length]));
+  handsBgColor.copy(dominant.clone().multiplyScalar(0.45));
+  handsFog.color.copy(handsBgColor);
+}
+
 const SCENE_LIST = [
   { id: "auto",   label: "AUTO" },
   { id: "sphere", label: "SPHERE" },
@@ -3954,6 +4207,11 @@ const SCENE_LIST = [
   { id: "rings",  label: "RINGS" },
   { id: "check",  label: "NATURE" },
   { id: "cube",   label: "CUBE" },
+  { id: "portal", label: "PORTAL" },
+  { id: "burst",  label: "BURST" },
+  { id: "domino", label: "DOMINO" },
+  { id: "eyes",   label: "EYES" },
+  { id: "hands",  label: "HANDS" },
 ];
 let sceneOverride = "auto";
 let sceneNavIdx = 0;
@@ -3991,7 +4249,13 @@ function updateArtistBackground(tr){
   const wantRings = !gateActive && sceneId === "rings";
   const wantCheck = !gateActive && sceneId === "check";
   const wantCube = !gateActive && sceneId === "cube";
-  const want3d = wantRoad || wantMist || wantMaze || wantTiles || wantBeams || wantPrism || wantRings || wantCheck || wantCube;
+  const wantPortal = !gateActive && sceneId === "portal";
+  const wantBurst = !gateActive && sceneId === "burst";
+  const wantDomino = !gateActive && sceneId === "domino";
+  const wantEyes = !gateActive && sceneId === "eyes";
+  const wantHands = !gateActive && sceneId === "hands";
+  const want3d = wantRoad || wantMist || wantMaze || wantTiles || wantBeams || wantPrism || wantRings || wantCheck
+    || wantCube || wantPortal || wantBurst || wantDomino || wantEyes || wantHands;
   roadGroup.visible = wantRoad;
   roadScenery.visible = wantRoad;
   mistGroup.visible = wantMist;
@@ -4015,6 +4279,11 @@ function updateArtistBackground(tr){
   ringsScenery.visible = false; // end-of-tunnel glow retired - solid backdrop only
   ringsStars.visible = wantRings;
   checkGroup.visible = wantCheck;
+  portalGroup.visible = wantPortal;
+  burstGroup.visible = wantBurst;
+  dominoGroup.visible = wantDomino;
+  eyesGroup.visible = wantEyes;
+  handsGroup.visible = wantHands;
   const wantSphere = !gateActive && !want3d;
   if (panoMesh) panoMesh.visible = wantSphere;
   if (panoMirrorMesh) panoMirrorMesh.visible = wantSphere;
@@ -4039,7 +4308,8 @@ function updateArtistBackground(tr){
   // tunnel) = a more zoomed, cinematic framing; only the plain video
   // sphere keeps the natural 1x lens
   camera.zoom = gateActive ? 1.3 : wantRoad ? 1.6 : wantMist ? 1.5 : wantMaze ? 1.35
-    : wantTiles ? 1.4 : wantCheck ? 1.6 : (wantBeams || wantPrism || wantRings) ? 1.45 : 1;
+    : wantTiles ? 1.4 : wantCheck ? 1.6 : (wantBeams || wantPrism || wantRings) ? 1.45
+    : (wantPortal || wantBurst) ? 1.2 : (wantDomino || wantEyes || wantHands) ? 1.35 : 1;
   camera.updateProjectionMatrix();
   if (wantRoad){
     // transparent clear: the sky is a CSS gradient behind the canvas
@@ -4096,6 +4366,26 @@ function updateArtistBackground(tr){
     // fully enclosed room - the cube's own faces are the backdrop
     renderer.setClearColor(0x050505, 1);
     scene.fog = null;
+  } else if (wantPortal){
+    portalRetint(tr);
+    renderer.setClearColor(0x070707, 1);
+    scene.fog = portalFog;
+  } else if (wantBurst){
+    burstRetint(tr);
+    renderer.setClearColor(0x050505, 1);
+    scene.fog = burstFog;
+  } else if (wantDomino){
+    dominoRetint(tr);
+    renderer.setClearColor(dominoBgColor, 1);
+    scene.fog = dominoFog;
+  } else if (wantEyes){
+    eyesRetint(tr);
+    renderer.setClearColor(eyesBgColor, 1);
+    scene.fog = eyesFog;
+  } else if (wantHands){
+    handsRetint(tr);
+    renderer.setClearColor(handsBgColor, 1);
+    scene.fog = handsFog;
   } else {
     renderer.setClearColor(0x000000, 0);
     scene.fog = null;
@@ -4581,17 +4871,17 @@ function animate(t){
           // 2x bigger base cubes, a fifth doubled again, a few 4x, spread
           // deep and kept OUT of the camera's sweep lane; every ~5s a true
           // giant drops.
-          c.size = 0.9 + Math.random() * 1.95; // 75% of the former base
+          c.size = 0.75 + Math.random() * 1.6; // slightly smaller again
           if (Math.random() < 0.2) c.size *= 2;
           if (Math.random() < 0.08) c.size *= 4; // the extra-big tier
           if (nowSec - beamsLastBigDrop > 5){
-            c.size = 4.2 + Math.random() * 2.1;
+            c.size = 3.6 + Math.random() * 1.8;
             beamsLastBigDrop = nowSec;
           }
           c.mesh.scale.setScalar(c.size);
-          // constrained to the flat central band, clear of the hills
+          // kept well clear of the camera's sweep lane
           const dropSide = Math.random() < 0.5 ? -1 : 1;
-          c.mesh.position.set(dropSide * (11 + Math.random() * 13), 30 + Math.random() * 12, -(50 + Math.random() * 120));
+          c.mesh.position.set(dropSide * (16 + Math.random() * 14), 30 + Math.random() * 12, -(50 + Math.random() * 120));
           c.mesh.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
           c.vy = 0;
           c.vx = 0;
@@ -4625,10 +4915,14 @@ function animate(t){
             c.mesh.position.y = support;
             c.vy = -c.vy * 0.42;        // restitution: each bounce lower
             c.av.multiplyScalar(0.7);   // impacts bleed off spin too
-            if (c.vy < 1.4){ c.vy = 0; c.state = "rest"; }
-            // jelly wobble: impact squashes the cube, then it jiggles out
-            c.jAmp = Math.min(0.3, impact / 25);
-            c.jT = 0;
+            if (c.vy < 1.4){
+              c.vy = 0; c.state = "rest";
+              // pick the nearest flat-face orientation - the rest phase
+              // below eases onto it so the cube realistically tips over
+              // its edge and settles with one surface flat on the ground
+              c.setRx = Math.round(c.mesh.rotation.x / (Math.PI / 2)) * (Math.PI / 2);
+              c.setRz = Math.round(c.mesh.rotation.z / (Math.PI / 2)) * (Math.PI / 2);
+            }
             // light up a soft round glow where it hit
             if (impact > 3){
               const r = beamsRipples.find(x => x.life >= 1);
@@ -4642,24 +4936,21 @@ function animate(t){
             }
           }
         } else {
-          // resting: spin dies out at whatever angle it stopped, the cube
-          // riding its lowest corner so it never pokes through the floor
+          // resting: spin dies out while the cube slowly tips over its
+          // contact edge onto the nearest flat face, the support height
+          // keeping every corner above the floor all the way down
           c.av.multiplyScalar(Math.max(0, 1 - 3 * dtSec));
+          if (c.setRx !== undefined){
+            const k = Math.min(1, 3.2 * dtSec);
+            c.mesh.rotation.x += (c.setRx - c.mesh.rotation.x) * k;
+            c.mesh.rotation.z += (c.setRz - c.mesh.rotation.z) * k;
+          }
           c.mesh.position.y = support;
         }
         c.mesh.rotation.x += c.av.x * dtSec;
         c.mesh.rotation.y += c.av.y * dtSec;
         c.mesh.rotation.z += c.av.z * dtSec;
-        // jelly: a damped squash-and-stretch oscillation after impacts
-        if ((c.jAmp || 0) > 0.004){
-          c.jT += dtSec * 14;
-          c.jAmp *= Math.max(0, 1 - 4 * dtSec);
-          const sy = 1 - Math.cos(c.jT) * c.jAmp;
-          const sxz = 1 + Math.cos(c.jT) * c.jAmp * 0.6;
-          c.mesh.scale.set(c.size * sxz, c.size * sy, c.size * sxz);
-        } else {
-          c.mesh.scale.setScalar(c.size);
-        }
+        c.mesh.scale.setScalar(c.size);
         if (c.mesh.position.z > 30){
           c.state = "wait";
           c.timer = Math.random() * 3;
@@ -4805,6 +5096,65 @@ function animate(t){
     camera.rotation.x = checkCamPitch;
     camera.rotation.y = checkCamYaw;
     camera.rotation.z = checkCamBank + nowSec * (Math.PI * 2 / 180) + cameraRollOffset;
+  } else if (portalGroup.visible){
+    // endless concentric rounded-rect frames; a drifting off-center path
+    // so the nested rings slide around each other
+    portalGroup.position.z = wrapScroll(flightDist * PORTAL_SPEED, PORTAL_CHUNK_LENGTH);
+    camera.position.x = Math.sin(swayT * 0.02) * 7;
+    camera.position.y = Math.sin(swayT * 0.016 + 1) * 5;
+    camera.rotation.x = Math.sin(swayT * 0.012 + 2) * 0.05;
+    camera.rotation.y = Math.sin(swayT * 0.014) * 0.06;
+    camera.rotation.z = Math.sin(swayT * 0.01 + 3) * 0.1 + cameraRollOffset;
+  } else if (burstGroup.visible){
+    // teardrop explosions: each station slowly spins its own way while
+    // the flight carries us through the middle of every burst
+    burstGroup.position.z = wrapScroll(flightDist * BURST_SPEED, BURST_CHUNK_LENGTH);
+    burstGroup.children.forEach(st => { st.rotation.z += (st.userData.spin || 0) * dtSec; });
+    camera.position.x = Math.sin(swayT * 0.018) * 2.5;
+    camera.position.y = Math.sin(swayT * 0.015 + 1) * 2;
+    camera.rotation.x = Math.sin(swayT * 0.011 + 2) * 0.04;
+    camera.rotation.y = Math.sin(swayT * 0.013) * 0.05;
+    camera.rotation.z = Math.sin(swayT * 0.009 + 3) * 0.08 + cameraRollOffset;
+  } else if (dominoGroup.visible){
+    // the topple wave: every domino stands until the flight brings it
+    // near, then it eases over around its ground edge and stays down
+    // until the wrap resets it far ahead
+    dominoGroup.position.z = wrapScroll(flightDist * DOMINO_SPEED, DOMINO_CHUNK_LENGTH);
+    dominoPivots.forEach(pv => {
+      const wz = pv.position.z + dominoGroup.position.z;
+      const p = Math.min(1, Math.max(0, (wz + 26 + pv.userData.stagger) / 7));
+      pv.rotation.x = -(p * p) * 1.45;
+    });
+    camera.position.x = Math.sin(swayT * 0.018) * 5;
+    camera.position.y = 7 + Math.sin(swayT * 0.014 + 1) * 2;
+    camera.rotation.x = -0.18 + Math.sin(swayT * 0.011) * 0.04;
+    camera.rotation.y = Math.sin(swayT * 0.013) * 0.05;
+    camera.rotation.z = Math.sin(swayT * 0.01 + 2) * 0.05 + cameraRollOffset;
+  } else if (eyesGroup.visible){
+    // floating eye field, every eye blinking on its own clock
+    eyesGroup.position.z = wrapScroll(flightDist * EYES_SPEED, EYES_CHUNK_LENGTH);
+    const nowSec = (t || 0) * 0.001;
+    eyesList.forEach(e => {
+      const b = Math.pow(Math.max(0, Math.sin(nowSec * e.userData.blinkSpeed + e.userData.blinkPhase)), 24);
+      e.scale.y = 1 - b * 0.94;
+    });
+    camera.position.x = Math.sin(swayT * 0.017) * 6;
+    camera.position.y = Math.sin(swayT * 0.013 + 1) * 4;
+    camera.rotation.x = Math.sin(swayT * 0.01 + 2) * 0.05;
+    camera.rotation.y = Math.sin(swayT * 0.012) * 0.06;
+    camera.rotation.z = Math.sin(swayT * 0.008 + 3) * 0.07 + cameraRollOffset;
+  } else if (handsGroup.visible){
+    // waving hands: each rocks around its wrist on its own beat
+    handsGroup.position.z = wrapScroll(flightDist * HANDS_SPEED, HANDS_CHUNK_LENGTH);
+    const nowSec = (t || 0) * 0.001;
+    handsList.forEach(m => {
+      m.rotation.z = Math.sin(nowSec * m.userData.waveSpeed + m.userData.wavePhase) * 0.22;
+    });
+    camera.position.x = Math.sin(swayT * 0.017) * 6;
+    camera.position.y = Math.sin(swayT * 0.013 + 1) * 4;
+    camera.rotation.x = Math.sin(swayT * 0.01 + 2) * 0.05;
+    camera.rotation.y = Math.sin(swayT * 0.012) * 0.06;
+    camera.rotation.z = Math.sin(swayT * 0.008 + 3) * 0.07 + cameraRollOffset;
   } else if (patternCubeGroup.visible){
     // inside the giant pattern cube: the room itself turns off the shared
     // flight clock (arrow keys speed/reverse it) while the camera slowly
