@@ -3064,6 +3064,7 @@ const beamsMirrorMats = [];
 const beamsCubes = [];
 const BEAMS_CUBE_COUNT = 21; // halved pool
 const beamsCubeBase = []; // per-cube base colors, darkened by depth in animate()
+const beamsRipples = []; // floor impact rings (water-drip pulses)
 let beamsLastSpawn = -10; // global gate: cubes launch one by one, never together
 let beamsFloorCanvas = null;
 let beamsFloorTex = null;
@@ -3077,8 +3078,22 @@ let beamsFloorTex = null;
   beamsFloorTex = new THREE.CanvasTexture(beamsFloorCanvas);
   const floorMat = new THREE.MeshPhongMaterial({ map: beamsFloorTex, color: 0xffffff, specular: 0x8888a0,
     shininess: 80, transparent: true, opacity: 0.82, side: THREE.DoubleSide });
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(240, 460), floorMat);
-  floor.rotateX(-Math.PI / 2);
+  // terrain, not a flat sheet: the central band (where the lanes run and
+  // the cubes land) stays dead flat, and rolling hills climb smoothly
+  // beyond it toward the sides
+  const floorGeo = new THREE.PlaneGeometry(240, 460, 48, 92);
+  floorGeo.rotateX(-Math.PI / 2);
+  {
+    const pos = floorGeo.attributes.position;
+    for (let i = 0; i < pos.count; i++){
+      const x = pos.getX(i), z = pos.getZ(i);
+      const t = Math.min(1, Math.max(0, (Math.abs(x) - 26) / 84));
+      const edge = t * t * (3 - 2 * t); // smoothstep out of the flat band
+      pos.setY(i, edge * (6 + Math.sin(x * 0.05) * 3 + Math.sin(z * 0.04 + x * 0.02) * 4 + Math.sin(z * 0.09) * 2));
+    }
+    floorGeo.computeVertexNormals();
+  }
+  const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.position.set(0, 0, -160);
   floor.receiveShadow = true; // the falling cubes cast onto it
   beamsScenery.add(floor);
@@ -3106,6 +3121,30 @@ let beamsFloorTex = null;
     const mesh = new THREE.Mesh(geo, mat);
     mesh.frustumCulled = false;
     beamsGroup.add(mesh);
+  }
+  // impact ripples: expanding rings that light up the floor where a cube
+  // lands, like a drip hitting water
+  const rippleCv = document.createElement("canvas");
+  rippleCv.width = rippleCv.height = 128;
+  const rg = rippleCv.getContext("2d");
+  const rgrad = rg.createRadialGradient(64, 64, 30, 64, 64, 62);
+  rgrad.addColorStop(0, "rgba(255,255,255,0)");
+  rgrad.addColorStop(0.55, "rgba(255,255,255,0.9)");
+  rgrad.addColorStop(0.75, "rgba(255,255,255,0.35)");
+  rgrad.addColorStop(1, "rgba(255,255,255,0)");
+  rg.fillStyle = rgrad; rg.fillRect(0, 0, 128, 128);
+  const rippleTex = new THREE.CanvasTexture(rippleCv);
+  const rippleGeo = new THREE.PlaneGeometry(1, 1);
+  rippleGeo.rotateX(-Math.PI / 2);
+  for (let i = 0; i < 12; i++){
+    const mat = new THREE.MeshBasicMaterial({ map: rippleTex, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false });
+    const mesh = new THREE.Mesh(rippleGeo, mat);
+    mesh.position.y = 0.08;
+    mesh.visible = false;
+    mesh.frustumCulled = false;
+    beamsScenery.add(mesh);
+    beamsRipples.push({ mesh, mat, life: 1, strength: 0 });
   }
   // solid specular cubes + their mirror clones (the floor reflections) -
   // every cube gets its OWN material, so each carries one unique color
@@ -3165,11 +3204,13 @@ beamsScenery.visible = false;
 scene.add(beamsGroup);
 scene.add(beamsScenery);
 // lighting for the specular cubes and glossy floor
-const beamsLight = new THREE.DirectionalLight(0xffffff, 0.7); // 30% darker scene
-beamsLight.position.set(24, 45, 15);
+// key from the RIGHT side, very diffuse: modest directional strength with
+// a strong ambient fill below, and extra-soft shadows
+const beamsLight = new THREE.DirectionalLight(0xffffff, 0.5);
+beamsLight.position.set(70, 30, 5);
 beamsLight.castShadow = true; // cubes throw soft shadows onto the floor
-beamsLight.shadow.radius = 7;
-beamsLight.shadow.mapSize.set(1024, 1024);
+beamsLight.shadow.radius = 14;
+beamsLight.shadow.mapSize.set(512, 512);
 beamsLight.shadow.camera.left = -130;
 beamsLight.shadow.camera.right = 130;
 beamsLight.shadow.camera.top = 130;
@@ -3180,11 +3221,12 @@ beamsLight.target.position.set(0, 0, -80);
 beamsLight.visible = false;
 scene.add(beamsLight);
 scene.add(beamsLight.target);
-const beamsAmbient = new THREE.AmbientLight(0xffffff, 0.28);
+const beamsAmbient = new THREE.AmbientLight(0xffffff, 0.45);
 beamsAmbient.visible = false;
 scene.add(beamsAmbient);
 let beamsPrevFlight = 0;
 let beamsLastBigDrop = 0; // clock of the once-per-~5s giant cube
+const beamsRotMat = new THREE.Matrix4(); // scratch for cube support-height math
 const beamsFog = new THREE.FogExp2(0x05050a, 0.007);
 function beamsRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
@@ -3206,6 +3248,8 @@ function beamsRetint(tr){
     mat.color.copy(c);
     beamsMirrorMats[i].color.copy(c).multiplyScalar(0.6);
   });
+  // impact ripples glow in a bright artist tint
+  beamsRipples.forEach(r => { r.mat.color.copy(dominant).lerp(new THREE.Color(0xffffff), 0.5); });
   // floor gradient: the artist color at 50% brightness right in front of
   // the camera, falling away into darkness at the far end
   if (beamsFloorCanvas){
@@ -4363,8 +4407,9 @@ function animate(t){
             beamsLastBigDrop = nowSec;
           }
           c.mesh.scale.setScalar(c.size);
+          // constrained to the flat central band, clear of the hills
           const dropSide = Math.random() < 0.5 ? -1 : 1;
-          c.mesh.position.set(dropSide * (12 + Math.random() * 34), 30 + Math.random() * 12, -(50 + Math.random() * 120));
+          c.mesh.position.set(dropSide * (11 + Math.random() * 13), 30 + Math.random() * 12, -(50 + Math.random() * 120));
           c.mesh.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
           c.vy = 0;
           c.vx = 0;
@@ -4376,7 +4421,13 @@ function animate(t){
       } else {
         // landed or airborne, everything drifts with the ground scroll
         c.mesh.position.z += beamsScrollDz;
-        const half = c.size / 2;
+        // support height: how far the cube's LOWEST corner hangs below its
+        // center at the current rotation - resting on this keeps every
+        // corner above the floor, at any orientation, with nothing sunk
+        // through the ground
+        beamsRotMat.makeRotationFromEuler(c.mesh.rotation);
+        const e = beamsRotMat.elements;
+        const support = (Math.abs(e[1]) + Math.abs(e[5]) + Math.abs(e[9])) * (c.size / 2);
         // knock-on velocity from cube-cube collisions, air/ground damped
         c.mesh.position.x += (c.vx || 0) * dtSec;
         c.mesh.position.z += (c.vz || 0) * dtSec;
@@ -4386,24 +4437,30 @@ function animate(t){
         if (c.state === "fall"){
           c.vy -= 26 * dtSec;           // gravity
           c.mesh.position.y += c.vy * dtSec;
-          if (c.mesh.position.y <= half){
-            c.mesh.position.y = half;
+          if (c.mesh.position.y <= support){
+            const impact = -c.vy; // downward speed at the moment of contact
+            c.mesh.position.y = support;
             c.vy = -c.vy * 0.42;        // restitution: each bounce lower
             c.av.multiplyScalar(0.7);   // impacts bleed off spin too
-            if (c.vy < 1.4){
-              c.vy = 0;
-              c.state = "rest";
-              // settle target: the nearest flat face-down orientation
-              const snap = v => Math.round(v / (Math.PI / 2)) * (Math.PI / 2);
-              c.restRot = { x: snap(c.mesh.rotation.x), y: c.mesh.rotation.y, z: snap(c.mesh.rotation.z) };
+            if (c.vy < 1.4){ c.vy = 0; c.state = "rest"; }
+            // splash a floor ripple, sized by the cube and the impact speed
+            if (impact > 3){
+              const r = beamsRipples.find(x => x.life >= 1);
+              if (r){
+                r.life = 0;
+                r.strength = Math.min(1, impact / 22);
+                r.baseSize = c.size * 2.5;
+                r.mesh.position.x = c.mesh.position.x;
+                r.mesh.position.z = c.mesh.position.z;
+                r.mesh.visible = true;
+              }
             }
           }
         } else {
-          // resting: spin dies out and the cube eases onto a flat face
+          // resting: spin dies out at whatever angle it stopped, the cube
+          // riding its lowest corner so it never pokes through the floor
           c.av.multiplyScalar(Math.max(0, 1 - 3 * dtSec));
-          const ease = Math.min(1, 3 * dtSec);
-          c.mesh.rotation.x += (c.restRot.x - c.mesh.rotation.x) * ease;
-          c.mesh.rotation.z += (c.restRot.z - c.mesh.rotation.z) * ease;
+          c.mesh.position.y = support;
         }
         c.mesh.rotation.x += c.av.x * dtSec;
         c.mesh.rotation.y += c.av.y * dtSec;
@@ -4445,6 +4502,17 @@ function animate(t){
         }
       }
     }
+    // impact ripples expand and fade like drips in water, drifting with
+    // the ground scroll so they stay pinned to their landing spot
+    beamsRipples.forEach(r => {
+      if (r.life >= 1) return;
+      r.life = Math.min(1, r.life + dtSec / 0.9);
+      r.mesh.position.z += beamsScrollDz;
+      const s = r.baseSize * (0.6 + r.life * 5);
+      r.mesh.scale.set(s, 1, s);
+      r.mat.opacity = (1 - r.life) * 0.55 * r.strength;
+      if (r.life >= 1) r.mesh.visible = false;
+    });
     // mirror clones follow after all position corrections, and every cube
     // darkens with depth - dim far back like the floor, full color as it
     // reaches the camera
