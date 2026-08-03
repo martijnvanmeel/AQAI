@@ -3445,7 +3445,7 @@ function prismRetint(tr){
    slots: four shades of the artist color, four cycling the others. ---------- */
 const RINGS_CHUNK_LENGTH = 120;
 const RINGS_REPEATS = 3;
-const RINGS_SPEED = 8;
+const RINGS_SPEED = 4; // halved - everything glides
 // the serpentine spine the ring tunnel bends along - left/right, up/down,
 // periodic over the chunk so the endless wrap stays seamless
 function ringsPathAt(dist){
@@ -3482,7 +3482,7 @@ let ringsGlowMat = null;
   // means nothing is ever coplanar, so no interference flicker.
   for (let gi = 0; gi < gatesPerChunk; gi++){
     const bandCount = 5 + Math.floor(h(gi, 1) * 3);
-    const holeR = 14 + h(gi, 2) * 16;      // 4x bore: the wide-open center the camera flies through
+    const holeR = 28 + h(gi, 2) * 32;      // doubled again: a wide-open bore around the flight
     const bandStep = 3 + h(gi, 3) * 2.4;   // ring-to-ring spacing
     const bandW = bandStep * 0.3;          // drawn band is 30% of the step - slim rings, open gaps
     const bands = [];
@@ -3567,13 +3567,13 @@ function ringsRetint(tr){
   // shade at the innermost ring, through the full artist color, out into
   // the other artists' hues - every circle sits on the same ramp, so all
   // rings match
-  // whole ramp pulled 25% down
+  // intense ramp: full-strength artist and other-artist colors
   const stops = [
-    dominant.clone().multiplyScalar(0.26),
-    dominant.clone().multiplyScalar(0.52),
-    dominant.clone().multiplyScalar(0.75),
-    others[0].clone().multiplyScalar(0.75),
-    others[1 % others.length].clone().multiplyScalar(0.75),
+    dominant.clone().multiplyScalar(0.5),
+    dominant.clone().multiplyScalar(0.85),
+    dominant.clone(),
+    others[0].clone(),
+    others[1 % others.length].clone(),
   ];
   const gradientAt = t => {
     const f = t * (stops.length - 1);
@@ -4442,16 +4442,17 @@ function animate(t){
     const here = ringsPathAt(scroll - 8);
     const ahead = ringsPathAt(scroll - 8 + 16);
     const follow = 0.02;
-    ringsCamX += (here.x + Math.sin(swayT * 0.05) * 0.8 - ringsCamX) * follow;
-    ringsCamY += (here.y + Math.sin(swayT * 0.041 + 1) * 0.7 - ringsCamY) * follow;
-    ringsCamYaw += (-Math.atan2(ahead.x - here.x, 16) * 0.6 + Math.sin(swayT * 0.026) * 0.05 - ringsCamYaw) * follow;
-    ringsCamPitch += (Math.atan2(ahead.y - here.y, 16) * 0.5 + Math.sin(swayT * 0.03 + 2) * 0.03 - ringsCamPitch) * follow;
+    // every sway/roll halved - the whole scene glides at half pace
+    ringsCamX += (here.x + Math.sin(swayT * 0.025) * 0.8 - ringsCamX) * follow;
+    ringsCamY += (here.y + Math.sin(swayT * 0.02 + 1) * 0.7 - ringsCamY) * follow;
+    ringsCamYaw += (-Math.atan2(ahead.x - here.x, 16) * 0.6 + Math.sin(swayT * 0.013) * 0.05 - ringsCamYaw) * follow;
+    ringsCamPitch += (Math.atan2(ahead.y - here.y, 16) * 0.5 + Math.sin(swayT * 0.015 + 2) * 0.03 - ringsCamPitch) * follow;
     ringsCamBank += (-Math.atan2(ahead.x - here.x, 16) * 0.7 - ringsCamBank) * follow;
     camera.position.x = ringsCamX;
     camera.position.y = ringsCamY;
     camera.rotation.x = ringsCamPitch;
     camera.rotation.y = ringsCamYaw;
-    camera.rotation.z = ringsCamBank + nowSec * (Math.PI * 2 / 110) + cameraRollOffset;
+    camera.rotation.z = ringsCamBank + nowSec * (Math.PI * 2 / 220) + cameraRollOffset;
     // the light at the end of the tunnel stays ON the winding spine, seen
     // through the ring centers however the snake bends
     const glowBend = ringsPathAt(scroll - 8 + 288);
@@ -4461,10 +4462,10 @@ function animate(t){
     // every gate still wanders its own little orbit on top - the wander
     // now runs 5x slower, long continuous arcs that never jump
     ringsGroup.children.forEach(m => {
-      const pulse = m.userData.baseScale * (1 + Math.sin(nowSec * 1.8 - m.userData.gate * 0.7) * 0.12);
+      const pulse = m.userData.baseScale * (1 + Math.sin(nowSec * 0.9 - m.userData.gate * 0.7) * 0.12);
       m.scale.set(pulse, pulse, 1);
-      m.position.x = m.userData.baseX + Math.sin(nowSec * m.userData.rate + m.userData.phase) * m.userData.drift;
-      m.position.y = m.userData.baseY + Math.sin(nowSec * m.userData.rate * 0.8 + m.userData.phase * 2) * m.userData.drift * 0.8;
+      m.position.x = m.userData.baseX + Math.sin(nowSec * m.userData.rate * 0.5 + m.userData.phase) * m.userData.drift;
+      m.position.y = m.userData.baseY + Math.sin(nowSec * m.userData.rate * 0.4 + m.userData.phase * 2) * m.userData.drift * 0.8;
     });
   } else if (checkGroup.visible){
     // checker tunnel: the endless op-art bore, slowly rolling around the
