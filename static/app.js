@@ -3648,6 +3648,20 @@ function checkPathAt(dist){
 let checkCamX = 0, checkCamY = 0, checkCamYaw = 0, checkCamPitch = 0, checkCamBank = 0;
 const checkGroup = new THREE.Group();
 const checkDotMats = []; // [0] big dots in artist color, [1..2] big dots in other hues
+// crisp disc sprite: hard edge with only a hair of anti-aliasing, shared
+// by EVERY ball so small and big dots carry identical sharp edges
+const checkDiscTexture = (() => {
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = 128;
+  const cx = cv.getContext("2d");
+  const g = cx.createRadialGradient(64, 64, 4, 64, 64, 62);
+  g.addColorStop(0, "rgba(255,255,255,1)");
+  g.addColorStop(0.92, "rgba(255,255,255,1)");
+  g.addColorStop(1, "rgba(255,255,255,0)");
+  cx.fillStyle = g;
+  cx.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(cv);
+})();
 {
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
   const smallPos = [], bigPos = [[], [], []];
@@ -3685,7 +3699,7 @@ const checkDotMats = []; // [0] big dots in artist color, [1..2] big dots in oth
   const mkPoints = (positions, size, color, mat) => {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    const m = mat || new THREE.PointsMaterial({ size, sizeAttenuation: true, map: roadDotTexture,
+    const m = mat || new THREE.PointsMaterial({ size, sizeAttenuation: true, map: checkDiscTexture,
       color, transparent: true, depthWrite: false });
     const points = new THREE.Points(geo, m);
     points.frustumCulled = false;
