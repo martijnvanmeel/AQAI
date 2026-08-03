@@ -2766,9 +2766,9 @@ const tilesBlocks = []; // floating animated cubes, driven in animate()
     // pattern, every tile matching its neighbours exactly
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     // Phong: the key light shades each face by orientation AND lays a
-    // soft specular sheen over the whole world; everything receives the
-    // blocks' cast shadows
-    tilesMats.push(new THREE.MeshPhongMaterial({ map: tex, specular: 0x444444, shininess: 22, side: THREE.DoubleSide }));
+    // strong specular sheen over the whole world; everything receives the
+    // blocks' cast shadows and reacts clearly to the traveling light
+    tilesMats.push(new THREE.MeshPhongMaterial({ map: tex, specular: 0x777777, shininess: 40, side: THREE.DoubleSide }));
   }
   for (let i = 0; i < 4; i++){
     const cv = document.createElement("canvas");
@@ -2808,18 +2808,21 @@ const tilesBlocks = []; // floating animated cubes, driven in animate()
   for (let rep = 0; rep < TILES_REPEATS; rep++){
     for (let zi = 0; zi < TILES_DEPTH_TILES; zi++){
       const z = -(zi + 0.5) * TILES_TILE - rep * TILES_CHUNK_LENGTH;
+      // wall relief: the depth offset is defined per z-EDGE (shared by the
+      // two tiles meeting there) and is the same for every row, so every
+      // facet connects seamlessly to its neighbours - angled, but with no
+      // gaps anywhere
+      const edgeL = k => (h((k % TILES_DEPTH_TILES) * 3, 6) - 0.5) * 3;
+      const edgeR = k => (h((k % TILES_DEPTH_TILES) * 5 + 1, 6) - 0.5) * 3;
+      const ln = -TILES_HALF_W + edgeL(zi), lf = -TILES_HALF_W + edgeL(zi + 1);
+      const rn = TILES_HALF_W + edgeR(zi), rf = TILES_HALF_W + edgeR(zi + 1);
       for (let yi = 0; yi < 12; yi++){
         const y = (yi - 5.5) * TILES_TILE;
-        // each wall tile tilts on its own slight angle (the near and far
-        // z-edges sit at different depths), so the walls read as a
-        // faceted, angled relief instead of one dead-straight plane
-        const tiltL = (h(zi * 3 + yi * 7, 6) - 0.5) * 3;
-        const tiltR = (h(zi * 5 + yi * 11, 6) - 0.5) * 3;
         pushQuad(yi < 4 ? MAT_WALL_L_LOW : MAT_WALL_L_HIGH,
-          [[-TILES_HALF_W + tiltL, y - s, z + s], [-TILES_HALF_W - tiltL, y - s, z - s], [-TILES_HALF_W - tiltL, y + s, z - s], [-TILES_HALF_W + tiltL, y + s, z + s]],
+          [[ln, y - s, z + s], [lf, y - s, z - s], [lf, y + s, z - s], [ln, y + s, z + s]],
           zi, yi);
         pushQuad(yi < 4 ? MAT_WALL_R_LOW : MAT_WALL_R_HIGH,
-          [[TILES_HALF_W + tiltR, y - s, z - s], [TILES_HALF_W - tiltR, y - s, z + s], [TILES_HALF_W - tiltR, y + s, z + s], [TILES_HALF_W + tiltR, y + s, z - s]],
+          [[rn, y - s, z + s], [rf, y - s, z - s], [rf, y + s, z - s], [rn, y + s, z + s]],
           zi, yi);
       }
       for (let xi = 0; xi < 7; xi++){
@@ -2857,9 +2860,10 @@ const tilesBlocks = []; // floating animated cubes, driven in animate()
     geo.setAttribute("position", new THREE.Float32BufferAttribute(b.pos, 3));
     geo.setAttribute("uv", new THREE.Float32BufferAttribute(b.uv, 2));
     geo.setIndex(b.idx);
-    geo.computeVertexNormals(); // Lambert shading needs real normals
+    geo.computeVertexNormals(); // lit shading needs real normals
     const mesh = new THREE.Mesh(geo, tilesMats[mi]);
     mesh.receiveShadow = true;
+    mesh.castShadow = true; // the angled facets shadow each other too
     mesh.frustumCulled = false;
     tilesGroup.add(mesh);
   });
@@ -2927,7 +2931,9 @@ let tilesCamX = 0, tilesCamY = 0, tilesCamYaw = 0, tilesCamPitch = 0, tilesCamBa
 let tilesFlowPhase = 0; // accumulated rhythmic slide of the stripe textures
 tilesGroup.visible = false;
 scene.add(tilesGroup);
-const tilesFog = new THREE.FogExp2(0x232323, 0.009);
+// black-tinted haze: the corridor's far end reads ~30% darker than the
+// area around the camera
+const tilesFog = new THREE.FogExp2(0x000000, 0.0045);
 // the surfaces' op-art motifs (quarter circles, semicircles, arrows,
 // slats, scallops) - wrap-drawn with a small jitter so every face is
 // perfectly tileable and neighbouring tiles read as one continuous poster
@@ -3059,7 +3065,9 @@ const beamsStripMats = [];
 const beamsCubeMats = [];
 const beamsMirrorMats = [];
 const beamsCubes = [];
-const BEAMS_CUBE_COUNT = 42; // 3x the original pool
+const BEAMS_CUBE_COUNT = 21; // halved pool
+const beamsCubeBase = []; // per-cube base colors, darkened by depth in animate()
+let beamsLastSpawn = -10; // global gate: cubes launch one by one, never together
 let beamsFloorCanvas = null;
 let beamsFloorTex = null;
 {
@@ -3191,11 +3199,13 @@ function beamsRetint(tr){
     else mat.color.copy(others[i % others.length]).multiplyScalar(0.7);
   });
   // cubes: unique colors - alternating distinct artist shades and the
-  // other artists' colors at varied brightness, no two alike
+  // other artists' colors at varied brightness, no two alike. The base
+  // colors are stashed so animate() can darken each cube by its depth.
   beamsCubeMats.forEach((mat, i) => {
     const c = i % 2 === 0
       ? dominant.clone().multiplyScalar(1 - (i / BEAMS_CUBE_COUNT) * 0.55)
       : others[Math.floor(i / 2) % others.length].clone().multiplyScalar(0.7 + (i % 5) * 0.09);
+    beamsCubeBase[i] = c;
     mat.color.copy(c);
     beamsMirrorMats[i].color.copy(c).multiplyScalar(0.6);
   });
@@ -3203,10 +3213,11 @@ function beamsRetint(tr){
   // medium-light red at the far end
   if (beamsFloorCanvas){
     const g = beamsFloorCanvas.getContext("2d");
+    // 20% lighter across the whole ramp
     const grad = g.createLinearGradient(0, 256, 0, 0);
-    grad.addColorStop(0, "#0b1030");
-    grad.addColorStop(0.5, "#3a1a3c");
-    grad.addColorStop(1, "#b04c4c");
+    grad.addColorStop(0, "#0d133a");
+    grad.addColorStop(0.5, "#462049");
+    grad.addColorStop(1, "#d35b5b");
     g.fillStyle = grad;
     g.fillRect(0, 0, 4, 256);
     beamsFloorTex.needsUpdate = true;
@@ -3621,75 +3632,87 @@ function ringsRetint(tr){
   if (ringsGlowMat) ringsGlowMat.color.copy(dominant).multiplyScalar(0.5);
 }
 
-/* ---------- Scene 5 "CHECKER": the op-art checkerboard tunnel - four
-   checkered walls rolling around the camera (the checker-tunnel
-   reference), the floor swapped for marching semicircle "scales" rows
-   (the red/blue scale posters). Checker = artist color on near-black;
-   scales cycle the other artists' colors. ---------- */
-const CHECK_CHUNK_LENGTH = 96; // multiple of the 12-unit checker period, so the wrap is invisible
+/* ---------- Scene 5 "NATURE": elements of nature after the foam/bubble
+   references - winding organic streams of round dots (dense sprays of
+   tiny bubbles clumping around scattered big circles) drifting through
+   black space. The camera flies through them slowly, wandering in every
+   direction along a winding path. ---------- */
+const CHECK_CHUNK_LENGTH = 140;
 const CHECK_REPEATS = 3;
-const CHECK_SPEED = 15;
-const CHECK_LEN = CHECK_CHUNK_LENGTH * CHECK_REPEATS;
+const CHECK_SPEED = 6; // slow drift
+// the flight path winds through the streams (periodic per chunk)
+function checkPathAt(dist){
+  const a = (dist / CHECK_CHUNK_LENGTH) * Math.PI * 2;
+  return {
+    x: Math.sin(a) * 10 + Math.sin(a * 3 + 1) * 4,
+    y: Math.sin(a * 2 + 2) * 8 + Math.sin(a * 5) * 3,
+  };
+}
+let checkCamX = 0, checkCamY = 0, checkCamYaw = 0, checkCamPitch = 0, checkCamBank = 0;
 const checkGroup = new THREE.Group();
-const checkCanvases = { checker: null, scales: null };
-const checkTextures = [];
+const checkDotMats = []; // [0] big dots in artist color, [1..2] big dots in other hues
 {
-  const mkCanvas = () => { const cv = document.createElement("canvas"); cv.width = cv.height = 256; return cv; };
-  checkCanvases.checker = mkCanvas();
-  checkCanvases.scales = mkCanvas();
-  const mkTex = (cv, ru, rv) => {
-    const tex = new THREE.CanvasTexture(cv);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(ru, rv);
-    checkTextures.push(tex);
-    return tex;
+  const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+  const smallPos = [], bigPos = [[], [], []];
+  // three winding bubble streams per chunk, tiled (incl. one chunk behind
+  // the camera so the wander can look anywhere without finding an edge)
+  for (let rep = -1; rep < CHECK_REPEATS; rep++){
+    for (let s = 0; s < 3; s++){
+      for (let i = 0; i < 260; i++){
+        const t = i / 260;
+        const d = t * CHECK_CHUNK_LENGTH;
+        const a = t * Math.PI * 2;
+        // strand centerline: its own winding course offset from the path
+        const cx = Math.sin(a * 2 + s * 2.1) * 30 + Math.sin(a * 5 + s) * 9;
+        const cy = Math.sin(a * 3 + s * 4.2) * 22 + Math.sin(a * 7 + s * 2) * 6;
+        const cz = -d - rep * CHECK_CHUNK_LENGTH;
+        // clumpy density: stretches of dense spray with real gaps between
+        if (h(i * 7 + s * 131, 3) < 0.3) continue;
+        const clump = 0.5 + Math.sin(a * 9 + s * 5) * 0.5; // 0..1 density wave
+        if (h(i * 13 + s * 57, 4) > clump * 0.9 + 0.15) continue;
+        const jr = h(i * 17 + s * 23, 5) ** 2 * 7;
+        const ja = h(i * 19 + s * 41, 6) * Math.PI * 2;
+        smallPos.push(cx + Math.cos(ja) * jr, cy + Math.sin(ja) * jr * 0.8, cz + (h(i, 7) - 0.5) * 3);
+        // occasionally a big circle sits in the spray
+        if (h(i * 29 + s * 71, 8) < 0.09){
+          bigPos[(i + s) % 3].push(cx + Math.cos(ja) * jr * 0.6, cy + Math.sin(ja) * jr * 0.5, cz + 1.5);
+        }
+      }
+    }
+    // sparse loose bubbles floating between the streams
+    for (let i = 0; i < 120; i++){
+      smallPos.push((h(i * 3 + rep * 97, 10) - 0.5) * 120, (h(i * 5 + rep * 31, 11) - 0.5) * 90,
+        -h(i * 11 + rep * 53, 12) * CHECK_CHUNK_LENGTH - rep * CHECK_CHUNK_LENGTH);
+    }
+  }
+  const mkPoints = (positions, size, color, mat) => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    const m = mat || new THREE.PointsMaterial({ size, sizeAttenuation: true, map: roadDotTexture,
+      color, transparent: true, depthWrite: false });
+    const points = new THREE.Points(geo, m);
+    points.frustumCulled = false;
+    checkGroup.add(points);
+    return m;
   };
-  // walls run their texture u along z; floor/ceiling run v along z
-  const wallTex = mkTex(checkCanvases.checker, CHECK_LEN / 24, 1);
-  const flatTex = mkTex(checkCanvases.checker, 1, CHECK_LEN / 24);
-  const scalesTex = mkTex(checkCanvases.scales, 1, CHECK_LEN / 24);
-  const mkMat = tex => new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
-  const HALF = 12;
-  const addPanel = (geo, mat, px, py, rot) => {
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(px, py, -CHECK_LEN / 2);
-    if (rot) rot(mesh);
-    mesh.frustumCulled = false;
-    checkGroup.add(mesh);
-  };
-  const wallGeo = new THREE.PlaneGeometry(CHECK_LEN, HALF * 2);
-  const flatGeo = new THREE.PlaneGeometry(HALF * 2, CHECK_LEN);
-  addPanel(wallGeo, mkMat(wallTex), -HALF, 0, m => m.rotateY(Math.PI / 2));
-  addPanel(wallGeo, mkMat(wallTex), HALF, 0, m => m.rotateY(-Math.PI / 2));
-  addPanel(flatGeo, mkMat(flatTex), 0, HALF, m => m.rotateX(Math.PI / 2));   // ceiling: checker
-  addPanel(flatGeo, mkMat(scalesTex), 0, -HALF, m => m.rotateX(-Math.PI / 2)); // floor: scales
+  // the dense spray: pure white, like the reference boards
+  mkPoints(smallPos, 1.1, 0xffffff);
+  // the big circles: artist color + two other hues (retinted per artist)
+  bigPos.forEach((positions, i) => {
+    checkDotMats.push(mkPoints(positions, 4.2 + i * 1.3, 0xffffff));
+  });
 }
 checkGroup.visible = false;
 scene.add(checkGroup);
-const checkFog = new THREE.FogExp2(0x000000, 0.0085);
+const checkFog = new THREE.FogExp2(0x000000, 0.006);
 function checkRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
-  const domCss = "#" + dominant.getHexString();
-  // checker: artist color vs near-black, 4x4 cells per canvas tile
-  const cg = checkCanvases.checker.getContext("2d");
-  for (let cy = 0; cy < 4; cy++){
-    for (let cx = 0; cx < 4; cx++){
-      cg.fillStyle = (cx + cy) % 2 === 0 ? domCss : "#0a0a0a";
-      cg.fillRect(cx * 64, cy * 64, 64, 64);
-    }
-  }
-  // scales: two rows of semicircles per tile, cycling the other artists
-  const sg = checkCanvases.scales.getContext("2d");
-  sg.fillStyle = "#0a0a0a"; sg.fillRect(0, 0, 256, 256);
-  for (let row = 0; row < 2; row++){
-    sg.fillStyle = "#" + others[row % others.length].getHexString();
-    for (let i = 0; i < 4; i++){
-      sg.beginPath();
-      sg.arc(i * 64 + 32 + (row % 2) * 32, row * 128 + 96, 60, Math.PI, Math.PI * 2);
-      sg.fill();
-    }
-  }
-  checkTextures.forEach(t => { t.needsUpdate = true; });
+  // big circles: artist color first, then two other artists' hues, all
+  // lifted toward white so they still read as glowing bubbles
+  checkDotMats.forEach((mat, i) => {
+    const c = i === 0 ? dominant.clone() : others[i % others.length].clone();
+    mat.color.copy(c.lerp(new THREE.Color(0xffffff), 0.45));
+  });
 }
 
 /* ---------- scene navigator: cycle between AUTO (per-artist pick) and
@@ -3704,7 +3727,7 @@ const SCENE_LIST = [
   { id: "beams",  label: "ROADS" },
   { id: "prism",  label: "PRISM" },
   { id: "rings",  label: "RINGS" },
-  { id: "check",  label: "CHECKER" },
+  { id: "check",  label: "NATURE" },
 ];
 let sceneOverride = "auto";
 let sceneNavIdx = 0;
@@ -4253,12 +4276,13 @@ function animate(t){
     camera.rotation.x = tilesCamPitch;
     camera.rotation.y = tilesCamYaw;
     camera.rotation.z = tilesCamBank + cameraRollOffset;
-    // every block bobs and rotates continuously on all three axes
+    // every block spins 2x faster on all three axes and travels a real
+    // up-and-down swing
     tilesBlocks.forEach(b => {
-      b.position.y = b.userData.baseY + Math.sin(nowSec * 0.25 + b.userData.phase) * 1.4;
-      b.rotation.x = nowSec * b.userData.spin + b.userData.phase;
-      b.rotation.y = nowSec * b.userData.spin * 0.7 + b.userData.phase * 2;
-      b.rotation.z = nowSec * b.userData.spin * 0.45 + b.userData.phase * 3;
+      b.position.y = b.userData.baseY + Math.sin(nowSec * 0.3 + b.userData.phase) * 4.5;
+      b.rotation.x = nowSec * b.userData.spin * 2 + b.userData.phase;
+      b.rotation.y = nowSec * b.userData.spin * 1.4 + b.userData.phase * 2;
+      b.rotation.z = nowSec * b.userData.spin * 0.9 + b.userData.phase * 3;
     });
     // the stripe patterns slide across every surface in a shared rhythm:
     // fast, slow, fast, STOP, slow... - an eased step sequence, each beat
@@ -4309,14 +4333,15 @@ function animate(t){
     beamsCubes.forEach(c => {
       if (c.state === "wait"){
         c.timer -= dtSec;
-        if (c.timer <= 0){
-          // launch: a fresh size, somewhere over the lanes ahead, well
-          // above the top of the frame
-          // half-size cubes, spread deeper into the scene, and kept OUT of
-          // the camera's own sweep lane (a clear corridor down the middle).
-          // A fifth spawn 2x bigger, and once every ~5s a true giant drops.
+        // one-at-a-time launches: a cube only drops if none has dropped in
+        // the last ~0.8s - they fall one by one, never in a batch
+        if (c.timer <= 0 && nowSec - beamsLastSpawn > 0.8){
+          beamsLastSpawn = nowSec;
+          // small cubes, a fifth 2x bigger, a few 4x, spread deep and kept
+          // OUT of the camera's sweep lane; every ~5s a true giant drops.
           c.size = 0.6 + Math.random() * 1.3;
           if (Math.random() < 0.2) c.size *= 2;
+          if (Math.random() < 0.08) c.size *= 4; // the extra-big tier
           if (nowSec - beamsLastBigDrop > 5){
             c.size = 2.8 + Math.random() * 1.4;
             beamsLastBigDrop = nowSec;
@@ -4404,12 +4429,19 @@ function animate(t){
         }
       }
     }
-    // mirror clones follow after all position corrections
-    beamsCubes.forEach(c => {
+    // mirror clones follow after all position corrections, and every cube
+    // darkens with depth - dim far back like the floor, full color as it
+    // reaches the camera
+    beamsCubes.forEach((c, ci) => {
       if (!c.mesh.visible) return;
       c.mirror.position.set(c.mesh.position.x, -c.mesh.position.y, c.mesh.position.z);
       c.mirror.rotation.copy(c.mesh.rotation);
       c.mirror.scale.set(c.size, -c.size, c.size);
+      if (beamsCubeBase[ci]){
+        const depthF = Math.min(1, Math.max(0.3, (c.mesh.position.z + 180) / 200));
+        c.mesh.material.color.copy(beamsCubeBase[ci]).multiplyScalar(depthF);
+        c.mirror.material.color.copy(beamsCubeBase[ci]).multiplyScalar(depthF * 0.6);
+      }
     });
   } else if (prismGroup.visible){
     // slat curtains: slow elegant drift between the glowing rims
@@ -4485,15 +4517,24 @@ function animate(t){
       m.position.y = m.userData.baseY + Math.sin(nowSec * m.userData.rate * 0.4 + m.userData.phase * 2) * m.userData.drift * 0.8;
     });
   } else if (checkGroup.visible){
-    // checker tunnel: the endless op-art bore, slowly rolling around the
-    // camera like the reference gif
+    // bubble streams: a slow drifting flight winding through the sprays,
+    // wandering in every direction with a gentle continuous roll
     const nowSec = (t || 0) * 0.001;
-    checkGroup.position.z = wrapScroll(flightDist * CHECK_SPEED, CHECK_CHUNK_LENGTH);
-    camera.position.x = Math.sin(swayT * 0.045) * 3;
-    camera.position.y = Math.sin(swayT * 0.038 + 1) * 2.5;
-    camera.rotation.x = Math.sin(swayT * 0.03 + 2) * 0.06;
-    camera.rotation.y = Math.sin(swayT * 0.026) * 0.1;
-    camera.rotation.z = nowSec * (Math.PI * 2 / 85) + cameraRollOffset;
+    const scroll = flightDist * CHECK_SPEED;
+    checkGroup.position.z = wrapScroll(scroll, CHECK_CHUNK_LENGTH);
+    const here = checkPathAt(scroll - 8);
+    const ahead = checkPathAt(scroll - 8 + 14);
+    const follow = 0.015;
+    checkCamX += (here.x + Math.sin(swayT * 0.016) * 5 - checkCamX) * follow;
+    checkCamY += (here.y + Math.sin(swayT * 0.013 + 1) * 4 - checkCamY) * follow;
+    checkCamYaw += (-Math.atan2(ahead.x - here.x, 14) * 0.5 + Math.sin(swayT * 0.009) * 0.35 - checkCamYaw) * follow;
+    checkCamPitch += (Math.atan2(ahead.y - here.y, 14) * 0.4 + Math.sin(swayT * 0.011 + 3) * 0.2 - checkCamPitch) * follow;
+    checkCamBank += (-Math.atan2(ahead.x - here.x, 14) * 0.6 - checkCamBank) * follow;
+    camera.position.x = checkCamX;
+    camera.position.y = checkCamY;
+    camera.rotation.x = checkCamPitch;
+    camera.rotation.y = checkCamYaw;
+    camera.rotation.z = checkCamBank + nowSec * (Math.PI * 2 / 180) + cameraRollOffset;
   } else if (!tunnelGroup.visible){
     // the sphere (auto) screen: a drone-style glide in the Polaroid
     // spirit - slow translational sweeps and a gentle bank layered over
