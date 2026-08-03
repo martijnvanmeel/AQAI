@@ -3021,7 +3021,10 @@ function tilesRetint(tr){
     const c = isLow
       ? domVariants[(i / 2) % domVariants.length]
       : muted[Math.floor(Math.random() * muted.length)].clone().multiplyScalar(0.9 + Math.random() * 0.25);
-    drawTileMotif(cv.getContext("2d"), "#" + c.getHexString(), black);
+    // the walls (canvases 0-3) run tileable LINE patterns; floor, ceiling
+    // and gates keep the op-art motifs
+    const draw = i < 4 ? drawTileStripes : drawTileMotif;
+    draw(cv.getContext("2d"), "#" + c.getHexString(), black);
     tilesMats[i].map.needsUpdate = true;
   });
   tilesRedrawStripes();
