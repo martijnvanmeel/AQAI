@@ -250,6 +250,9 @@ body.scene-mist #stage{background:linear-gradient(to top, #101a3e 0%, #060a1c 55
 /* ROADS sky: a slight vertical gradient in the back - faintly lighter
    near the horizon, near-black up top */
 body.scene-beams #stage{background:linear-gradient(to top, #16162c 0%, #08080f 45%, #030308 100%)}
+/* NATURE horizon: black up top sinking into 15% of the artist color */
+body.scene-check #stage{background:linear-gradient(to top,
+  color-mix(in srgb, var(--artist-color, #7CFF9E) 15%, black) 0%, #000000 60%)}
 /* full-screen tint in the current track's artist color, sitting right on
    top of the 3D sphere/background video (z-index:0) but below every
    other overlay/UI layer (z-index:1+) - color set per-track in

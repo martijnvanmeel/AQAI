@@ -1595,11 +1595,17 @@ function positionWaveCanvas(){
   // the visualizer and the title pill both anchor to its live center
   positionArtistPhoto();
   const lyricsTop = lyrics.getBoundingClientRect().top;
-  const height = Math.max(40, Math.min(80, lyricsTop * 0.5)) + 40;
+  const baseHeight = Math.max(40, Math.min(80, lyricsTop * 0.5)) + 40;
+  // sphere screen: the visualizer runs at 600% vertical size - the canvas
+  // grows 6x but keeps its resting baseline (at 65% of its height, see
+  // drawWaveCanvas) pinned to the exact same on-screen spot, so all the
+  // extra swing extends upward
+  const height = document.body.classList.contains("scene-sphere") ? baseHeight * 6 : baseHeight;
   const photoRect = photo.getBoundingClientRect();
   const centerY = photoRect.top + photoRect.height / 2;
   const canvasCenterY = centerY + 40 - 15 + 5 + 10 - 22 + 20; // visualiser (only) net 20px down from that
-  const top = canvasCenterY - height / 2;
+  const baselineY = (canvasCenterY - baseHeight / 2) + baseHeight * 0.65;
+  const top = baselineY - height * 0.65;
   canvas.style.top = top + "px";
   canvas.style.height = height + "px";
   // net effect: title pill sits 30px lower than before, independent of
@@ -2581,8 +2587,8 @@ const downtownGroup = new THREE.Group();
     slab.userData.bobPhase = h(i, 20) * Math.PI * 2;
     slab.userData.bobSpeed = 0.1 + h(i, 21) * 0.18;
     slab.userData.bobAmp = amp;
-    // no spin - every box holds the same fixed 45-degree tilt
-    slab.rotation.z = Math.PI / 4;
+    // no spin, no tilt - every box sits axis-aligned
+    slab.rotation.z = 0;
     dtBobSlabs.push(slab);
   };
   // per-chunk template of slabs on all four sides, tiled DT_REPEATS times
@@ -2931,52 +2937,129 @@ scene.add(tilesGroup);
 // black-tinted haze: the corridor's far end reads ~30% darker than the
 // area around the camera
 const tilesFog = new THREE.FogExp2(0x000000, 0.0045);
-// the surfaces' op-art motifs (quarter circles, semicircles, arrows,
-// slats, scallops) - wrap-drawn with a small jitter so every face is
+// the geometric motif sheet (from the Bauhaus-poster reference): quarter
+// and half circles, donuts, dot + ring grids, clovers, arches, pac-men,
+// wings, petals, bowties, fans, domes, rainbows, leaves... shared by the
+// TILES scene textures and the sphere screen's giant pattern cube.
+// Each drawer paints one motif into an s x s cell (origin = cell's top
+// left) using the canvas's current fillStyle.
+const MOTIF_COUNT = 20;
+function drawMotifCell(g, s, idx, rot){
+  g.save();
+  g.translate(s / 2, s / 2);
+  g.rotate((rot || 0) * Math.PI / 2);
+  const r = s / 2;
+  const circle = (x, y, rad) => { g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill(); };
+  const ring = (x, y, rad, w) => {
+    g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2);
+    g.arc(x, y, rad - w, 0, Math.PI * 2, true); g.fill();
+  };
+  const halfRing = (x, y, rad, w) => {
+    g.beginPath(); g.arc(x, y, rad, Math.PI, 0);
+    g.arc(x, y, rad - w, 0, Math.PI, true); g.closePath(); g.fill();
+  };
+  switch (((idx % MOTIF_COUNT) + MOTIF_COUNT) % MOTIF_COUNT){
+    case 0: // quarter circle anchored in the cell corner
+      g.beginPath(); g.moveTo(-r, -r); g.arc(-r, -r, s * 0.92, 0, Math.PI / 2); g.closePath(); g.fill(); break;
+    case 1: // half circle resting on the bottom edge
+      g.beginPath(); g.arc(0, r * 0.92, s * 0.46, Math.PI, Math.PI * 2); g.closePath(); g.fill(); break;
+    case 2: circle(0, 0, s * 0.4); break; // full circle
+    case 3: ring(0, 0, s * 0.4, s * 0.14); break; // donut
+    case 4: { // 4x4 dot grid
+      const step = s / 4;
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++)
+        circle(-r + (i + 0.5) * step, -r + (j + 0.5) * step, step * 0.32);
+      break;
+    }
+    case 5: { // 3x3 ring grid
+      const step = s / 3;
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++)
+        ring(-r + (i + 0.5) * step, -r + (j + 0.5) * step, step * 0.34, step * 0.15);
+      break;
+    }
+    case 6: // four-circle clover
+      circle(0, -s * 0.22, s * 0.2); circle(0, s * 0.22, s * 0.2);
+      circle(-s * 0.22, 0, s * 0.2); circle(s * 0.22, 0, s * 0.2); break;
+    case 7: // arch: rounded top, hollow middle, legs to the bottom edge
+      g.beginPath();
+      g.moveTo(-s * 0.36, r); g.lineTo(-s * 0.36, -s * 0.08);
+      g.arc(0, -s * 0.08, s * 0.36, Math.PI, 0);
+      g.lineTo(s * 0.36, r); g.closePath();
+      g.moveTo(-s * 0.15, r); g.lineTo(-s * 0.15, -s * 0.08);
+      g.arc(0, -s * 0.08, s * 0.15, Math.PI, 0);
+      g.lineTo(s * 0.15, r); g.closePath();
+      g.fill("evenodd"); break;
+    case 8: // pac-man wedge
+      g.beginPath(); g.moveTo(0, 0);
+      g.arc(0, 0, s * 0.42, Math.PI * 0.25, Math.PI * 1.75);
+      g.closePath(); g.fill(); break;
+    case 9: // three stacked wings (half rings descending)
+      halfRing(0, -s * 0.2, s * 0.3, s * 0.13);
+      halfRing(0, s * 0.04, s * 0.3, s * 0.13);
+      halfRing(0, s * 0.28, s * 0.3, s * 0.13); break;
+    case 10: // X of four petals
+      for (let a = 0; a < 4; a++){
+        g.save(); g.rotate(a * Math.PI / 2 + Math.PI / 4);
+        g.beginPath(); g.ellipse(0, -s * 0.26, s * 0.11, s * 0.2, 0, 0, Math.PI * 2); g.fill();
+        g.restore();
+      }
+      break;
+    case 11: // bowtie: two quarter wedges tip to tip
+      g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, s * 0.42, Math.PI * 1.25, Math.PI * 1.75); g.closePath(); g.fill();
+      g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, s * 0.42, Math.PI * 0.25, Math.PI * 0.75); g.closePath(); g.fill();
+      break;
+    case 12: // two stacked circles
+      circle(0, -s * 0.22, s * 0.19); circle(0, s * 0.22, s * 0.19); break;
+    case 13: // two opposing corner quarter-fans
+      g.beginPath(); g.moveTo(-r, -r); g.arc(-r, -r, s * 0.6, 0, Math.PI / 2); g.closePath(); g.fill();
+      g.beginPath(); g.moveTo(r, r); g.arc(r, r, s * 0.6, Math.PI, Math.PI * 1.5); g.closePath(); g.fill();
+      break;
+    case 14: // dome plus floating dot
+      g.beginPath(); g.arc(0, s * 0.12, s * 0.34, Math.PI, 0); g.closePath(); g.fill();
+      circle(0, -s * 0.28, s * 0.1); break;
+    case 15: // concentric rainbow (three half rings on the bottom)
+      halfRing(0, r * 0.8, s * 0.44, s * 0.07);
+      halfRing(0, r * 0.8, s * 0.3, s * 0.07);
+      halfRing(0, r * 0.8, s * 0.16, s * 0.07); break;
+    case 16: // triangle
+      g.beginPath(); g.moveTo(0, -s * 0.4); g.lineTo(s * 0.38, s * 0.36);
+      g.lineTo(-s * 0.38, s * 0.36); g.closePath(); g.fill(); break;
+    case 17: // three vertical slats
+      for (let i = 0; i < 3; i++)
+        g.fillRect(-r + (i * 2 + 0.5) * (s / 6), -s * 0.42, s / 6, s * 0.84);
+      break;
+    case 18: { // staggered dot rows
+      const step = s / 3;
+      for (let row = 0; row < 3; row++)
+        for (let col = 0; col < 3; col++)
+          circle(-r + (col + 0.5 + (row % 2) * 0.5) * step - step * 0.25,
+                 -r + (row + 0.5) * step, step * 0.24);
+      break;
+    }
+    default: // leaf / eye
+      g.beginPath(); g.moveTo(-s * 0.38, 0);
+      g.quadraticCurveTo(0, -s * 0.5, s * 0.38, 0);
+      g.quadraticCurveTo(0, s * 0.5, -s * 0.38, 0);
+      g.closePath(); g.fill();
+  }
+  g.restore();
+}
+// the surfaces' op-art motifs - one motif from the shared sheet above,
+// wrap-drawn at all nine offsets with a small jitter so every face is
 // perfectly tileable and neighbouring tiles read as one continuous poster
 function drawTileMotif(g, fg, bg){
   g.fillStyle = bg; g.fillRect(0, 0, 256, 256);
   g.fillStyle = fg;
-  const m = Math.floor(Math.random() * 6);
+  const idx = Math.floor(Math.random() * MOTIF_COUNT);
+  const rot = Math.floor(Math.random() * 4);
   const jx = (Math.random() - 0.5) * 44;
   const jy = (Math.random() - 0.5) * 44;
-  const wrapDraw = draw => {
-    for (let ox = -256; ox <= 256; ox += 256){
-      for (let oy = -256; oy <= 256; oy += 256){
-        g.save(); g.translate(ox + jx, oy + jy); draw(); g.restore();
-      }
+  for (let ox = -256; ox <= 256; ox += 256){
+    for (let oy = -256; oy <= 256; oy += 256){
+      g.save(); g.translate(ox + jx, oy + jy);
+      drawMotifCell(g, 256, idx, rot);
+      g.restore();
     }
-  };
-  if (m === 0){ // quarter circle from a corner
-    const cx = Math.random() < 0.5 ? 0 : 256, cy = Math.random() < 0.5 ? 0 : 256;
-    wrapDraw(() => { g.beginPath(); g.moveTo(cx, cy); g.arc(cx, cy, 200, 0, Math.PI * 2); g.fill(); });
-  } else if (m === 1){ // half circle off an edge
-    const edge = Math.floor(Math.random() * 4);
-    wrapDraw(() => {
-      g.beginPath();
-      if (edge === 0) g.arc(128, 0, 128, 0, Math.PI);
-      else if (edge === 1) g.arc(128, 256, 128, Math.PI, Math.PI * 2);
-      else if (edge === 2) g.arc(0, 128, 128, -Math.PI / 2, Math.PI / 2);
-      else g.arc(256, 128, 128, Math.PI / 2, Math.PI * 1.5);
-      g.fill();
-    });
-  } else if (m === 2){ // full circle
-    wrapDraw(() => { g.beginPath(); g.arc(128, 128, 96, 0, Math.PI * 2); g.fill(); });
-  } else if (m === 3){ // arrow triangle
-    const dir = Math.floor(Math.random() * 4);
-    wrapDraw(() => {
-      g.translate(128, 128); g.rotate(dir * Math.PI / 2);
-      g.beginPath(); g.moveTo(0, -120); g.lineTo(115, 110); g.lineTo(-115, 110); g.closePath(); g.fill();
-    });
-  } else if (m === 4){ // vertical slats (edge-to-edge tileable)
-    const n = 3 + Math.floor(Math.random() * 3);
-    const w = 256 / (n * 2);
-    for (let i = 0; i < n; i++) g.fillRect((i * 2 + 0.5) * w, 0, w, 256);
-  } else { // stacked scallops (two semicircles)
-    wrapDraw(() => {
-      g.beginPath(); g.arc(128, 64, 62, 0, Math.PI * 2); g.fill();
-      g.beginPath(); g.arc(128, 192, 62, 0, Math.PI * 2); g.fill();
-    });
   }
 }
 // the cubes' animated stripe coat: stripes in four orientations and
@@ -3003,6 +3086,53 @@ function drawTileStripes(g, fg, bg){
     }
   }
 }
+/* ---------- the sphere screen's pattern cube: a huge box seen from the
+   inside, every face papered with a 4x4 grid of cells - ~100 different
+   motif/rotation combinations from the shared sheet across the six faces,
+   slowly turning around the whole scene. Sized beyond the video patch
+   (radius 400) so it forms the room's walls without covering the video,
+   yet inside the camera's 900 far plane ---------- */
+const patternCubeCanvases = [];
+const patternCubeMats = [];
+const patternCubeGroup = new THREE.Group();
+{
+  for (let f = 0; f < 6; f++){
+    const cv = document.createElement("canvas");
+    cv.width = 1024; cv.height = 1024;
+    patternCubeCanvases.push(cv);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.anisotropy = 8;
+    patternCubeMats.push(new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide }));
+  }
+  patternCubeGroup.add(new THREE.Mesh(new THREE.BoxGeometry(880, 880, 880), patternCubeMats));
+}
+patternCubeGroup.visible = false;
+scene.add(patternCubeGroup);
+function patternCubeRetint(tr){
+  const { dominant, others } = artistScenePalette(tr);
+  patternCubeCanvases.forEach((cv, f) => {
+    const g = cv.getContext("2d");
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.fillStyle = "#0c0c0c"; g.fillRect(0, 0, 1024, 1024);
+    const cells = 4, cs = 1024 / cells, pad = cs * 0.14;
+    for (let i = 0; i < cells; i++){
+      for (let j = 0; j < cells; j++){
+        // every cell gets its own motif/rotation combo, cycling through
+        // the whole sheet so no two neighbouring cells repeat
+        const n = f * cells * cells + i * cells + j;
+        // palette rule: roughly half the motifs in the artist's own
+        // color, the rest in the other artists' colors
+        const c = (n * 7) % 16 < 8 ? dominant : others[n % others.length];
+        g.fillStyle = "#" + c.getHexString();
+        g.save();
+        g.translate(j * cs + pad, i * cs + pad);
+        drawMotifCell(g, cs - pad * 2, n % MOTIF_COUNT, Math.floor(n / MOTIF_COUNT) % 4);
+        g.restore();
+      }
+    }
+    patternCubeMats[f].map.needsUpdate = true;
+  });
+}
 let tilesLastPalette = null;
 function tilesRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
@@ -3024,9 +3154,10 @@ function tilesRetint(tr){
     const c = isLow
       ? domVariants[(i / 2) % domVariants.length]
       : muted[Math.floor(Math.random() * muted.length)].clone().multiplyScalar(0.9 + Math.random() * 0.25);
-    // the walls (canvases 0-3) run tileable LINE patterns; floor, ceiling
-    // and gates keep the op-art motifs
-    const draw = i < 4 ? drawTileStripes : drawTileMotif;
+    // the walls (canvases 0-3) mostly run tileable LINE patterns with the
+    // odd motif sheet mixed in; floor, ceiling and gates always draw from
+    // the shared motif sheet
+    const draw = i < 4 ? (Math.random() < 0.4 ? drawTileMotif : drawTileStripes) : drawTileMotif;
     draw(cv.getContext("2d"), "#" + c.getHexString(), black);
     tilesMats[i].map.needsUpdate = true;
   });
@@ -3076,20 +3207,22 @@ let beamsFloorTex = null;
   beamsFloorCanvas = document.createElement("canvas");
   beamsFloorCanvas.width = 4; beamsFloorCanvas.height = 256;
   beamsFloorTex = new THREE.CanvasTexture(beamsFloorCanvas);
-  const floorMat = new THREE.MeshPhongMaterial({ map: beamsFloorTex, color: 0xffffff, specular: 0x8888a0,
-    shininess: 80, transparent: true, opacity: 0.82, side: THREE.DoubleSide });
-  // terrain, not a flat sheet: the central band (where the lanes run and
-  // the cubes land) stays dead flat, and rolling hills climb smoothly
-  // beyond it toward the sides
-  const floorGeo = new THREE.PlaneGeometry(240, 460, 48, 92);
+  // strongly reflective glossy floor, brightened ~30%
+  const floorMat = new THREE.MeshPhongMaterial({ map: beamsFloorTex, color: 0xffffff, specular: 0xffffff,
+    shininess: 130, transparent: true, opacity: 0.74, side: THREE.DoubleSide });
+  // terrain everywhere: gentle little hills roll through the central band
+  // too (the cubes land on them - see beamsGroundY), with the big hills
+  // climbing beyond the sides
+  const floorGeo = new THREE.PlaneGeometry(240, 460, 60, 110);
   floorGeo.rotateX(-Math.PI / 2);
   {
     const pos = floorGeo.attributes.position;
     for (let i = 0; i < pos.count; i++){
       const x = pos.getX(i), z = pos.getZ(i);
       const t = Math.min(1, Math.max(0, (Math.abs(x) - 26) / 84));
-      const edge = t * t * (3 - 2 * t); // smoothstep out of the flat band
-      pos.setY(i, edge * (6 + Math.sin(x * 0.05) * 3 + Math.sin(z * 0.04 + x * 0.02) * 4 + Math.sin(z * 0.09) * 2));
+      const edge = t * t * (3 - 2 * t); // smoothstep out of the central band
+      pos.setY(i, beamsGroundY(x, z)
+        + edge * (6 + Math.sin(x * 0.05) * 3 + Math.sin(z * 0.04 + x * 0.02) * 4 + Math.sin(z * 0.09) * 2));
     }
     floorGeo.computeVertexNormals();
   }
@@ -3122,15 +3255,14 @@ let beamsFloorTex = null;
     mesh.frustumCulled = false;
     beamsGroup.add(mesh);
   }
-  // impact ripples: expanding rings that light up the floor where a cube
-  // lands, like a drip hitting water
+  // impact glows: not a ring but a soft round blurred AREA that lights up
+  // the floor where a cube lands
   const rippleCv = document.createElement("canvas");
   rippleCv.width = rippleCv.height = 128;
   const rg = rippleCv.getContext("2d");
-  const rgrad = rg.createRadialGradient(64, 64, 30, 64, 64, 62);
-  rgrad.addColorStop(0, "rgba(255,255,255,0)");
-  rgrad.addColorStop(0.55, "rgba(255,255,255,0.9)");
-  rgrad.addColorStop(0.75, "rgba(255,255,255,0.35)");
+  const rgrad = rg.createRadialGradient(64, 64, 4, 64, 64, 62);
+  rgrad.addColorStop(0, "rgba(255,255,255,0.85)");
+  rgrad.addColorStop(0.45, "rgba(255,255,255,0.4)");
   rgrad.addColorStop(1, "rgba(255,255,255,0)");
   rg.fillStyle = rgrad; rg.fillRect(0, 0, 128, 128);
   const rippleTex = new THREE.CanvasTexture(rippleCv);
@@ -3227,6 +3359,11 @@ scene.add(beamsAmbient);
 let beamsPrevFlight = 0;
 let beamsLastBigDrop = 0; // clock of the once-per-~5s giant cube
 const beamsRotMat = new THREE.Matrix4(); // scratch for cube support-height math
+// gentle undulation of the landing ground - little hills the cubes
+// actually rest on (shared by the floor mesh and the physics)
+function beamsGroundY(x, z){
+  return Math.sin(x * 0.15) * 0.5 + Math.sin(z * 0.07 + x * 0.1) * 0.6;
+}
 const beamsFog = new THREE.FogExp2(0x05050a, 0.007);
 function beamsRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
@@ -3472,7 +3609,7 @@ for (let i = 0; i < 3; i++){
   scene.add(light);
   prismStarLights.push(light);
 }
-const prismAmbient = new THREE.AmbientLight(0xffffff, 0.42);
+const prismAmbient = new THREE.AmbientLight(0xffffff, 0.58); // steady, lights-free level
 prismAmbient.visible = false;
 scene.add(prismAmbient);
 const prismFog = new THREE.FogExp2(0x000000, 0.006);
@@ -3536,8 +3673,8 @@ let ringsGlowMat = null;
   // means nothing is ever coplanar, so no interference flicker.
   for (let gi = 0; gi < gatesPerChunk; gi++){
     const bandCount = 5 + Math.floor(h(gi, 1) * 3);
-    const holeR = 28 + h(gi, 2) * 32;      // doubled again: a wide-open bore around the flight
-    const bandStep = 3 + h(gi, 3) * 2.4;   // ring-to-ring spacing
+    const holeR = 42 + h(gi, 2) * 48;      // 150% scale bore
+    const bandStep = 4.5 + h(gi, 3) * 3.6; // ring-to-ring spacing, scaled up too
     const bandW = bandStep * 0.3;          // drawn band is 30% of the step - slim rings, open gaps
     const bands = [];
     let outerR = holeR + bandCount * bandStep;
@@ -3614,24 +3751,51 @@ ringsGroup.visible = false;
 ringsScenery.visible = false;
 scene.add(ringsGroup);
 scene.add(ringsScenery);
-const ringsFog = new THREE.FogExp2(0x000000, 0.013); // far gates melt into the black
+// far gates dissolve into the solid backdrop (no dark specks in the deep),
+// but light enough that the 150%-sized bore still reads several gates deep
+const ringsFog = new THREE.FogExp2(0x000000, 0.008);
+// starfield streaming from the deep past the camera
+const ringsStars = (() => {
+  const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+  const group = new THREE.Group();
+  [[160, 1.6], [40, 3]].forEach(([count, size], si) => {
+    const positions = [];
+    for (let rep = -1; rep < RINGS_REPEATS; rep++){
+      for (let i = 0; i < count; i++){
+        positions.push((h(i * 3 + si * 97, 1) - 0.5) * 300, (h(i * 5 + si * 31, 2) - 0.5) * 220,
+          -h(i * 7 + si * 53, 3) * RINGS_CHUNK_LENGTH - rep * RINGS_CHUNK_LENGTH);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    const mat = new THREE.PointsMaterial({ size, sizeAttenuation: false, map: roadDotTexture,
+      color: 0xffffff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
+    mat.fog = false;
+    const points = new THREE.Points(geo, mat);
+    points.frustumCulled = false;
+    group.add(points);
+  });
+  group.visible = false;
+  scene.add(group);
+  return group;
+})();
 function ringsRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
   // ONE continuous gradient across each gate's radial sweep: deep artist
   // shade at the innermost ring, through the full artist color, out into
   // the other artists' hues - every circle sits on the same ramp, so all
   // rings match
-  // intense ramp with far more variety: artist shades interleaved with
-  // four different other-artist hues and a bright tint
+  // intense ramp with far more variety (+25% punch across the board):
+  // artist shades interleaved with four other-artist hues and a bright tint
   const stops = [
-    dominant.clone().multiplyScalar(0.5),
-    dominant.clone(),
-    others[0].clone(),
-    dominant.clone().lerp(new THREE.Color(0xffffff), 0.25),
-    others[1 % others.length].clone(),
-    dominant.clone().multiplyScalar(0.75),
-    others[2 % others.length].clone(),
-    others[3 % others.length].clone(),
+    dominant.clone().multiplyScalar(0.63),
+    dominant.clone().multiplyScalar(1.25),
+    others[0].clone().multiplyScalar(1.25),
+    dominant.clone().lerp(new THREE.Color(0xffffff), 0.35),
+    others[1 % others.length].clone().multiplyScalar(1.25),
+    dominant.clone().multiplyScalar(0.95),
+    others[2 % others.length].clone().multiplyScalar(1.25),
+    others[3 % others.length].clone().multiplyScalar(1.25),
   ];
   const gradientAt = t => {
     const f = t * (stops.length - 1);
@@ -3754,8 +3918,8 @@ const checkDiscTexture = (() => {
     checkGroup.add(points);
     return m;
   };
-  // the dense spray: white pulled 30% down
-  mkPoints(smallPos, 1.1, 0xb3b3b3);
+  // the dense spray: white pulled down (30%, then another 20%)
+  mkPoints(smallPos, 1.1, 0x8f8f8f);
   // the big circles: artist color + two other hues (retinted per artist)
   bigPos.forEach((positions, i) => {
     checkDotMats.push(mkPoints(positions, 4.2 + i * 1.3, 0xffffff));
@@ -3763,14 +3927,16 @@ const checkDiscTexture = (() => {
 }
 checkGroup.visible = false;
 scene.add(checkGroup);
-const checkFog = new THREE.FogExp2(0x000000, 0.006);
+// denser haze: distant dots fade in gradually from the black instead of
+// popping into view - a ball is either smoothly emerging or fully there
+const checkFog = new THREE.FogExp2(0x000000, 0.01);
 function checkRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
   // big circles: artist color first, then two other artists' hues, lifted
   // toward white then pulled 30% down with the rest of the scene
   checkDotMats.forEach((mat, i) => {
     const c = i === 0 ? dominant.clone() : others[i % others.length].clone();
-    mat.color.copy(c.lerp(new THREE.Color(0xffffff), 0.45).multiplyScalar(0.7));
+    mat.color.copy(c.lerp(new THREE.Color(0xffffff), 0.45).multiplyScalar(0.56));
   });
 }
 
@@ -3787,6 +3953,7 @@ const SCENE_LIST = [
   { id: "prism",  label: "PRISM" },
   { id: "rings",  label: "RINGS" },
   { id: "check",  label: "NATURE" },
+  { id: "cube",   label: "CUBE" },
 ];
 let sceneOverride = "auto";
 let sceneNavIdx = 0;
@@ -3823,7 +3990,8 @@ function updateArtistBackground(tr){
   const wantPrism = !gateActive && sceneId === "prism";
   const wantRings = !gateActive && sceneId === "rings";
   const wantCheck = !gateActive && sceneId === "check";
-  const want3d = wantRoad || wantMist || wantMaze || wantTiles || wantBeams || wantPrism || wantRings || wantCheck;
+  const wantCube = !gateActive && sceneId === "cube";
+  const want3d = wantRoad || wantMist || wantMaze || wantTiles || wantBeams || wantPrism || wantRings || wantCheck || wantCube;
   roadGroup.visible = wantRoad;
   roadScenery.visible = wantRoad;
   mistGroup.visible = wantMist;
@@ -3841,16 +4009,23 @@ function updateArtistBackground(tr){
   beamsAmbient.visible = wantBeams;
   prismGroup.visible = wantPrism;
   prismStarLayers.forEach(g => { g.visible = wantPrism; });
-  prismStarLights.forEach(l => { l.visible = wantPrism; });
+  // star lights retired - their moving washes read as artifacts
   prismAmbient.visible = wantPrism;
   ringsGroup.visible = wantRings;
-  ringsScenery.visible = wantRings;
+  ringsScenery.visible = false; // end-of-tunnel glow retired - solid backdrop only
+  ringsStars.visible = wantRings;
   checkGroup.visible = wantCheck;
   const wantSphere = !gateActive && !want3d;
   if (panoMesh) panoMesh.visible = wantSphere;
   if (panoMirrorMesh) panoMirrorMesh.visible = wantSphere;
   sphereFloor.visible = wantSphere;
   sphereFloorLight.visible = wantSphere;
+  patternCubeGroup.visible = wantCube;
+  if (wantCube && tr) patternCubeRetint(tr);
+  // the wave visualizer runs 6x taller on the sphere screen (see
+  // positionWaveCanvas), so re-measure whenever the scene flips
+  document.body.classList.toggle("scene-sphere", wantSphere);
+  positionWaveCanvas();
   // vertical-grid overlay shows over every 3D environment (see styles.css;
   // the intro tunnel is covered by its own body.gate-active selector)
   document.body.classList.toggle("scene-3d", want3d);
@@ -3859,11 +4034,12 @@ function updateArtistBackground(tr){
   document.body.classList.toggle("scene-road", wantRoad);
   document.body.classList.toggle("scene-mist", wantMist);
   document.body.classList.toggle("scene-beams", wantBeams);
+  document.body.classList.toggle("scene-check", wantCheck);
   // tighter lens in every constructed environment (incl. the intro
   // tunnel) = a more zoomed, cinematic framing; only the plain video
   // sphere keeps the natural 1x lens
   camera.zoom = gateActive ? 1.3 : wantRoad ? 1.6 : wantMist ? 1.5 : wantMaze ? 1.35
-    : (wantTiles || wantCheck) ? 1.4 : (wantBeams || wantPrism || wantRings) ? 1.45 : 1;
+    : wantTiles ? 1.4 : wantCheck ? 1.6 : (wantBeams || wantPrism || wantRings) ? 1.45 : 1;
   camera.updateProjectionMatrix();
   if (wantRoad){
     // transparent clear: the sky is a CSS gradient behind the canvas
@@ -3905,15 +4081,21 @@ function updateArtistBackground(tr){
     ringsRetint(tr);
     // the whole background sits in a DARK variant of the artist color,
     // with the fog matched so far rings melt into it seamlessly
-    // dark variant of the artist color (the previous look)
-    const ringsBgColor = new THREE.Color((tr && tr.artistColor) || "#7CFF9E").multiplyScalar(0.09);
+    // one SOLID artist-color backdrop, no gradients
+    const ringsBgColor = new THREE.Color((tr && tr.artistColor) || "#7CFF9E").multiplyScalar(0.35);
     renderer.setClearColor(ringsBgColor, 1);
     ringsFog.color.copy(ringsBgColor);
     scene.fog = ringsFog;
   } else if (wantCheck){
     checkRetint(tr);
-    renderer.setClearColor(0x000000, 1);
+    // transparent clear: a CSS horizon gradient stands behind the scene
+    // (black up top into 15% artist color at the bottom)
+    renderer.setClearColor(0x000000, 0);
     scene.fog = checkFog;
+  } else if (wantCube){
+    // fully enclosed room - the cube's own faces are the backdrop
+    renderer.setClearColor(0x050505, 1);
+    scene.fog = null;
   } else {
     renderer.setClearColor(0x000000, 0);
     scene.fog = null;
@@ -4399,11 +4581,11 @@ function animate(t){
           // 2x bigger base cubes, a fifth doubled again, a few 4x, spread
           // deep and kept OUT of the camera's sweep lane; every ~5s a true
           // giant drops.
-          c.size = 1.2 + Math.random() * 2.6;
+          c.size = 0.9 + Math.random() * 1.95; // 75% of the former base
           if (Math.random() < 0.2) c.size *= 2;
           if (Math.random() < 0.08) c.size *= 4; // the extra-big tier
           if (nowSec - beamsLastBigDrop > 5){
-            c.size = 5.6 + Math.random() * 2.8;
+            c.size = 4.2 + Math.random() * 2.1;
             beamsLastBigDrop = nowSec;
           }
           c.mesh.scale.setScalar(c.size);
@@ -4427,7 +4609,8 @@ function animate(t){
         // through the ground
         beamsRotMat.makeRotationFromEuler(c.mesh.rotation);
         const e = beamsRotMat.elements;
-        const support = (Math.abs(e[1]) + Math.abs(e[5]) + Math.abs(e[9])) * (c.size / 2);
+        const gY = beamsGroundY(c.mesh.position.x, c.mesh.position.z);
+        const support = (Math.abs(e[1]) + Math.abs(e[5]) + Math.abs(e[9])) * (c.size / 2) + gY;
         // knock-on velocity from cube-cube collisions, air/ground damped
         c.mesh.position.x += (c.vx || 0) * dtSec;
         c.mesh.position.z += (c.vz || 0) * dtSec;
@@ -4443,15 +4626,17 @@ function animate(t){
             c.vy = -c.vy * 0.42;        // restitution: each bounce lower
             c.av.multiplyScalar(0.7);   // impacts bleed off spin too
             if (c.vy < 1.4){ c.vy = 0; c.state = "rest"; }
-            // splash a floor ripple, sized by the cube and the impact speed
+            // jelly wobble: impact squashes the cube, then it jiggles out
+            c.jAmp = Math.min(0.3, impact / 25);
+            c.jT = 0;
+            // light up a soft round glow where it hit
             if (impact > 3){
               const r = beamsRipples.find(x => x.life >= 1);
               if (r){
                 r.life = 0;
                 r.strength = Math.min(1, impact / 22);
                 r.baseSize = c.size * 2.5;
-                r.mesh.position.x = c.mesh.position.x;
-                r.mesh.position.z = c.mesh.position.z;
+                r.mesh.position.set(c.mesh.position.x, gY + 0.12, c.mesh.position.z);
                 r.mesh.visible = true;
               }
             }
@@ -4465,6 +4650,16 @@ function animate(t){
         c.mesh.rotation.x += c.av.x * dtSec;
         c.mesh.rotation.y += c.av.y * dtSec;
         c.mesh.rotation.z += c.av.z * dtSec;
+        // jelly: a damped squash-and-stretch oscillation after impacts
+        if ((c.jAmp || 0) > 0.004){
+          c.jT += dtSec * 14;
+          c.jAmp *= Math.max(0, 1 - 4 * dtSec);
+          const sy = 1 - Math.cos(c.jT) * c.jAmp;
+          const sxz = 1 + Math.cos(c.jT) * c.jAmp * 0.6;
+          c.mesh.scale.set(c.size * sxz, c.size * sy, c.size * sxz);
+        } else {
+          c.mesh.scale.setScalar(c.size);
+        }
         if (c.mesh.position.z > 30){
           c.state = "wait";
           c.timer = Math.random() * 3;
@@ -4518,9 +4713,11 @@ function animate(t){
     // reaches the camera
     beamsCubes.forEach((c, ci) => {
       if (!c.mesh.visible) return;
-      c.mirror.position.set(c.mesh.position.x, -c.mesh.position.y, c.mesh.position.z);
+      // mirrored about the local ground height, jelly squash included
+      const mGY = beamsGroundY(c.mesh.position.x, c.mesh.position.z);
+      c.mirror.position.set(c.mesh.position.x, 2 * mGY - c.mesh.position.y, c.mesh.position.z);
       c.mirror.rotation.copy(c.mesh.rotation);
-      c.mirror.scale.set(c.size, -c.size, c.size);
+      c.mirror.scale.set(c.mesh.scale.x, -c.mesh.scale.y, c.mesh.scale.z);
       if (beamsCubeBase[ci]){
         const depthF = Math.min(1, Math.max(0.3, (c.mesh.position.z + 180) / 200));
         c.mesh.material.color.copy(beamsCubeBase[ci]).multiplyScalar(depthF);
@@ -4556,14 +4753,6 @@ function animate(t){
     prismStarLayers.forEach(g => {
       g.position.z = wrapScroll(flightDist * PRISM_SPEED * g.userData.speedMul, PRISM_CHUNK_LENGTH);
     });
-    // the three light-stars drift through the hall on slow closed paths,
-    // sweeping their glow across the slats as they pass
-    prismStarLights.forEach((l, i) => {
-      l.position.set(
-        Math.sin(nowSec * 0.11 + i * 2.1) * 11,
-        Math.sin(nowSec * 0.09 + i * 4.2) * 22,
-        -18 - (Math.sin(nowSec * 0.07 + i * 1.3) * 0.5 + 0.5) * 55);
-    });
   } else if (ringsGroup.visible){
     // ring snake: the tunnel of gates bends in every direction and the
     // camera rides its spine exactly like the Polaroid road drone -
@@ -4586,11 +4775,8 @@ function animate(t){
     camera.rotation.x = ringsCamPitch;
     camera.rotation.y = ringsCamYaw;
     camera.rotation.z = ringsCamBank + nowSec * (Math.PI * 2 / 220) + cameraRollOffset;
-    // the light at the end of the tunnel stays ON the winding spine, seen
-    // through the ring centers however the snake bends
-    const glowBend = ringsPathAt(scroll - 8 + 288);
-    ringsScenery.children[0].position.x = glowBend.x;
-    ringsScenery.children[0].position.y = glowBend.y;
+    // stars stream from the deep and fly past behind the camera
+    ringsStars.position.z = wrapScroll(flightDist * RINGS_SPEED * 2.2, RINGS_CHUNK_LENGTH);
     // the snake pulse: a swell travels gate by gate down the spine, and
     // every gate still wanders its own little orbit on top - the wander
     // now runs 5x slower, long continuous arcs that never jump
@@ -4619,6 +4805,19 @@ function animate(t){
     camera.rotation.x = checkCamPitch;
     camera.rotation.y = checkCamYaw;
     camera.rotation.z = checkCamBank + nowSec * (Math.PI * 2 / 180) + cameraRollOffset;
+  } else if (patternCubeGroup.visible){
+    // inside the giant pattern cube: the room itself turns off the shared
+    // flight clock (arrow keys speed/reverse it) while the camera slowly
+    // pans all the way around, drifting off-center so the walls approach
+    // and recede
+    camera.position.x = Math.sin(swayT * 0.014) * 90;
+    camera.position.y = Math.sin(swayT * 0.011 + 2) * 70;
+    camera.rotation.y = swayT * 0.012;
+    camera.rotation.x = Math.sin(swayT * 0.009) * 0.25;
+    camera.rotation.z = Math.sin(swayT * 0.008 + 1) * 0.06 + cameraRollOffset;
+    patternCubeGroup.rotation.y = flightDist * 0.01;
+    patternCubeGroup.rotation.x = Math.sin(swayT * 0.007) * 0.2;
+    patternCubeGroup.rotation.z = Math.sin(swayT * 0.005 + 1) * 0.15;
   } else if (!tunnelGroup.visible){
     // the sphere (auto) screen: a drone-style glide in the Polaroid
     // spirit - slow translational sweeps and a gentle bank layered over
