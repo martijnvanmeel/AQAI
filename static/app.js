@@ -3206,15 +3206,16 @@ function beamsRetint(tr){
     mat.color.copy(c);
     beamsMirrorMats[i].color.copy(c).multiplyScalar(0.6);
   });
-  // floor gradient: dark blue under the camera sweeping into a
-  // medium-light red at the far end
+  // floor gradient: the artist color at 50% brightness right in front of
+  // the camera, falling away into darkness at the far end
   if (beamsFloorCanvas){
     const g = beamsFloorCanvas.getContext("2d");
-    // 20% lighter across the whole ramp
+    const nearCss = "#" + dominant.clone().multiplyScalar(0.5).getHexString();
+    const midCss = "#" + dominant.clone().multiplyScalar(0.18).getHexString();
     const grad = g.createLinearGradient(0, 256, 0, 0);
-    grad.addColorStop(0, "#0d133a");
-    grad.addColorStop(0.5, "#462049");
-    grad.addColorStop(1, "#d35b5b");
+    grad.addColorStop(0, nearCss);
+    grad.addColorStop(0.5, midCss);
+    grad.addColorStop(1, "#020204");
     g.fillStyle = grad;
     g.fillRect(0, 0, 4, 256);
     beamsFloorTex.needsUpdate = true;
@@ -3709,8 +3710,8 @@ const checkDiscTexture = (() => {
     checkGroup.add(points);
     return m;
   };
-  // the dense spray: pure white, like the reference boards
-  mkPoints(smallPos, 1.1, 0xffffff);
+  // the dense spray: white pulled 30% down
+  mkPoints(smallPos, 1.1, 0xb3b3b3);
   // the big circles: artist color + two other hues (retinted per artist)
   bigPos.forEach((positions, i) => {
     checkDotMats.push(mkPoints(positions, 4.2 + i * 1.3, 0xffffff));
@@ -3721,11 +3722,11 @@ scene.add(checkGroup);
 const checkFog = new THREE.FogExp2(0x000000, 0.006);
 function checkRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
-  // big circles: artist color first, then two other artists' hues, all
-  // lifted toward white so they still read as glowing bubbles
+  // big circles: artist color first, then two other artists' hues, lifted
+  // toward white then pulled 30% down with the rest of the scene
   checkDotMats.forEach((mat, i) => {
     const c = i === 0 ? dominant.clone() : others[i % others.length].clone();
-    mat.color.copy(c.lerp(new THREE.Color(0xffffff), 0.45));
+    mat.color.copy(c.lerp(new THREE.Color(0xffffff), 0.45).multiplyScalar(0.7));
   });
 }
 
@@ -4351,13 +4352,14 @@ function animate(t){
         // the last ~0.8s - they fall one by one, never in a batch
         if (c.timer <= 0 && nowSec - beamsLastSpawn > 0.8){
           beamsLastSpawn = nowSec;
-          // small cubes, a fifth 2x bigger, a few 4x, spread deep and kept
-          // OUT of the camera's sweep lane; every ~5s a true giant drops.
-          c.size = 0.6 + Math.random() * 1.3;
+          // 2x bigger base cubes, a fifth doubled again, a few 4x, spread
+          // deep and kept OUT of the camera's sweep lane; every ~5s a true
+          // giant drops.
+          c.size = 1.2 + Math.random() * 2.6;
           if (Math.random() < 0.2) c.size *= 2;
           if (Math.random() < 0.08) c.size *= 4; // the extra-big tier
           if (nowSec - beamsLastBigDrop > 5){
-            c.size = 2.8 + Math.random() * 1.4;
+            c.size = 5.6 + Math.random() * 2.8;
             beamsLastBigDrop = nowSec;
           }
           c.mesh.scale.setScalar(c.size);
