@@ -2897,8 +2897,8 @@ const tilesBlocks = []; // floating animated cubes, driven in animate()
 const tilesDirLight = new THREE.DirectionalLight(0xfff4e8, 0.42);
 tilesDirLight.position.set(30, 55, 20);
 tilesDirLight.castShadow = true;
-tilesDirLight.shadow.radius = 9;
-tilesDirLight.shadow.mapSize.set(1024, 1024);
+tilesDirLight.shadow.radius = 27; // 3x fuzzier shadow edges
+tilesDirLight.shadow.mapSize.set(512, 512); // lower-res map softens them further
 tilesDirLight.shadow.camera.left = -120;
 tilesDirLight.shadow.camera.right = 120;
 tilesDirLight.shadow.camera.top = 120;
