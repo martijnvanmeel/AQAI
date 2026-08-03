@@ -4046,27 +4046,68 @@ const dominoPivots = [];
 const dominoDarkMat = new THREE.MeshBasicMaterial({ color: 0x101010 });
 const dominoAltMats = [0, 1, 2, 3].map(() => new THREE.MeshBasicMaterial({ color: 0x101010 }));
 const dominoFloorMat = new THREE.MeshBasicMaterial({ color: 0x992222 });
+// the run's curved centerline - periodic over the chunk so the endless
+// wrap lands on itself; also drives the camera follow in animate()
+function dominoPathX(z){
+  const a = (z / DOMINO_CHUNK_LENGTH) * Math.PI * 2;
+  return Math.sin(a) * 14 + Math.sin(a * 2 + 1) * 5;
+}
 {
   const boxGeo = new THREE.BoxGeometry(2.6, 5.4, 0.9);
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
-  const LINES = [-21, -8, 8, 21];
+  // yaw group (pivot at the ground, faces along the run) wrapping a tip
+  // hinge (the animated topple) wrapping the stone itself
+  const addStone = (rep, x, z, yaw, stagger, mi) => {
+    // palette rule: half the stones near-black like the reference, half
+    // in dark variants of the other artists' colors
+    const useAlt = h(mi, 7) < 0.5;
+    const pv = new THREE.Group();
+    pv.position.set(x, 0, -(rep * DOMINO_CHUNK_LENGTH + z));
+    pv.rotation.y = yaw;
+    const tip = new THREE.Group();
+    const mesh = new THREE.Mesh(boxGeo, useAlt ? dominoAltMats[mi % 4] : dominoDarkMat);
+    mesh.position.y = 2.7;
+    tip.add(mesh);
+    pv.add(tip);
+    pv.userData.stagger = stagger;
+    pv.userData.tip = tip;
+    dominoPivots.push(pv);
+    dominoGroup.add(pv);
+  };
+  const STEP = 2.2; // single file, stones close together
   for (let rep = -1; rep <= 1; rep++){
-    LINES.forEach((lx, li) => {
-      for (let i = 0; i < DOMINO_CHUNK_LENGTH / 6; i++){
-        // pivot at the ground line so the topple rotates around the base
-        const pv = new THREE.Group();
-        pv.position.set(lx + (h(li * 40 + i, 6) - 0.5) * 2, 0, -(rep * DOMINO_CHUNK_LENGTH + i * 6 + li * 1.5));
-        // palette rule: half the dominoes near-black like the reference,
-        // half in dark variants of the other artists' colors
-        const useAlt = h(li * 40 + i, 7) < 0.5;
-        const mesh = new THREE.Mesh(boxGeo, useAlt ? dominoAltMats[(li + i) % 4] : dominoDarkMat);
-        mesh.position.y = 2.7;
-        pv.add(mesh);
-        pv.userData.stagger = li * 1.5 + h(li * 40 + i, 8) * 1.2;
-        dominoPivots.push(pv);
-        dominoGroup.add(pv);
+    for (let i = 0; i < DOMINO_CHUNK_LENGTH / STEP; i++){
+      const z = i * STEP;
+      const x = dominoPathX(z);
+      const yaw = -Math.atan2(dominoPathX(z + STEP) - x, STEP);
+      // fan zones: twice per chunk the single file swells shoulder-to-
+      // shoulder, up to 10 stones wide, then narrows back down
+      let n = 1;
+      [0.3, 0.72].forEach((c, zi) => {
+        const d = Math.abs(z / DOMINO_CHUNK_LENGTH - c);
+        if (d < 0.07) n = Math.max(n, Math.round((1 - d / 0.07) * (6 + Math.round(h(zi, 27) * 4))));
+      });
+      n = Math.min(10, Math.max(1, n));
+      for (let k = 0; k < n; k++){
+        const off = (k - (n - 1) / 2) * 3;
+        addStone(rep, x + Math.cos(yaw) * off, z - Math.sin(yaw) * off, yaw,
+          h(i * 17 + k, 8) * 0.4, i * 13 + k);
       }
-    });
+    }
+    // side spurs: short branches that roll out sideways, stone by stone,
+    // once the main wave passes their junction
+    for (let s = 0; s < 3; s++){
+      const z0 = (0.15 + s * 0.3) * DOMINO_CHUNK_LENGTH + h(s, 31) * 12;
+      const x0 = dominoPathX(z0);
+      const dir = h(s, 32) < 0.5 ? 1 : -1;
+      // yaw of -dir*90deg tips the stones outward along the spur
+      const yawS = -dir * Math.PI / 2;
+      const len = 6 + Math.round(h(s, 34) * 4);
+      for (let k = 1; k <= len; k++){
+        addStone(rep, x0 + dir * k * 2.2, z0 + (h(s * 9 + k, 35) - 0.5) * 0.8, yawS,
+          -k * 0.6, s * 91 + k);
+      }
+    }
   }
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 700), dominoFloorMat);
   floor.rotation.x = -Math.PI / 2;
@@ -4090,8 +4131,10 @@ const EYES_CHUNK_LENGTH = 220, EYES_SPEED = 5;
 const eyesGroup = new THREE.Group();
 const eyesList = [];
 const eyesIrisMats = [];
+const eyesWireMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45 });
 {
-  // sclera + pupil (never tinted): white almond, black pupil
+  // sclera (never tinted): a plain white almond - the wandering
+  // iris+pupil disc below carries the "ball" of the eye
   const cvS = document.createElement("canvas"); cvS.width = 512; cvS.height = 256;
   const gS = cvS.getContext("2d");
   gS.fillStyle = "#ffffff";
@@ -4099,15 +4142,16 @@ const eyesIrisMats = [];
   gS.quadraticCurveTo(256, -70, 502, 128);
   gS.quadraticCurveTo(256, 326, 10, 128);
   gS.closePath(); gS.fill();
-  gS.fillStyle = "#000000";
-  gS.beginPath(); gS.arc(256, 128, 52, 0, Math.PI * 2); gS.fill();
   const texS = new THREE.CanvasTexture(cvS);
-  // iris ring, tinted per artist palette
+  // iris ring (tinted per artist palette) with the black pupil baked in
+  // - black stays black under the multiplicative tint
   const cvI = document.createElement("canvas"); cvI.width = 256; cvI.height = 256;
   const gI = cvI.getContext("2d");
   gI.fillStyle = "#ffffff";
   gI.beginPath(); gI.arc(128, 128, 96, 0, Math.PI * 2);
   gI.arc(128, 128, 52, 0, Math.PI * 2, true); gI.fill();
+  gI.fillStyle = "#000000";
+  gI.beginPath(); gI.arc(128, 128, 52, 0, Math.PI * 2); gI.fill();
   const texI = new THREE.CanvasTexture(cvI);
   for (let i = 0; i < 5; i++) eyesIrisMats.push(new THREE.MeshBasicMaterial({ map: texI, transparent: true, depthWrite: false }));
   const sclMat = new THREE.MeshBasicMaterial({ map: texS, transparent: true, depthWrite: false });
@@ -4124,11 +4168,26 @@ const eyesIrisMats = [];
       eye.position.set((h(i, 12) - 0.5) * 90, (h(i, 13) - 0.5) * 60,
         -(rep * EYES_CHUNK_LENGTH + (i / N) * EYES_CHUNK_LENGTH + h(i, 14) * 8));
       eye.userData.blinkPhase = h(i, 15) * Math.PI * 2;
-      eye.userData.blinkSpeed = 0.5 + h(i, 16) * 0.7;
+      eye.userData.blinkSpeed = 0.7 + h(i, 16) * 0.8;
+      eye.userData.doubleWink = h(i, 17) < 0.35; // these sometimes wink twice, fast
+      eye.userData.irisPhase = h(i, 18) * Math.PI * 2;
+      eye.userData.irisSpeed = 0.3 + h(i, 19) * 0.5;
+      eye.userData.size = size;
+      eye.userData.scl = scl;
+      eye.userData.iris = iris;
       eyesList.push(eye);
       eyesGroup.add(eye);
     }
   }
+  // wire-grid ground: line spacing divides the chunk length so the
+  // endless wrap lands on itself invisibly
+  const wirePos = [];
+  const SPAN = EYES_CHUNK_LENGTH * 3;
+  for (let x = -110; x <= 110; x += 10) wirePos.push(x, -32, 30, x, -32, 30 - SPAN);
+  for (let z = 0; z <= SPAN; z += 10) wirePos.push(-110, -32, 30 - z, 110, -32, 30 - z);
+  const wireGeo = new THREE.BufferGeometry();
+  wireGeo.setAttribute("position", new THREE.Float32BufferAttribute(wirePos, 3));
+  eyesGroup.add(new THREE.LineSegments(wireGeo, eyesWireMat));
 }
 eyesGroup.visible = false;
 scene.add(eyesGroup);
@@ -4138,6 +4197,7 @@ function eyesRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
   // irises: half in the artist's color, the rest in the other artists'
   eyesIrisMats.forEach((m, i) => m.color.copy(i % 2 === 0 ? dominant : others[i % others.length]));
+  eyesWireMat.color.copy(dominant.clone().lerp(new THREE.Color(0xffffff), 0.55));
   eyesBgColor.copy(dominant.clone().multiplyScalar(0.55));
   eyesFog.color.copy(eyesBgColor);
 }
@@ -5123,20 +5183,41 @@ function animate(t){
     dominoPivots.forEach(pv => {
       const wz = pv.position.z + dominoGroup.position.z;
       const p = Math.min(1, Math.max(0, (wz + 26 + pv.userData.stagger) / 7));
-      pv.rotation.x = -(p * p) * 1.45;
+      pv.userData.tip.rotation.x = -(p * p) * 1.45;
     });
-    camera.position.x = Math.sin(swayT * 0.018) * 5;
+    // the camera tracks the run's curved path, banking into the bends
+    const dScroll = dominoGroup.position.z;
+    const hereX = dominoPathX(dScroll - 8);
+    const aheadX = dominoPathX(dScroll + 24);
+    camera.position.x = hereX + Math.sin(swayT * 0.018) * 3;
     camera.position.y = 7 + Math.sin(swayT * 0.014 + 1) * 2;
     camera.rotation.x = -0.18 + Math.sin(swayT * 0.011) * 0.04;
-    camera.rotation.y = Math.sin(swayT * 0.013) * 0.05;
+    camera.rotation.y = -Math.atan2(aheadX - hereX, 32) * 0.5 + Math.sin(swayT * 0.013) * 0.04;
     camera.rotation.z = Math.sin(swayT * 0.01 + 2) * 0.05 + cameraRollOffset;
   } else if (eyesGroup.visible){
-    // floating eye field, every eye blinking on its own clock
+    // floating eye field: quick winks (a third of the eyes sometimes
+    // double-wink) squash only the white - the iris ball never scales
+    // vertically, it wanders around inside the white instead
     eyesGroup.position.z = wrapScroll(flightDist * EYES_SPEED, EYES_CHUNK_LENGTH);
     const nowSec = (t || 0) * 0.001;
     eyesList.forEach(e => {
-      const b = Math.pow(Math.max(0, Math.sin(nowSec * e.userData.blinkSpeed + e.userData.blinkPhase)), 24);
-      e.scale.y = 1 - b * 0.94;
+      const u = e.userData;
+      let cyc = (nowSec * u.blinkSpeed + u.blinkPhase) % (Math.PI * 2);
+      if (cyc < 0) cyc += Math.PI * 2;
+      // narrow pulses = a fast snap shut/open; the second pulse lands
+      // right after the first for the double-winkers
+      const pulse = at => Math.exp(-Math.pow((cyc - at) / 0.11, 2));
+      let b = pulse(0.35);
+      if (u.doubleWink) b = Math.min(1, b + pulse(0.85));
+      u.scl.scale.y = Math.max(0.06, 1 - b * 0.94);
+      u.iris.visible = b < 0.75; // the lid covers the ball at full close
+      // wander stays strictly inside the white: the almond narrows toward
+      // its corners, so the tiny vertical drift shrinks as the ball nears
+      // either corner (ellipse-bounded)
+      const xw = Math.sin(nowSec * u.irisSpeed + u.irisPhase) * u.size * 0.26;
+      u.iris.position.x = xw;
+      u.iris.position.y = Math.sin(nowSec * u.irisSpeed * 0.7 + u.irisPhase * 2)
+        * u.size * 0.022 * (1 - Math.pow(xw / (u.size * 0.3), 2));
     });
     camera.position.x = Math.sin(swayT * 0.017) * 6;
     camera.position.y = Math.sin(swayT * 0.013 + 1) * 4;
