@@ -3699,8 +3699,11 @@ const checkDiscTexture = (() => {
   const mkPoints = (positions, size, color, mat) => {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    // depth-written with an alpha test: every ball occludes correctly by
+    // its true z-depth (nearer balls always in front, farther behind),
+    // regardless of draw order between the dot layers
     const m = mat || new THREE.PointsMaterial({ size, sizeAttenuation: true, map: checkDiscTexture,
-      color, transparent: true, depthWrite: false });
+      color, transparent: true, depthWrite: true, alphaTest: 0.5 });
     const points = new THREE.Points(geo, m);
     points.frustumCulled = false;
     checkGroup.add(points);
