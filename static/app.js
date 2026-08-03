@@ -3936,14 +3936,18 @@ function checkRetint(tr){
    colors follow the artist palette rule (dominant ~50%, others rest)
    ================================================================ */
 
-// -- PORTAL: flying through endless concentric rounded-rectangle frames --
-const PORTAL_CHUNK_LENGTH = 180, PORTAL_SPEED = 9;
+// -- PORTAL: flying through endless portal walls - each layer a huge
+// surface (10x beyond the opening) with a rounded-rect hole, lit with
+// specular sheen and a baked soft shadow ring around every opening --
+const PORTAL_CHUNK_LENGTH = 216, PORTAL_SPEED = 9;
 const portalGroup = new THREE.Group();
 const portalFrames = [];
 {
   const cv = document.createElement("canvas");
-  cv.width = 512; cv.height = 384;
+  cv.width = 2048; cv.height = 1536;
   const g = cv.getContext("2d");
+  // plane is 960x720 units -> 2.133 px per unit; the opening matches the
+  // old 96x72 frame's bore while the wall now runs 10x further out
   const rr = (x, y, w, hh, r) => {
     g.beginPath();
     g.moveTo(x + r, y);
@@ -3953,16 +3957,29 @@ const portalFrames = [];
     g.arcTo(x, y, x + w, y, r);
     g.closePath();
   };
-  g.strokeStyle = "#ffffff";
-  g.lineWidth = 30;
-  rr(24, 20, 464, 344, 110); g.stroke();
+  g.fillStyle = "#ffffff";
+  g.fillRect(0, 0, 2048, 1536);
+  const hw = 92 * 2.133, hh2 = 68 * 2.133, hr = 22 * 2.133;
+  const hx = (2048 - hw) / 2, hy = (1536 - hh2) / 2;
+  // the soft "shadow" ring hugging the opening (ambient-occlusion style)
+  g.save();
+  g.filter = "blur(26px)";
+  g.strokeStyle = "rgba(0,0,0,0.5)";
+  g.lineWidth = 60;
+  rr(hx - 18, hy - 18, hw + 36, hh2 + 36, hr + 14); g.stroke();
+  g.restore();
+  // punch the portal hole itself
+  g.globalCompositeOperation = "destination-out";
+  rr(hx, hy, hw, hh2, hr); g.fill();
+  g.globalCompositeOperation = "source-over";
   const tex = new THREE.CanvasTexture(cv);
   tex.anisotropy = 8;
-  const FRAME_STEP = 9;
+  const FRAME_STEP = 27; // 3x the old spacing between layers
   for (let rep = -1; rep <= 2; rep++){
     for (let i = 0; i < PORTAL_CHUNK_LENGTH / FRAME_STEP; i++){
-      const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide, depthWrite: false });
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(96, 72), mat);
+      const mat = new THREE.MeshPhongMaterial({ map: tex, alphaTest: 0.5, side: THREE.DoubleSide,
+        specular: 0xffffff, shininess: 60 });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(960, 720), mat);
       mesh.position.z = -(rep * PORTAL_CHUNK_LENGTH + i * FRAME_STEP);
       mesh.userData.ci = i; // color index - stable per ring so the rainbow order holds
       portalFrames.push(mesh);
@@ -3972,6 +3989,15 @@ const portalFrames = [];
 }
 portalGroup.visible = false;
 scene.add(portalGroup);
+// the sheen: a roaming point light near the camera raking the walls,
+// plus a dim ambient so the far side of each wall never goes fully black
+const portalLight = new THREE.PointLight(0xffffff, 1.15, 320, 1.6);
+portalLight.position.set(20, 30, -14);
+portalLight.visible = false;
+scene.add(portalLight);
+const portalAmbient = new THREE.AmbientLight(0xffffff, 0.6);
+portalAmbient.visible = false;
+scene.add(portalAmbient);
 const portalFog = new THREE.FogExp2(0x070707, 0.014);
 function portalRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
@@ -4074,7 +4100,7 @@ function dominoPathX(z){
     dominoPivots.push(pv);
     dominoGroup.add(pv);
   };
-  const STEP = 2.2; // single file, stones close together
+  const STEP = 3.2; // single file with a bit of air between the stones
   for (let rep = -1; rep <= 1; rep++){
     for (let i = 0; i < DOMINO_CHUNK_LENGTH / STEP; i++){
       const z = i * STEP;
@@ -4089,23 +4115,26 @@ function dominoPathX(z){
       });
       n = Math.min(10, Math.max(1, n));
       for (let k = 0; k < n; k++){
-        const off = (k - (n - 1) / 2) * 3;
+        const off = (k - (n - 1) / 2) * 3.4;
         addStone(rep, x + Math.cos(yaw) * off, z - Math.sin(yaw) * off, yaw,
           h(i * 17 + k, 8) * 0.4, i * 13 + k);
       }
     }
-    // side spurs: short branches that roll out sideways, stone by stone,
-    // once the main wave passes their junction
-    for (let s = 0; s < 3; s++){
-      const z0 = (0.15 + s * 0.3) * DOMINO_CHUNK_LENGTH + h(s, 31) * 12;
-      const x0 = dominoPathX(z0);
-      const dir = h(s, 32) < 0.5 ? 1 : -1;
-      // yaw of -dir*90deg tips the stones outward along the spur
-      const yawS = -dir * Math.PI / 2;
-      const len = 6 + Math.round(h(s, 34) * 4);
+    // floral spurs: petal-shaped branches curling away from the main
+    // run in smooth arcs, rolling out stone by stone once the main wave
+    // passes their junction
+    for (let s = 0; s < 4; s++){
+      const z0 = (0.1 + s * 0.22) * DOMINO_CHUNK_LENGTH + h(s, 31) * 10;
+      const dir = s % 2 === 0 ? 1 : -1;
+      let phi = dir * Math.PI / 2;                 // start straight out the side
+      const curl = dir * (0.18 + h(s, 33) * 0.14); // per-stone curvature = the petal bend
+      let px = dominoPathX(z0), pz = z0;
+      const len = 8 + Math.round(h(s, 34) * 4);
       for (let k = 1; k <= len; k++){
-        addStone(rep, x0 + dir * k * 2.2, z0 + (h(s * 9 + k, 35) - 0.5) * 0.8, yawS,
-          -k * 0.6, s * 91 + k);
+        phi += curl * Math.min(1, k / 3); // ease into the curve
+        px += Math.sin(phi) * 3.2;
+        pz += Math.cos(phi) * 3.2;
+        addStone(rep, px, pz, -phi, -k * 0.6, s * 91 + k);
       }
     }
   }
@@ -4119,9 +4148,12 @@ scene.add(dominoGroup);
 const dominoBgColor = new THREE.Color(0x220808);
 const dominoFog = new THREE.FogExp2(0x220808, 0.01);
 function dominoRetint(tr){
-  const { dominant, others } = artistScenePalette(tr);
+  const { dominant } = artistScenePalette(tr);
   dominoFloorMat.color.copy(dominant.clone().multiplyScalar(0.8));
-  dominoAltMats.forEach((m, i) => m.color.copy(others[i % others.length].clone().multiplyScalar(0.4)));
+  // every stone a dark version of the artist's color, in four shades
+  dominoDarkMat.color.copy(dominant.clone().multiplyScalar(0.28));
+  const shades = [0.2, 0.3, 0.38, 0.46];
+  dominoAltMats.forEach((m, i) => m.color.copy(dominant.clone().multiplyScalar(shades[i % shades.length])));
   dominoBgColor.copy(dominant.clone().multiplyScalar(0.5));
   dominoFog.color.copy(dominoBgColor);
 }
@@ -4340,6 +4372,8 @@ function updateArtistBackground(tr){
   ringsStars.visible = wantRings;
   checkGroup.visible = wantCheck;
   portalGroup.visible = wantPortal;
+  portalLight.visible = wantPortal;
+  portalAmbient.visible = wantPortal;
   burstGroup.visible = wantBurst;
   dominoGroup.visible = wantDomino;
   eyesGroup.visible = wantEyes;
@@ -5160,6 +5194,9 @@ function animate(t){
     // endless concentric rounded-rect frames; a drifting off-center path
     // so the nested rings slide around each other
     portalGroup.position.z = wrapScroll(flightDist * PORTAL_SPEED, PORTAL_CHUNK_LENGTH);
+    // the roaming light keeps the specular sheen alive on the walls
+    portalLight.position.x = Math.sin(swayT * 0.045) * 34;
+    portalLight.position.y = Math.sin(swayT * 0.037 + 2) * 26;
     camera.position.x = Math.sin(swayT * 0.02) * 7;
     camera.position.y = Math.sin(swayT * 0.016 + 1) * 5;
     camera.rotation.x = Math.sin(swayT * 0.012 + 2) * 0.05;
@@ -5182,16 +5219,23 @@ function animate(t){
     dominoGroup.position.z = wrapScroll(flightDist * DOMINO_SPEED, DOMINO_CHUNK_LENGTH);
     dominoPivots.forEach(pv => {
       const wz = pv.position.z + dominoGroup.position.z;
-      const p = Math.min(1, Math.max(0, (wz + 26 + pv.userData.stagger) / 7));
-      pv.userData.tip.rotation.x = -(p * p) * 1.45;
+      // realistic topple: a fast accelerating fall (smoothstep over a
+      // short window) followed by a small rebound off the ground
+      const a = wz + 26 + pv.userData.stagger;
+      const p = Math.min(1, Math.max(0, a / 5));
+      const e = p * p * (3 - 2 * p);
+      const q = Math.min(1, Math.max(0, (a - 5) / 3));
+      pv.userData.tip.rotation.x = -e * 1.45 + Math.sin(q * Math.PI) * 0.07;
     });
-    // the camera tracks the run's curved path, banking into the bends
+    // the camera tracks the run's curve, banking into the bends, and
+    // periodically dives down low, right up next to the toppling stones
     const dScroll = dominoGroup.position.z;
     const hereX = dominoPathX(dScroll - 8);
     const aheadX = dominoPathX(dScroll + 24);
-    camera.position.x = hereX + Math.sin(swayT * 0.018) * 3;
-    camera.position.y = 7 + Math.sin(swayT * 0.014 + 1) * 2;
-    camera.rotation.x = -0.18 + Math.sin(swayT * 0.011) * 0.04;
+    const dive = Math.pow((Math.sin(swayT * 0.028) + 1) / 2, 2);
+    camera.position.x = hereX + Math.sin(swayT * 0.018) * (4 - dive * 2.5);
+    camera.position.y = 7 - dive * 4.6 + Math.sin(swayT * 0.014 + 1) * 1.5 * (1 - dive * 0.6);
+    camera.rotation.x = -0.18 + dive * 0.12 + Math.sin(swayT * 0.011) * 0.04;
     camera.rotation.y = -Math.atan2(aheadX - hereX, 32) * 0.5 + Math.sin(swayT * 0.013) * 0.04;
     camera.rotation.z = Math.sin(swayT * 0.01 + 2) * 0.05 + cameraRollOffset;
   } else if (eyesGroup.visible){
