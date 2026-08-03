@@ -3411,12 +3411,14 @@ const prismStarLights = [];
 for (let i = 0; i < 3; i++){
   // invisible light sources only - no visible ball, just their glow
   // washing across the slats
-  const light = new THREE.PointLight(0xffffff, 1.5, 55, 2);
+  // gentler point contribution + stronger ambient below = one steady
+  // overall light level, no light/dark flickering as the lights drift
+  const light = new THREE.PointLight(0xffffff, 0.85, 55, 2);
   light.visible = false;
   scene.add(light);
   prismStarLights.push(light);
 }
-const prismAmbient = new THREE.AmbientLight(0xffffff, 0.22);
+const prismAmbient = new THREE.AmbientLight(0xffffff, 0.42);
 prismAmbient.visible = false;
 scene.add(prismAmbient);
 const prismFog = new THREE.FogExp2(0x000000, 0.006);
@@ -3510,7 +3512,10 @@ let ringsGlowMat = null;
     ringsGates.push({ bands, outerR });
   }
   const planeGeo = new THREE.PlaneGeometry(1, 1);
-  for (let rep = 0; rep < RINGS_REPEATS; rep++){
+  // rep -1 keeps a full chunk of gates BEHIND the camera too, so the ring
+  // stream continues seamlessly in every direction - nothing visibly
+  // pops or resets as the wrap comes around
+  for (let rep = -1; rep < RINGS_REPEATS; rep++){
     for (let gi = 0; gi < gatesPerChunk; gi++){
       const gate = ringsGates[gi];
       const gz = gateZ[gi] - rep * RINGS_CHUNK_LENGTH;
@@ -3545,7 +3550,7 @@ let ringsGlowMat = null;
   ringsGlowMat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(glowCv), transparent: true,
     blending: THREE.AdditiveBlending, depthWrite: false });
   ringsGlowMat.fog = false;
-  const glow = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), ringsGlowMat);
+  const glow = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), ringsGlowMat); // 2x bigger
   const glowBend = ringsPathAt(280);
   glow.position.set(glowBend.x, glowBend.y, -280);
   glow.frustumCulled = false;
@@ -3604,8 +3609,8 @@ function ringsRetint(tr){
       band.tex.needsUpdate = true;
     });
   });
-  // the end-of-tunnel light warms toward the artist color
-  if (ringsGlowMat) ringsGlowMat.color.copy(dominant).lerp(new THREE.Color(0xfff6e8), 0.6);
+  // the end-of-tunnel glow: the artist color at half brightness
+  if (ringsGlowMat) ringsGlowMat.color.copy(dominant).multiplyScalar(0.5);
 }
 
 /* ---------- Scene 5 "CHECKER": the op-art checkerboard tunnel - four
@@ -4405,7 +4410,10 @@ function animate(t){
     prismCamRoll += ((hs(3) - 0.5) * 0.7 - prismCamRoll) * 0.003;
     camera.rotation.x = prismCamPitch + Math.sin(swayT * 0.027 + 2) * 0.06;
     camera.rotation.y = prismCamYaw + Math.sin(swayT * 0.023) * 0.1;
-    camera.rotation.z = prismCamRoll + Math.sin(swayT * 0.03 + 4) * 0.05 + cameraRollOffset;
+    // a slow full 180-degree roll each way (~80s per swing), layered
+    // under the step-and-glide re-frames
+    camera.rotation.z = prismCamRoll + Math.sin(nowSec * 0.0785) * Math.PI
+      + Math.sin(swayT * 0.03 + 4) * 0.05 + cameraRollOffset;
     // the free slats ease in toward the camera's base line and back out
     prismMovers.forEach(m => {
       const s01 = 0.5 + 0.5 * Math.sin(nowSec * m.userData.speed + m.userData.phase);
@@ -4450,12 +4458,13 @@ function animate(t){
     ringsScenery.children[0].position.x = glowBend.x;
     ringsScenery.children[0].position.y = glowBend.y;
     // the snake pulse: a swell travels gate by gate down the spine, and
-    // every gate still wanders its own little orbit on top
+    // every gate still wanders its own little orbit on top - the wander
+    // now runs 5x slower, long continuous arcs that never jump
     ringsGroup.children.forEach(m => {
       const pulse = m.userData.baseScale * (1 + Math.sin(nowSec * 1.8 - m.userData.gate * 0.7) * 0.12);
       m.scale.set(pulse, pulse, 1);
-      m.position.x = m.userData.baseX + Math.sin(nowSec * m.userData.rate * 5 + m.userData.phase) * m.userData.drift;
-      m.position.y = m.userData.baseY + Math.sin(nowSec * m.userData.rate * 4 + m.userData.phase * 2) * m.userData.drift * 0.8;
+      m.position.x = m.userData.baseX + Math.sin(nowSec * m.userData.rate + m.userData.phase) * m.userData.drift;
+      m.position.y = m.userData.baseY + Math.sin(nowSec * m.userData.rate * 0.8 + m.userData.phase * 2) * m.userData.drift * 0.8;
     });
   } else if (checkGroup.visible){
     // checker tunnel: the endless op-art bore, slowly rolling around the
