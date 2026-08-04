@@ -2450,6 +2450,8 @@ const MIST_CORES = [0xffc25e, 0xffdd7a, 0xff9a5e].map(c => new THREE.Color(c).mu
 const MIST_UNDER = [0x7de8c8, 0x9aa8ff, 0x86c8f0, 0xb49aff].map(c => new THREE.Color(c).multiplyScalar(0.055));
 const mistGroup = new THREE.Group();
 const mistReactiveMats = []; // ball-flock materials that pulse with the music
+const mistAllMats = []; // every flock material, reactive or not - see the scene-entry fade-in in animate()
+let mistFadeStartMs = 0;
 const mistOrbitPoints = []; // Points objects whose circles orbit their flock's center - see animate()
 {
   // hash-driven template (no Math.random) so every tile is an exact copy -
@@ -2555,10 +2557,12 @@ const mistOrbitPoints = []; // Points objects whose circles orbit their flock's 
     const mat = new THREE.PointsMaterial({ size: b.size, sizeAttenuation: true,
       map: mistBallTexture, vertexColors: true, transparent: true, opacity: 0.45,
       blending: THREE.AdditiveBlending, depthWrite: false });
+    mat.userData.baseOpacity = 0.45; // reactive mats overwrite this every frame; both get multiplied by the scene-entry fade-in
     if (reactive){
       mat.userData.baseSize = b.size;
       mistReactiveMats.push(mat);
     }
+    mistAllMats.push(mat);
     const points = new THREE.Points(geo, mat);
     points.frustumCulled = false;
     points.userData.orbitCX = new Float32Array(b.cx);
@@ -4919,6 +4923,7 @@ function updateArtistBackground(tr){
     const here0 = mistPathAt(flightDist * MIST_SPEED - 8);
     mistCamX = here0.x; mistCamY = here0.y;
     mistCamYaw = 0; mistCamPitch = 0; mistCamBank = 0;
+    mistFadeStartMs = performance.now(); // flocks fade in over 0.2s from here (see animate())
   }
   roadGroup.visible = wantRoad;
   roadScenery.visible = wantRoad;
@@ -5462,8 +5467,11 @@ function animate(t){
     const mistBeat = panoUniforms.uIntensity.value;
     mistReactiveMats.forEach(m => {
       m.size = m.userData.baseSize * (1 + mistBeat * 0.6);
-      m.opacity = 0.45 + mistBeat * 0.3;
+      m.userData.baseOpacity = 0.45 + mistBeat * 0.3;
     });
+    // every flock fades in over 0.2s from whenever the scene last turned on
+    const mistFadeIn = Math.min(1, (performance.now() - mistFadeStartMs) / 200);
+    mistAllMats.forEach(m => { m.opacity = m.userData.baseOpacity * mistFadeIn; });
     // every circle slowly orbits its own flock's center, each at its own
     // (slow) speed, instead of sitting frozen at its starting offset
     mistOrbitPoints.forEach(points => {
