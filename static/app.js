@@ -1767,10 +1767,10 @@ let panoMesh = null;
 // "reflection" (see rebuildPanoMesh)
 const SPHERE_FLOOR_Y = -8;
 let panoMirrorMesh = null;
-const panoMirrorMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.38 });
+const panoMirrorMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.6 });
 const sphereFloor = new THREE.Mesh(new THREE.PlaneGeometry(700, 700),
-  new THREE.MeshPhongMaterial({ color: 0x07080d, specular: 0x8899aa, shininess: 90,
-    transparent: true, opacity: 0.6, side: THREE.DoubleSide }));
+  new THREE.MeshPhongMaterial({ color: 0x07080d, specular: 0xccddff, shininess: 140,
+    transparent: true, opacity: 0.5, side: THREE.DoubleSide }));
 sphereFloor.rotateX(-Math.PI / 2);
 sphereFloor.position.y = SPHERE_FLOOR_Y;
 sphereFloor.visible = false;
@@ -1806,11 +1806,15 @@ function buildPanoGeometry(aspect){
   let thetaLength = minTheta, phiLength = thetaLength * aspect;
   if (phiLength < minPhi){ phiLength = minPhi; thetaLength = phiLength / aspect; }
   phiLength = Math.min(phiLength, Math.PI * 1.9);
-  thetaLength = Math.min(thetaLength, Math.PI * 0.95);
+  // clamped well under PI/2 now (was 0.95*PI) - the patch no longer
+  // straddles the equator, it runs FROM the equator UP to the pole (see
+  // thetaStart below), so this is the whole upward angular budget and
+  // must stay short of actually reaching the pole
+  thetaLength = Math.min(thetaLength, Math.PI * 0.47);
   const geo = new THREE.SphereGeometry(
     PANO_DISTANCE, 60, 40,
     -phiLength / 2, phiLength,
-    (Math.PI - thetaLength) / 2, thetaLength
+    Math.PI / 2 - thetaLength, thetaLength
   );
   geo.scale(-1, 1, 1);
   return geo;
@@ -1834,6 +1838,11 @@ function rebuildPanoMesh(){
   if (panoMesh){ scene.remove(panoMesh); panoMesh.geometry.dispose(); }
   panoMesh = new THREE.Mesh(buildPanoGeometry(aspect), panoMat);
   panoMesh.rotation.y = PANO_YAW_CENTER;
+  // the geometry's own local bottom edge is the equator (see
+  // buildPanoGeometry) - sitting it at the floor's height means the
+  // video patch exactly fills the upper half of the "sphere", cut clean
+  // by the reflective ground with no gap and no overlap
+  panoMesh.position.y = SPHERE_FLOOR_Y;
   // the sphere is reserved for the music screen - the intro shows the rock
   // tunnel instead (see tunnelGroup below), and the per-artist 3D worlds
   // (road/mist/maze - anything that sets body.scene-3d) replace it too,
@@ -1849,7 +1858,10 @@ function rebuildPanoMesh(){
   panoMirrorMesh = new THREE.Mesh(panoMesh.geometry, panoMirrorMat);
   panoMirrorMesh.rotation.y = PANO_YAW_CENTER;
   panoMirrorMesh.scale.y = -1;
-  panoMirrorMesh.position.y = SPHERE_FLOOR_Y * 2;
+  // same position as the real mesh (not doubled) - the geometry's local
+  // bottom edge (the equator, y=0) IS the floor line now, so flipping in
+  // place mirrors it exactly onto the floor with zero gap
+  panoMirrorMesh.position.y = SPHERE_FLOOR_Y;
   panoMirrorMesh.visible = panoMesh.visible;
   scene.add(panoMirrorMesh);
   // vertical gradient tint baked as vertex colors on the shared geometry -
