@@ -4377,13 +4377,6 @@ function dominoPathX(z){
   const a = (z / DOMINO_CHUNK_LENGTH) * Math.PI * 2;
   return Math.sin(a) * 30 + Math.sin(a * 2 + 1) * 12;
 }
-// rolling-hill height field for the ground plane - smooth multi-wave sum,
-// kept low-amplitude so it reads as gentle hills, not spikes. Takes WORLD
-// x/z so both the floor mesh and the stones standing on it sample the
-// exact same surface
-function dominoHillY(worldX, worldZ){
-  return Math.sin(worldX * 0.05) * 3 + Math.sin(worldZ * 0.04 + 1) * 2.5 + Math.sin(worldX * 0.02 - worldZ * 0.03) * 2;
-}
 {
   // hexagon-style tiles: same footprint (2.6 wide, 5.4 tall) as the old
   // rectangular slab, just a hexagonal profile extruded to the same 0.9
@@ -4433,8 +4426,7 @@ function dominoHillY(worldX, worldZ){
     // in dark variants of the other artists' colors
     const useAlt = h(mi, 7) < 0.5;
     const pv = new THREE.Group();
-    const stoneWorldZ = -(rep * DOMINO_CHUNK_LENGTH + z);
-    pv.position.set(x, dominoHillY(x, stoneWorldZ), stoneWorldZ);
+    pv.position.set(x, 0, -(rep * DOMINO_CHUNK_LENGTH + z));
     pv.rotation.y = yaw;
     const tip = new THREE.Group();
     const mesh = new THREE.Mesh(boxGeo, useAlt ? dominoAltMats[mi % 4] : dominoDarkMat);
@@ -4485,34 +4477,7 @@ function dominoHillY(worldX, worldZ){
       z += gap;
     }
   }
-  // a secondary loop, off to the side of the main path the camera tracks -
-  // a full ring of stones that topples in a continuous wave running around
-  // the circle, like a chain reaction that loops back on itself forever
-  {
-    const CIRCLE_CX = 70, CIRCLE_CZ = -90, CIRCLE_R = 22, CIRCLE_N = 28;
-    for (let i = 0; i < CIRCLE_N; i++){
-      const theta = (i / CIRCLE_N) * Math.PI * 2;
-      const cx = CIRCLE_CX + Math.cos(theta) * CIRCLE_R;
-      const cz = CIRCLE_CZ + Math.sin(theta) * CIRCLE_R;
-      const yaw = -theta - Math.PI / 2; // faces tangent to the ring, toppling inward
-      // staggered by position around the ring so they topple in a sweep
-      // around the circle each time the scroll wraps back past them,
-      // instead of all at once
-      const ringStagger = (i / CIRCLE_N) * 20 - 10;
-      addStone(0, cx, -cz, yaw, ringStagger, i + 900, 0.85 + h(i, 71) * 0.35);
-    }
-  }
-  // rolling hills instead of a dead-flat plane - a segmented grid with
-  // each vertex displaced by a smooth multi-wave height function
-  const floorGeo = new THREE.PlaneGeometry(400, 700, 40, 70);
-  {
-    const pos = floorGeo.attributes.position;
-    for (let vi = 0; vi < pos.count; vi++){
-      pos.setZ(vi, dominoHillY(pos.getX(vi), pos.getY(vi)));
-    }
-    floorGeo.computeVertexNormals();
-  }
-  const floor = new THREE.Mesh(floorGeo, dominoFloorMat);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 700), dominoFloorMat);
   floor.rotation.x = -Math.PI / 2;
   floor.position.z = -200;
   floor.receiveShadow = true;
