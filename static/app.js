@@ -4254,6 +4254,14 @@ function dominoPathX(z){
   const a = (z / DOMINO_CHUNK_LENGTH) * Math.PI * 2;
   return Math.sin(a) * 30 + Math.sin(a * 2 + 1) * 12;
 }
+// a second endless lane, offset to the side with its own curve (different
+// frequency/amplitude/phase) so it winds and bends independently instead
+// of just tracing a parallel copy of the first row
+const DOMINO_LANE2_X = 55;
+function dominoPathX2(z){
+  const a = (z / DOMINO_CHUNK_LENGTH) * Math.PI * 2;
+  return DOMINO_LANE2_X + Math.sin(a * 1.5 + 2) * 22 + Math.sin(a * 3 + 0.5) * 10;
+}
 {
   // hexagon-style tiles: same footprint (2.6 wide, 5.4 tall) as the old
   // rectangular slab, just a hexagonal profile extruded to the same 0.9
@@ -4328,6 +4336,22 @@ function dominoPathX(z){
       z += gap;
     }
   }
+  // second endless lane, its own curve (dominoPathX2) and its own hash
+  // seeds so its sizes/stagger/palette split don't just mirror lane one
+  const sizes2 = [];
+  for (let i = 0; i <= N; i++) sizes2.push(0.85 + h(i + 500, 71) * 0.35);
+  const gaps2 = [];
+  for (let i = 0; i < N; i++) gaps2.push(sizes2[i] * HEX_H * TOUCH_RATIO);
+  for (let rep = -1; rep <= 1; rep++){
+    let z = 0;
+    for (let i = 0; i < N; i++){
+      const gap = gaps2[i];
+      const x = dominoPathX2(z);
+      const yaw = -Math.atan2(dominoPathX2(z + gap) - x, gap);
+      addStone(rep, x, z, yaw, (h(i + 500, 8) - 0.5) * 0.6, i + 500, sizes2[i]);
+      z += gap;
+    }
+  }
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 700), dominoFloorMat);
   floor.rotation.x = -Math.PI / 2;
   floor.position.z = -200;
@@ -4367,14 +4391,18 @@ scene.add(dominoMirrorGroup);
 // actual light source, same "travels with the camera" pattern as TILES
 const dominoDirLight = new THREE.DirectionalLight(0xffffff, 0.7);
 dominoDirLight.castShadow = true;
-dominoDirLight.shadow.radius = 12;
-dominoDirLight.shadow.mapSize.set(512, 512);
-dominoDirLight.shadow.camera.left = -50;
-dominoDirLight.shadow.camera.right = 50;
-dominoDirLight.shadow.camera.top = 50;
-dominoDirLight.shadow.camera.bottom = -50;
+dominoDirLight.shadow.radius = 6;
+// widened + sharpened so the stones actually throw a visible shadow onto
+// the floor (was 512/±50 - too small/soft to read, and too narrow to
+// cover the second lane's wider spread)
+dominoDirLight.shadow.mapSize.set(1024, 1024);
+dominoDirLight.shadow.camera.left = -100;
+dominoDirLight.shadow.camera.right = 100;
+dominoDirLight.shadow.camera.top = 100;
+dominoDirLight.shadow.camera.bottom = -100;
 dominoDirLight.shadow.camera.near = 1;
 dominoDirLight.shadow.camera.far = 100;
+dominoDirLight.shadow.bias = -0.0015;
 dominoDirLight.visible = false;
 scene.add(dominoDirLight);
 scene.add(dominoDirLight.target);
