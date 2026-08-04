@@ -4745,7 +4745,10 @@ const eyesIrisMats = [];
       const iris = new THREE.Group();
       iris.add(irisRing); iris.add(pupil);
       iris.scale.set(size * 0.375 * 0.7, size * 0.375 * 0.7, 1); // 70% of the previous size
-      iris.position.z = 0.3;
+      // a hair in front of the white, not a real gap - renderOrder above
+      // is what actually guarantees the circles draw on top; this just
+      // keeps both essentially at the same z-depth as their own white
+      iris.position.z = 0.02;
       eye.add(iris); eye.add(scl); // circle added before the white
       // biased toward the sides (left/right) and away from dead center,
       // so the camera's own flight corridor down the middle stays open
