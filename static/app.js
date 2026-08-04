@@ -4588,9 +4588,10 @@ eyesMirrorGroup.visible = false;
 scene.add(eyesMirrorGroup);
 // little cubes in the eyes' own iris colors, flying through a little
 // faster than the eyes themselves
-const EYES_CUBE_SPEED_MULT = 1.4;
+const EYES_CUBE_SPEED_MULT = 2.1; // 1.5x faster still (was 1.4)
 const eyesCubeMats = [];
 const eyesCubesGroup = new THREE.Group();
+const eyesCubeList = [];
 {
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
   for (let i = 0; i < 5; i++) eyesCubeMats.push(new THREE.MeshPhongMaterial({ specular: 0xffffff, shininess: 70 }));
@@ -4604,8 +4605,17 @@ const eyesCubesGroup = new THREE.Group();
       // biased away from the centerline too, same as the eyes, so the
       // flight corridor down the middle stays clear of clutter
       const cside = h(i, 81) < 0.5 ? -1 : 1;
-      cube.position.set(cside * (16 + h(i, 84) * 34), (h(i, 82) - 0.5) * 70,
+      const baseY = (h(i, 82) - 0.5) * 70;
+      cube.position.set(cside * (16 + h(i, 84) * 34), baseY,
         -(rep * EYES_CHUNK_LENGTH + (i / NC) * EYES_CHUNK_LENGTH + h(i, 83) * 8));
+      // spins on its own axis while it bobs up/down around its base y
+      cube.userData.spinAxis = new THREE.Vector3(h(i, 85) - 0.5, h(i, 86) - 0.5, h(i, 87) - 0.5).normalize();
+      cube.userData.spinRate = 0.4 + h(i, 88) * 0.8;
+      cube.userData.baseY = baseY;
+      cube.userData.bobAmp = 3 + h(i, 89) * 5;
+      cube.userData.bobRate = 0.3 + h(i, 90) * 0.4;
+      cube.userData.bobPhase = h(i, 91) * Math.PI * 2;
+      eyesCubeList.push(cube);
       eyesCubesGroup.add(cube);
     }
   }
@@ -4613,6 +4623,16 @@ const eyesCubesGroup = new THREE.Group();
 eyesCubesGroup.visible = false;
 scene.add(eyesCubesGroup);
 scene.add(eyesGroup);
+// a light for the cubes' specular highlights to actually show - EYES had
+// no light source at all before, so the material's specular/shininess
+// never had anything to catch
+const eyesCubeLight = new THREE.DirectionalLight(0xffffff, 0.8);
+eyesCubeLight.position.set(20, 40, 20);
+eyesCubeLight.visible = false;
+scene.add(eyesCubeLight);
+const eyesCubeAmbient = new THREE.AmbientLight(0xffffff, 0.45);
+eyesCubeAmbient.visible = false;
+scene.add(eyesCubeAmbient);
 const eyesBgColor = new THREE.Color(0x102040);
 const eyesFog = new THREE.FogExp2(0x102040, 0.008);
 function eyesRetint(tr){
@@ -4872,6 +4892,8 @@ function updateArtistBackground(tr){
   eyesGroup.visible = wantEyes;
   eyesMirrorGroup.visible = wantEyes;
   eyesCubesGroup.visible = wantEyes;
+  eyesCubeLight.visible = wantEyes;
+  eyesCubeAmbient.visible = wantEyes;
   handsGroup.visible = wantHands;
   document.body.classList.toggle("scene-hands", wantHands);
   const wantSphere = !gateActive && !want3d;
@@ -5907,6 +5929,11 @@ function animate(t){
     });
     eyesMirrorGroup.position.z = eyesGroup.position.z;
     eyesCubesGroup.position.z = wrapScroll(flightDist * EYES_SPEED * EYES_CUBE_SPEED_MULT, EYES_CHUNK_LENGTH);
+    // each cube spins on its own axis while it bobs up/down around its base y
+    eyesCubeList.forEach(c => {
+      c.rotateOnAxis(c.userData.spinAxis, c.userData.spinRate * dtSec);
+      c.position.y = c.userData.baseY + Math.sin(nowSec * c.userData.bobRate + c.userData.bobPhase) * c.userData.bobAmp;
+    });
     camera.position.x = Math.sin(swayT * 0.017) * 6;
     camera.position.y = Math.sin(swayT * 0.013 + 1) * 4;
     camera.rotation.x = Math.sin(swayT * 0.01 + 2) * 0.05;
