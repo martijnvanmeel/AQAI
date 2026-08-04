@@ -3860,7 +3860,6 @@ const prismMovers = []; // slats that breathe toward the camera line and back
 // step-and-glide gaze: every ~11s a new rotation target is picked, and the
 // camera eases over to it at a slow pace (see the prism branch in animate)
 let prismCamYaw = 0, prismCamPitch = 0, prismCamRoll = 0;
-const prismBloomMats = [];
 {
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
   // vertical glow-line texture (horizontal feather, tinted per slot)
@@ -3979,36 +3978,6 @@ const prismBloomMats = [];
     mesh.frustumCulled = false;
     prismGroup.add(mesh);
   });
-  // huge soft prism blooms floating through the black
-  const bloomCv = document.createElement("canvas");
-  bloomCv.width = bloomCv.height = 128;
-  const bg = bloomCv.getContext("2d");
-  const brad = bg.createRadialGradient(64, 64, 4, 64, 64, 62);
-  brad.addColorStop(0, "rgba(255,255,255,0.9)");
-  brad.addColorStop(0.45, "rgba(255,255,255,0.4)");
-  brad.addColorStop(1, "rgba(255,255,255,0)");
-  bg.fillStyle = brad; bg.fillRect(0, 0, 128, 128);
-  const bloomTex = new THREE.CanvasTexture(bloomCv);
-  const bloomGeo = new THREE.PlaneGeometry(1, 1);
-  for (let rep = 0; rep < PRISM_REPEATS; rep++){
-    for (let i = 0; i < 4; i++){
-      // normal blending, not additive - additive made overlapping blooms
-      // brighten/dim as the camera drifted past and through them, reading
-      // as a pulse even with fixed scale/opacity/color; this way each
-      // bloom's own brightness truly never changes, full stop
-      const mat = new THREE.MeshBasicMaterial({ map: bloomTex, transparent: true, opacity: 0.3,
-        depthWrite: false });
-      mat.fog = false;
-      if (rep === 0) prismBloomMats.push(mat);
-      const bloom = new THREE.Mesh(bloomGeo, rep === 0 ? mat : prismBloomMats[i]);
-      const size = (26 + h(i, 5) * 34) * 1.5;
-      bloom.scale.set(size, size, 1);
-      bloom.position.set((h(i, 6) - 0.5) * 44, (h(i, 7) - 0.5) * 24,
-        -h(i, 8) * PRISM_CHUNK_LENGTH - rep * PRISM_CHUNK_LENGTH);
-      bloom.frustumCulled = false;
-      prismGroup.add(bloom);
-    }
-  }
 }
 prismGroup.visible = false;
 scene.add(prismGroup);
@@ -4075,7 +4044,6 @@ const prismAmbient = new THREE.AmbientLight(0xffffff, 0.58); // steady, lights-f
 prismAmbient.visible = false;
 scene.add(prismAmbient);
 const prismFog = new THREE.FogExp2(0x000000, 0.006);
-let prismBloomColored = false; // the blooms are colored once and then frozen - see below
 function prismRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
   // whole scene pulled 40% down. Half the slots stay pure artist palette,
@@ -4087,15 +4055,6 @@ function prismRetint(tr){
     if (i < 3) mat.color.copy(dominant).multiplyScalar(0.6);
     else mat.color.copy(new THREE.Color(prismAccents[i - 3])).lerp(others[i % others.length], 0.35).multiplyScalar(0.6);
   });
-  // the soft background blooms used to re-blend on every track change,
-  // which read as the background flickering/shifting - now they're
-  // colored the first time this runs and never touched again
-  if (!prismBloomColored){
-    prismBloomMats.forEach((mat, i) => {
-      mat.color.copy(i % 2 === 0 ? dominant : others[i % others.length]).multiplyScalar(0.6);
-    });
-    prismBloomColored = true;
-  }
   // the three star lights: artist color plus two other artists' hues
   prismStarLights.forEach((light, i) => {
     const c = i === 0 ? dominant.clone() : others[i % others.length].clone();
@@ -5231,6 +5190,7 @@ function updateArtistBackground(tr){
   document.body.classList.toggle("scene-rings", wantRings);
   document.body.classList.toggle("scene-maze", wantMaze);
   document.body.classList.toggle("scene-eyes", wantEyes);
+  document.body.classList.toggle("scene-prism", wantPrism);
   // tighter lens in every constructed environment (incl. the intro
   // tunnel) = a more zoomed, cinematic framing; only the plain video
   // sphere keeps the natural 1x lens
@@ -5274,8 +5234,10 @@ function updateArtistBackground(tr){
     renderer.setClearColor(0x000000, 0);
     scene.fog = beamsFog;
   } else if (wantPrism){
+    // transparent clear - a moving CSS gradient stands behind the scene
+    // now (body.scene-prism #stage), replacing the old 3D background blooms
     prismRetint(tr);
-    renderer.setClearColor(0x000000, 1);
+    renderer.setClearColor(0x000000, 0);
     scene.fog = prismFog;
   } else if (wantRings){
     ringsRetint(tr);
@@ -6054,9 +6016,6 @@ function animate(t){
       const s01 = 0.5 + 0.5 * Math.sin(nowSec * m.userData.speed + m.userData.phase);
       m.position.x = m.userData.baseX - Math.sign(m.userData.baseX) * m.userData.amp * s01;
     });
-    // the background blooms are set to their base size once at build time
-    // (see prismBlooms) and never touched again - no per-frame scale or
-    // opacity animation, so nothing about them ever pulses
     // star layers ride their own clocks - half speed behind, 1.7x in front
     prismStarLayers.forEach(g => {
       g.position.z = wrapScroll(flightDist * PRISM_SPEED * g.userData.speedMul, PRISM_CHUNK_LENGTH);
