@@ -804,12 +804,12 @@ function renderMeta(){
   // --artist-color drives the logo fill, the title/artist color-cycle
   // animation, and the background overlay tint (see styles.css); the
   // wave visualizer reads it separately into WAVE_COLOR below since
-  // canvas drawing can't reference a CSS custom property directly
-  // more intense across the board - boosted the same way the 3D scenes'
-  // shared palette function is, so the whole UI (logo, pill, lyrics,
-  // wave visualizer, background tint) reads more vivid too
-  // fixed app-wide blue scheme now (ROADS' own palette), not per-artist
-  const artistColor = "#" + new THREE.Color(ROADS_BLUE_HEX).offsetHSL(0, 0.12, 0.02).getHexString();
+  // canvas drawing can't reference a CSS custom property directly.
+  // Follows the real per-track artist color again (only the 3D
+  // background environment runs the fixed blue scheme now, everything
+  // else in the UI - logo, buttons, stroke, etc. - stays per-artist),
+  // boosted the same +12% intensity as the 3D scene palette
+  const artistColor = "#" + new THREE.Color(tr.artistColor || "#7CFF9E").offsetHSL(0, 0.12, 0.02).getHexString();
   document.documentElement.style.setProperty("--artist-color", artistColor);
   WAVE_COLOR = artistColor;
   positionBgGradient();
