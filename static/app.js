@@ -343,7 +343,6 @@ function inactiveScaleForDepth(depth){
 }
 const LYRIC_LINE_MAX_CHARS = 17;
 const LYRIC_GAP_BLANK = 3; // silence longer than this gets its own blank sentence
-const LYRIC_GAP_COLOR = "#0A1830"; // dark blue the last sentence fades to during a silence gap, instead of vanishing
 // re-flows each original sentence's words into fresh display lines of
 // <=28 characters (incl. spaces), never splitting a word - words that
 // overflow a sentence spill onto its own next display line, but a new
@@ -507,21 +506,20 @@ function renderLyricRows(li, dl){
 function fadeOutForGap(dl, dli){
   const row = lyricRowEls[dlActiveIdx];
   if (!row) return;
-  const dur = Math.max(0.2, dl[dli].t1 - dl[dli].t0);
-  // fades each word's color down to a dark blue rather than fading the
-  // row's opacity to nothing - the sentence stays put and visible
-  // (dimmed), it just stops reading as "currently sung" during the gap
+  // fades the whole sentence out to fully invisible (opacity 0) over a
+  // fixed 1s, instead of tracking the gap's own (often much longer)
+  // duration and only fading each word's color down to a dark blue
   const spans = row.querySelectorAll(".w");
   spans.forEach(w => {
     w.style.animation = "none";
     w.style.transition = "none";
-    w.style.color = "var(--fg)";
+    w.style.color = "";
   });
+  row.style.transition = "none";
+  row.style.opacity = "1";
   row.getBoundingClientRect();
-  spans.forEach(w => {
-    w.style.transition = `color ${dur}s linear`;
-    w.style.color = LYRIC_GAP_COLOR;
-  });
+  row.style.transition = "opacity 1s linear";
+  row.style.opacity = "0";
 }
 /* whole sentence starts blue and fades to white over the exact time it
    stays active, instead of highlighting word-by-word */
@@ -536,8 +534,9 @@ function startActiveLineFade(dl, li){
   const spans = row.querySelectorAll(".w");
   for (let i = 0; i < spans.length; i++){
     spans[i].style.animation = "none";
-    // start on the artist color, darkened (49% artist = a further 30% darker)
-    spans[i].style.color = "color-mix(in srgb, var(--artist-color, var(--active-green)) 49%, black)";
+    // start on the artist color, darkened - 50% brighter than before (was
+    // 49% artist mixed with black, now 74%)
+    spans[i].style.color = "color-mix(in srgb, var(--artist-color, var(--active-green)) 74%, black)";
   }
   row.getBoundingClientRect();
   // each word fades blue -> green -> yellow -> white one by one, on its
