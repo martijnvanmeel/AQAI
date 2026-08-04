@@ -5737,11 +5737,10 @@ function animate(t){
                 s.life = 0;
                 s.strength = Math.min(1, impact / 22);
                 s.cube = c;
-                // wider for a bigger cube - 2.5 to 12.5 (world) units
-                // across (half the old 5-25 range), scaled off the base
-                // 0.4-wide plane
-                const sizeT = Math.min(1, Math.max(0, (c.size - 0.6) / (3.0 - 0.6)));
-                s.mesh.scale.x = (2.5 + sizeT * 10) / 0.4;
+                // exactly as wide as the cube itself (c.size is the
+                // cube's own world-unit edge length), scaled off the
+                // base 0.4-wide plane
+                s.mesh.scale.x = c.size / 0.4;
                 s.mesh.position.set(c.mesh.position.x, gY + 0.1, 0);
                 s.mesh.visible = true;
                 s.mat.opacity = 0;
