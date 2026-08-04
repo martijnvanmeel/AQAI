@@ -2782,6 +2782,7 @@ const tileImageTextures = TILE_IMAGE_FILES.map(f => {
   tex.anisotropy = 8;
   return tex;
 });
+const tileHash = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
 
 /* ---------- Scene 1 "TILES": an op-art corridor of big square tiles -
    quarter circles, semicircles, arrows, slats and scallops on charcoal,
@@ -5817,6 +5818,34 @@ function animate(t){
     // flythrough pattern (lerp-follow + look-ahead yaw/pitch/bank), just
     // with a taller, wilder bend
     const nowSec = (t || 0) * 0.001;
+    // every 2s each wall texture picks a new random direction (up/down/
+    // left/right) and slides 200px that way over the first 1s (eased),
+    // then holds for the second 1s before the next texture reassigns -
+    // the WHICH-photo-goes-where assignment itself never changes, only
+    // each photo's own offset shifts
+    const cubeCycleIdx = Math.floor(nowSec / 2);
+    const cubeMoveT = Math.min(1, (nowSec - cubeCycleIdx * 2) / 1);
+    const cubeEased = cubeMoveT < 1 ? (1 - Math.cos(cubeMoveT * Math.PI)) / 2 : 1;
+    tileImageTextures.forEach((tex, i) => {
+      // tex.image exists (a real <img>) the moment loading STARTS, well
+      // before it's actually decoded - width/height are still 0 then, so
+      // this guard has to check the real dimensions, not just truthiness.
+      // Skipping that check was the actual CUBE-scene bug: 200/0 produced
+      // Infinity, which corrupted texture.offset into NaN/Infinity - once
+      // that happened the wall/cube textures went black or vanished
+      // entirely and stayed that way (every following cycle re-read the
+      // corrupted offset as its new base), even though nothing threw
+      if (!tex.image || !tex.image.width || !tex.image.height) return;
+      if (tex.userData.cycleIdx !== cubeCycleIdx){
+        tex.userData.cycleIdx = cubeCycleIdx;
+        tex.userData.baseX = tex.offset.x; tex.userData.baseY = tex.offset.y;
+        const dirPick = Math.floor(tileHash(cubeCycleIdx, i * 97 + 1) * 4);
+        const dx = 200 / tex.image.width, dy = 200 / tex.image.height;
+        tex.userData.dirX = dirPick === 2 ? -dx : dirPick === 3 ? dx : 0;
+        tex.userData.dirY = dirPick === 0 ? dy : dirPick === 1 ? -dy : 0;
+      }
+      tex.offset.set(tex.userData.baseX + tex.userData.dirX * cubeEased, tex.userData.baseY + tex.userData.dirY * cubeEased);
+    });
     const scroll = flightDist * CUBEW_SPEED;
     donutGroup.position.z = wrapScroll(scroll, CUBEW_CHUNK_LENGTH);
     const here = cubePathAt(scroll - 8);
