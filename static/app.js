@@ -3208,6 +3208,7 @@ const tileImageTextures = TILE_IMAGE_FILES.map(f => {
   tex.anisotropy = 8;
   return tex;
 });
+const tileHash = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
 // lit like TILES' walls: same soft specular sheen, and the tunnel
 // receives the floating cubes' cast shadows - one material per image
 const donutMats = tileImageTextures.map(tex => new THREE.MeshPhongMaterial({ map: tex, side: THREE.DoubleSide,
@@ -4253,94 +4254,6 @@ function portalRetint(tr){
   portalFrames.forEach(m => m.material.color.copy(cols[m.userData.ci % cols.length]));
 }
 
-// -- BURST, replaced a fourth time: THREE lines braid/swirl around a
-// shared winding spine as they grow forward together through the dark,
-// each tipped with its own glowing head - like strands of a loosely
-// twisted rope instead of independent parallel lines. The camera rides
-// first-person right behind the lead line's head, looking forward along
-// its own direction of travel. A full growth cycle takes ~5 minutes
-// before it resets and regrows, via a long total path length while the
-// visual winding "wavelength" stays short (BURST_WAVELEN), so it still
-// reads as a richly curling braid rather than one giant slow arc. ---------- */
-const BURST_WAVELEN = 170; // spatial period of the shared spine's own bend
-const BURST_SPEED = 9;
-const BURST_CHUNK_LENGTH = BURST_SPEED * 300; // ~5 minutes to fully grow once, at the usual 1 flightDist-unit/sec cruise
-const BURST_TUBE_SEG = 900, BURST_RADIAL_SEG = 7;
-const BURST_LINES = 3;
-const BURST_ORBIT_R = 6.5; // how far each strand swirls from the shared spine
-const BURST_ORBIT_WAVELEN = 46; // spatial period of one full swirl around the spine
-const burstGroup = new THREE.Group();
-function burstPathAt(distZ, li){
-  // the shared spine every strand braids around - one continuous bend in
-  // both x and y, same for all three lines
-  const a = (distZ / BURST_WAVELEN) * Math.PI * 2;
-  const spineX = Math.sin(a) * 22 + Math.sin(a * 3 + 1) * 8;
-  const spineY = Math.sin(a * 2 + 2) * 17 + Math.sin(a * 5) * 6;
-  // each strand orbits the spine at its own 120-degree offset, swirling
-  // around it as it travels forward - a loose three-strand braid
-  const orbitA = (li / BURST_LINES) * Math.PI * 2 + (distZ / BURST_ORBIT_WAVELEN) * Math.PI * 2;
-  return {
-    x: spineX + Math.cos(orbitA) * BURST_ORBIT_R,
-    y: spineY + Math.sin(orbitA) * BURST_ORBIT_R,
-  };
-}
-const burstCurves = [], burstLineGeos = [], burstLineMats = [], burstHeads = [], burstHeadMats = [], burstHalos = [], burstHaloMats = [];
-const burstHaloCv = document.createElement("canvas");
-burstHaloCv.width = burstHaloCv.height = 128;
-{
-  const g = burstHaloCv.getContext("2d");
-  const rad = g.createRadialGradient(64, 64, 0, 64, 64, 62);
-  rad.addColorStop(0, "rgba(255,255,255,0.9)");
-  rad.addColorStop(0.5, "rgba(255,255,255,0.3)");
-  rad.addColorStop(1, "rgba(255,255,255,0)");
-  g.fillStyle = rad; g.fillRect(0, 0, 128, 128);
-}
-const burstHaloTex = new THREE.CanvasTexture(burstHaloCv);
-for (let li = 0; li < BURST_LINES; li++){
-  const pts = [];
-  for (let s = 0; s <= BURST_TUBE_SEG; s++){
-    const t = s / BURST_TUBE_SEG;
-    const z = -t * BURST_CHUNK_LENGTH;
-    const p = burstPathAt(-z, li);
-    pts.push(new THREE.Vector3(p.x, p.y, z));
-  }
-  const curve = new THREE.CatmullRomCurve3(pts);
-  burstCurves.push(curve);
-  const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-  const lineGeo = new THREE.TubeGeometry(curve, BURST_TUBE_SEG, 0.55, BURST_RADIAL_SEG, false);
-  lineGeo.setDrawRange(0, 0); // nothing drawn until the head has somewhere to grow to
-  const lineMesh = new THREE.Mesh(lineGeo, lineMat);
-  lineMesh.frustumCulled = false;
-  burstGroup.add(lineMesh);
-  burstLineGeos.push(lineGeo);
-  burstLineMats.push(lineMat);
-  const headMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-  const head = new THREE.Mesh(new THREE.SphereGeometry(1.4, 20, 14), headMat);
-  burstGroup.add(head);
-  burstHeads.push(head);
-  burstHeadMats.push(headMat);
-  const haloMat = new THREE.MeshBasicMaterial({ map: burstHaloTex, transparent: true, depthWrite: false,
-    blending: THREE.AdditiveBlending, color: 0xffffff, side: THREE.DoubleSide });
-  const halo = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), haloMat);
-  halo.scale.setScalar(9);
-  burstGroup.add(halo);
-  burstHalos.push(halo);
-  burstHaloMats.push(haloMat);
-}
-burstGroup.visible = false;
-scene.add(burstGroup);
-const burstFog = new THREE.FogExp2(0x050505, 0.006);
-function burstRetint(tr){
-  const { dominant, others } = artistScenePalette(tr);
-  const w = new THREE.Color(0xffffff);
-  const cols = [dominant, others[0], others[1 % others.length]];
-  cols.forEach((c, li) => {
-    burstLineMats[li].color.copy(c).lerp(w, 0.35);
-    burstHeadMats[li].color.copy(c).lerp(w, 0.75);
-    burstHaloMats[li].color.copy(c).lerp(w, 0.6);
-  });
-}
-
 // -- DOMINO: a single toppling row travelling in a wave as we pass --
 const DOMINO_CHUNK_LENGTH = 150, DOMINO_SPEED = 8;
 const dominoGroup = new THREE.Group();
@@ -4351,6 +4264,10 @@ const dominoFloorMat = new THREE.MeshPhongMaterial({ color: 0x992222, specular: 
   transparent: true, opacity: 0.72, side: THREE.DoubleSide });
 const dominoFloorOverlayMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.15,
   blending: THREE.MultiplyBlending, depthWrite: false });
+// multiply-blending a fog color onto this layer would brighten it instead
+// of fading it (the opposite of what fog should do) - fog stays off here
+// so it doesn't fight the base floor's own fade, which does the real work
+dominoFloorOverlayMat.fog = false;
 // mirror counterparts - the same shared-material trick ROADS uses for its
 // floor reflections, just kept separate so they can sit darker/translucent
 // beneath the real floor
@@ -4364,11 +4281,26 @@ function dominoPathX(z){
   return Math.sin(a) * 30 + Math.sin(a * 2 + 1) * 12;
 }
 {
-  const boxGeo = new THREE.BoxGeometry(2.6, 5.4, 0.9);
+  // hexagon-style tiles: same footprint (2.6 wide, 5.4 tall) as the old
+  // rectangular slab, just a hexagonal profile extruded to the same 0.9
+  // thickness - centered on its own origin exactly like BoxGeometry was,
+  // so every position/pivot offset below still lines up unchanged
+  const HEX_W = 2.6, HEX_H = 5.4, HEX_T = 0.9;
+  const hexShape = new THREE.Shape();
+  { const hw = HEX_W / 2, hh = HEX_H / 2;
+    hexShape.moveTo(0, hh);
+    hexShape.lineTo(hw, hh * 0.5);
+    hexShape.lineTo(hw, -hh * 0.5);
+    hexShape.lineTo(0, -hh);
+    hexShape.lineTo(-hw, -hh * 0.5);
+    hexShape.lineTo(-hw, hh * 0.5);
+    hexShape.closePath(); }
+  const boxGeo = new THREE.ExtrudeGeometry(hexShape, { depth: HEX_T, bevelEnabled: false });
+  boxGeo.translate(0, 0, -HEX_T / 2);
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
   // yaw group (pivot at the ground, faces along the run) wrapping a tip
   // hinge (the animated topple) wrapping the stone itself
-  const addStone = (rep, x, z, yaw, stagger, mi) => {
+  const addStone = (rep, x, z, yaw, stagger, mi, sizeScale, nextGap) => {
     // palette rule: half the stones near-black like the reference, half
     // in dark variants of the other artists' colors
     const useAlt = h(mi, 7) < 0.5;
@@ -4377,28 +4309,48 @@ function dominoPathX(z){
     pv.rotation.y = yaw;
     const tip = new THREE.Group();
     const mesh = new THREE.Mesh(boxGeo, useAlt ? dominoAltMats[mi % 4] : dominoDarkMat);
-    mesh.position.y = 2.7;
+    mesh.scale.setScalar(sizeScale);
+    mesh.position.y = 2.7 * sizeScale;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     tip.add(mesh);
     pv.add(tip);
     pv.userData.stagger = stagger;
     pv.userData.tip = tip;
+    // the real collision fix: a stone only topples far enough for its own
+    // tip to just reach the next stone's actual position (nextGap away,
+    // itself sized from both stones' real heights below), never past it
+    pv.userData.maxTopple = Math.asin(Math.min(0.97, nextGap / (HEX_H * sizeScale)));
     dominoPivots.push(pv);
     dominoGroup.add(pv);
   };
-  const STEP = 3.2; // single file with a bit of air between the stones - one row only, no side paths
+  // realistic spacing: the gap to the next stone is proportional to both
+  // neighbours' own heights (not a fixed distance) - the classic ~80% of
+  // a stone's height ratio real dominoes use, so a stone's fallen tip
+  // just reaches the next one by construction, whatever size either is.
+  // A fixed STEP couldn't do this: a small stone spaced for a big
+  // neighbour reads as "too much gap" yet still gets forced to topple
+  // all the way down to register a hit, which is exactly the bug
+  const GAP_RATIO = 0.78;
+  const STEP_AVG = 4.6; // only used to size the repeat count below
+  const N = Math.ceil(DOMINO_CHUNK_LENGTH / STEP_AVG);
+  const sizes = [];
+  for (let i = 0; i <= N; i++) sizes.push(0.85 + h(i, 71) * 0.35);
+  const gaps = [];
+  for (let i = 0; i < N; i++) gaps.push((sizes[i] + sizes[i + 1]) * 0.5 * HEX_H * GAP_RATIO);
   for (let rep = -1; rep <= 1; rep++){
-    for (let i = 0; i < DOMINO_CHUNK_LENGTH / STEP; i++){
-      const z = i * STEP;
+    let z = 0;
+    for (let i = 0; i < N; i++){
+      const gap = gaps[i];
       const x = dominoPathX(z);
-      const yaw = -Math.atan2(dominoPathX(z + STEP) - x, STEP);
+      const yaw = -Math.atan2(dominoPathX(z + gap) - x, gap);
       // a small per-stone timing jitter for a natural, not-perfectly-
-      // robotic wave - but bounded well under STEP so it can NEVER flip
+      // robotic wave - but bounded well under the gap so it can NEVER flip
       // two neighbours' fall order (that inversion was why a later stone
       // could topple before the one ahead of it and appear to fall
       // straight through it)
-      addStone(rep, x, z, yaw, (h(i, 8) - 0.5) * 0.6, i);
+      addStone(rep, x, z, yaw, (h(i, 8) - 0.5) * 0.6, i, sizes[i], gap);
+      z += gap;
     }
   }
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 700), dominoFloorMat);
@@ -4605,7 +4557,21 @@ const handsStarsGeo = new THREE.BufferGeometry();
   }
   handsStarsGeo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
 }
-const handsStarsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.9, sizeAttenuation: true, transparent: true, opacity: 0.85 });
+// a round sprite - without a map, PointsMaterial draws each point as a
+// flat square, which was reading as "dots"/squares instead of circles
+const handsStarTex = (() => {
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = 64;
+  const g = cv.getContext("2d");
+  const rad = g.createRadialGradient(32, 32, 0, 32, 32, 30);
+  rad.addColorStop(0, "rgba(255,255,255,1)");
+  rad.addColorStop(0.8, "rgba(255,255,255,1)");
+  rad.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = rad; g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(cv);
+})();
+const handsStarsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.9, sizeAttenuation: true,
+  map: handsStarTex, transparent: true, opacity: 0.85, depthWrite: false });
 const handsStars = new THREE.Points(handsStarsGeo, handsStarsMat);
 handsStars.frustumCulled = false;
 handsGroup.add(handsStars);
@@ -4635,7 +4601,6 @@ const SCENE_LIST = [
   { id: "check",  label: "NATURE" },
   { id: "cube",   label: "CUBE" },
   { id: "portal", label: "PORTAL" },
-  { id: "burst",  label: "BURST" },
   { id: "domino", label: "DOMINO" },
   { id: "eyes",   label: "EYES" },
   { id: "hands",  label: "HANDS" },
@@ -4698,12 +4663,22 @@ function updateArtistBackground(tr){
   const wantCheck = !gateActive && sceneId === "check";
   const wantCube = !gateActive && sceneId === "cube";
   const wantPortal = !gateActive && sceneId === "portal";
-  const wantBurst = !gateActive && sceneId === "burst";
   const wantDomino = !gateActive && sceneId === "domino";
   const wantEyes = !gateActive && sceneId === "eyes";
   const wantHands = !gateActive && sceneId === "hands";
   const want3d = wantRoad || wantMist || wantMaze || wantTiles || wantBeams || wantPrism || wantRings || wantCheck
-    || wantCube || wantPortal || wantBurst || wantDomino || wantEyes || wantHands;
+    || wantCube || wantPortal || wantDomino || wantEyes || wantHands;
+  // same lerp-follow camera snap as the other flythrough scenes
+  if (wantRoad && !roadGroup.visible){
+    const here0 = roadCenterAt(flightDist * ROAD_SPEED - 8);
+    roadCamX = here0.x; roadCamY = here0.y + ROAD_CAM_HEIGHT;
+    roadCamYaw = 0; roadCamPitch = 0; roadCamBank = 0;
+  }
+  if (wantMist && !mistGroup.visible){
+    const here0 = mistPathAt(flightDist * MIST_SPEED - 8);
+    mistCamX = here0.x; mistCamY = here0.y;
+    mistCamYaw = 0; mistCamPitch = 0; mistCamBank = 0;
+  }
   roadGroup.visible = wantRoad;
   roadScenery.visible = wantRoad;
   mistGroup.visible = wantMist;
@@ -4711,6 +4686,12 @@ function updateArtistBackground(tr){
   downtownLight.visible = wantMaze;
   downtownAmbient.visible = wantMaze;
   dtStars.visible = wantMaze;
+  // same lerp-follow camera snap as CUBE/RINGS/NATURE
+  if (wantTiles && !tilesGroup.visible){
+    const here0 = tilesPathAt(flightDist * TILES_SPEED - 8);
+    tilesCamX = here0.x; tilesCamY = here0.y;
+    tilesCamYaw = 0; tilesCamPitch = 0; tilesCamBank = 0;
+  }
   tilesGroup.visible = wantTiles;
   tilesDirLight.visible = wantTiles;
   tilesDirFill.visible = wantTiles;
@@ -4719,10 +4700,28 @@ function updateArtistBackground(tr){
   beamsScenery.visible = wantBeams;
   beamsLight.visible = wantBeams;
   beamsAmbient.visible = wantBeams;
+  // PRISM's gaze target drifts at an extremely slow lerp rate (0.003) -
+  // without a snap here a stale value from a much-earlier visit could
+  // take minutes to settle
+  if (wantPrism && !prismGroup.visible) prismCamYaw = prismCamPitch = prismCamRoll = 0;
   prismGroup.visible = wantPrism;
   prismStarLayers.forEach(g => { g.visible = wantPrism; });
   // star lights retired - their moving washes read as artifacts
   prismAmbient.visible = wantPrism;
+  // snap RINGS' and NATURE's lerp-follow camera state to their correct
+  // starting position the instant each scene turns on, same fix as CUBE -
+  // otherwise the camera starts wherever it was last left and visibly
+  // drifts into place over the first couple of seconds
+  if (wantRings && !ringsGroup.visible){
+    const here0 = ringsPathAt(flightDist * RINGS_SPEED - 8);
+    ringsCamX = here0.x; ringsCamY = here0.y;
+    ringsCamYaw = 0; ringsCamPitch = 0; ringsCamBank = 0;
+  }
+  if (wantCheck && !checkGroup.visible){
+    const here0 = checkPathAt(flightDist * CHECK_SPEED - 8);
+    checkCamX = here0.x; checkCamY = here0.y;
+    checkCamYaw = 0; checkCamPitch = 0; checkCamBank = 0;
+  }
   ringsGroup.visible = wantRings;
   ringsScenery.visible = wantRings; // end-of-tunnel glow re-enabled, toned down (see ringsGlowMat)
   ringsStars.visible = wantRings;
@@ -4730,7 +4729,6 @@ function updateArtistBackground(tr){
   portalGroup.visible = wantPortal;
   portalLight.visible = wantPortal;
   portalAmbient.visible = wantPortal;
-  burstGroup.visible = wantBurst;
   dominoGroup.visible = wantDomino;
   dominoMirrorGroup.visible = wantDomino;
   dominoDirLight.visible = wantDomino;
@@ -4777,7 +4775,7 @@ function updateArtistBackground(tr){
   // sphere keeps the natural 1x lens
   camera.zoom = gateActive ? 1.3 : wantRoad ? 1.6 : wantMist ? 1.5 : wantMaze ? 1.35
     : wantTiles ? 1.4 : wantCheck ? 1.6 : (wantBeams || wantPrism || wantRings) ? 1.45
-    : (wantPortal || wantBurst) ? 1.2 : (wantDomino || wantEyes || wantHands) ? 1.35 : 1;
+    : wantPortal ? 1.2 : (wantDomino || wantEyes || wantHands) ? 1.35 : 1;
   camera.updateProjectionMatrix();
   if (wantRoad){
     // transparent clear: the sky is a CSS gradient behind the canvas
@@ -4839,10 +4837,6 @@ function updateArtistBackground(tr){
     portalRetint(tr);
     renderer.setClearColor(0x070707, 1);
     scene.fog = portalFog;
-  } else if (wantBurst){
-    burstRetint(tr);
-    renderer.setClearColor(0x050505, 1);
-    scene.fog = burstFog;
   } else if (wantDomino){
     dominoRetint(tr);
     renderer.setClearColor(dominoBgColor, 1);
@@ -5645,32 +5639,6 @@ function animate(t){
     // continuous clockwise roll - a full turn every 40s - layered under
     // the small existing sway so it never feels perfectly mechanical
     camera.rotation.z = Math.sin(swayT * 0.01 + 3) * 0.1 + nowSec * (Math.PI * 2 / 40) + cameraRollOffset;
-  } else if (burstGroup.visible){
-    // all four lines grow forward together, one lap at a time - headT
-    // sweeps 0->1 over ~5 minutes of travel, revealing each tube up to
-    // that point, then every one wraps back to 0 and regrows together
-    const headT = (flightDist * BURST_SPEED / BURST_CHUNK_LENGTH) % 1;
-    const revealSegs = Math.max(1, Math.floor(headT * BURST_TUBE_SEG));
-    let leadHeadPos = null, leadTangent = null;
-    for (let li = 0; li < BURST_LINES; li++){
-      burstLineGeos[li].setDrawRange(0, revealSegs * BURST_RADIAL_SEG * 6);
-      const headPos = burstCurves[li].getPointAt(headT);
-      burstHeads[li].position.copy(headPos);
-      burstHalos[li].position.copy(headPos);
-      if (li === 0){ leadHeadPos = headPos; leadTangent = burstCurves[li].getTangentAt(headT); }
-    }
-    // first-person: riding just behind the lead line's glowing head,
-    // looking forward along its own direction of travel - not orbiting
-    // from outside anymore
-    const behind = leadTangent.clone().multiplyScalar(-5);
-    camera.position.copy(leadHeadPos).add(behind);
-    camera.position.y += 1.1;
-    camera.up.set(0, 1, 0);
-    const lookTarget = leadHeadPos.clone().add(leadTangent.clone().multiplyScalar(14));
-    camera.lookAt(lookTarget);
-    camera.rotation.z += Math.sin(swayT * 0.012 + 3) * 0.05 + cameraRollOffset;
-    // halos billboard to the NOW-current camera orientation
-    for (let li = 0; li < BURST_LINES; li++) burstHalos[li].quaternion.copy(camera.quaternion);
   } else if (dominoGroup.visible){
     // the topple wave: every domino stands until the flight brings it
     // near, then it eases over around its ground edge and stays down
@@ -5685,7 +5653,11 @@ function animate(t){
       const p = Math.min(1, Math.max(0, a / 5));
       const e = p * p * (3 - 2 * p);
       const q = Math.min(1, Math.max(0, (a - 5) / 3));
-      const rot = -e * 1.45 + Math.sin(q * Math.PI) * 0.07;
+      // capped per-stone (see maxTopple at build time) instead of a fixed
+      // 1.45rad for every stone - this is the actual collision fix: each
+      // stone now stops right where its own tip would reach the next
+      // stone's slot, instead of swinging on through it
+      const rot = -e * pv.userData.maxTopple + Math.sin(q * Math.PI) * 0.07;
       pv.userData.tip.rotation.x = rot;
       dominoMirrorTips[i].rotation.x = rot; // the reflection topples in lockstep
     });
@@ -5746,17 +5718,48 @@ function animate(t){
     // group's own slower scroll since it's a child of handsGroup
     const HANDS_STAR_SPEED = HANDS_SPEED * 2.6;
     handsStars.position.z = wrapScroll(flightDist * HANDS_STAR_SPEED, HANDS_CHUNK_LENGTH * 2) - handsGroup.position.z;
-    camera.position.x = Math.sin(swayT * 0.017) * 6;
-    camera.position.y = Math.sin(swayT * 0.013 + 1) * 4;
-    camera.rotation.x = Math.sin(swayT * 0.01 + 2) * 0.05;
-    camera.rotation.y = Math.sin(swayT * 0.012) * 0.06;
-    camera.rotation.z = Math.sin(swayT * 0.008 + 3) * 0.07 + cameraRollOffset;
+    // sway amplitudes (and a new depth wander) boosted 25% over the base
+    // flythrough sway used elsewhere
+    camera.position.x = Math.sin(swayT * 0.017) * 7.5;
+    camera.position.y = Math.sin(swayT * 0.013 + 1) * 5;
+    camera.position.z = 8 + Math.sin(swayT * 0.009 + 4) * 2.5;
+    camera.rotation.x = Math.sin(swayT * 0.01 + 2) * 0.0625;
+    camera.rotation.y = Math.sin(swayT * 0.012) * 0.075;
+    camera.rotation.z = Math.sin(swayT * 0.008 + 3) * 0.0875 + cameraRollOffset;
   } else if (donutGroup.visible){
     // winding tunnel: the camera follows the same bending spine the walls
     // were built along, banking into the curves - exactly the RINGS/TILES
     // flythrough pattern (lerp-follow + look-ahead yaw/pitch/bank), just
     // with a taller, wilder bend
     const nowSec = (t || 0) * 0.001;
+    // every 2s each wall texture picks a new random direction (up/down/
+    // left/right) and slides 200px that way over the first 1s (eased),
+    // then holds for the second 1s before the next texture reassigns -
+    // the WHICH-photo-goes-where assignment itself never changes, only
+    // each photo's own offset shifts
+    const cubeCycleIdx = Math.floor(nowSec / 2);
+    const cubeMoveT = Math.min(1, (nowSec - cubeCycleIdx * 2) / 1);
+    const cubeEased = cubeMoveT < 1 ? (1 - Math.cos(cubeMoveT * Math.PI)) / 2 : 1;
+    tileImageTextures.forEach((tex, i) => {
+      // tex.image exists (a real <img>) the moment loading STARTS, well
+      // before it's actually decoded - width/height are still 0 then, so
+      // this guard has to check the real dimensions, not just truthiness.
+      // Skipping that check was the actual CUBE-scene bug: 200/0 produced
+      // Infinity, which corrupted texture.offset into NaN/Infinity - once
+      // that happened the wall/cube textures went black or vanished
+      // entirely and stayed that way (every following cycle re-read the
+      // corrupted offset as its new base), even though nothing threw
+      if (!tex.image || !tex.image.width || !tex.image.height) return;
+      if (tex.userData.cycleIdx !== cubeCycleIdx){
+        tex.userData.cycleIdx = cubeCycleIdx;
+        tex.userData.baseX = tex.offset.x; tex.userData.baseY = tex.offset.y;
+        const dirPick = Math.floor(tileHash(cubeCycleIdx, i * 97 + 1) * 4);
+        const dx = 200 / tex.image.width, dy = 200 / tex.image.height;
+        tex.userData.dirX = dirPick === 2 ? -dx : dirPick === 3 ? dx : 0;
+        tex.userData.dirY = dirPick === 0 ? dy : dirPick === 1 ? -dy : 0;
+      }
+      tex.offset.set(tex.userData.baseX + tex.userData.dirX * cubeEased, tex.userData.baseY + tex.userData.dirY * cubeEased);
+    });
     const scroll = flightDist * CUBEW_SPEED;
     donutGroup.position.z = wrapScroll(scroll, CUBEW_CHUNK_LENGTH);
     const here = cubePathAt(scroll - 8);
@@ -5873,7 +5876,10 @@ fetch("/api/tracks").then(r => r.json()).then(data => {
 // aren't subject to)
 const LOGO3D_DEPTH = 20;
 const logo3dEl = $("#gate-logo3d");
-function renderLogoFace(){
+// fillColor now parameterized - the intro logo cycles through it (see
+// startLogoColorCycle below), so every face gets re-rendered with a new
+// fill on each color step instead of a fixed black
+function renderLogoFace(fillColor){
   const W = 1200, H = 450;
   const canvas = document.createElement("canvas");
   canvas.width = W; canvas.height = H;
@@ -5882,37 +5888,68 @@ function renderLogoFace(){
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   const cx = W / 2, cy = H / 2 + H * 0.03;
-  // black fill with a dark grey outline (stroke drawn first so the fill
+  // fill with a white hairline outline (stroke drawn first so the fill
   // covers its inner half, leaving just the outer edge visible) - this
-  // canvas renders at 1200px wide then displays at ~400px (see .logo3d's
-  // width:min(400px,90vw)), a ~3x downscale, so lineWidth 3 here reads as
-  // about 1 screen pixel once displayed
+  // canvas renders at 1200px wide then displays at 50% of the screen
+  // width (see .logo3d's width:50vw)
   ctx.lineJoin = "round";
-  ctx.fillStyle = "#000000"; // black letters
+  ctx.fillStyle = fillColor;
   ctx.fillText("AQAI", cx, cy);
   ctx.strokeStyle = "#ffffff"; // white 1px hairline outline (3px @1200 ≈ 1px on screen)
   ctx.lineWidth = 3;
   ctx.strokeText("AQAI", cx, cy);
   return canvas.toDataURL("image/png");
 }
+// only the extruded SIDE layers (the depth between front and back) fade
+// through colors - the front and back end caps stay a fixed solid black
+const logo3dSideImgs = [];
 if (logo3dEl){
   (async () => {
     try { await document.fonts.load(`900 ${450 * 0.85}px Brice`); } catch (e) {}
-    const faceSrc = renderLogoFace(); // black AQAI with a white 1px hairline
-    // plain extruded stack: copies of the same black/white-outline face a few
-    // px apart in depth (no reflection)
+    const blackSrc = renderLogoFace("#000000"); // front/back: fixed, never animated
+    const sideSrc = renderLogoFace("#ffffff"); // sides: start white, then cycle
     for (let i = LOGO3D_DEPTH; i >= 0; i--){
+      const isEndCap = i === 0 || i === LOGO3D_DEPTH;
       const layer = document.createElement("div");
       layer.className = "logo3d-layer" + (i === 0 ? " logo3d-front" : "") + (i === LOGO3D_DEPTH ? " logo3d-back" : "");
       layer.style.transform = `translateZ(${-i}px)`;
       const img = document.createElement("img");
-      img.src = faceSrc;
+      img.src = isEndCap ? blackSrc : sideSrc;
       img.alt = "";
       img.style.cssText = "width:100%;height:100%;object-fit:contain;";
       layer.appendChild(img);
       logo3dEl.appendChild(layer);
+      if (!isEndCap) logo3dSideImgs.push(img);
     }
+    startLogoColorCycle();
   })();
+}
+// the extruded sides fade white -> through every artist's color -> back
+// to white, looping continuously while the gate is up. Re-renders the
+// canvas bitmap (throttled - the bitmap approach can't be recolored with
+// a plain CSS filter, see the comment above renderLogoFace) rather than
+// running every animation frame, since a slow color fade doesn't need it
+function startLogoColorCycle(){
+  const LOGO_CYCLE_SEC = 16;
+  const white = new THREE.Color(0xffffff);
+  let lastUpdate = -1;
+  function tick(){
+    if (!document.body.classList.contains("gate-active")) return; // stop once the gate is dismissed
+    const now = performance.now();
+    if (now - lastUpdate > 120){
+      lastUpdate = now;
+      const artistColors = [...new Set(TRACKS.map(t => t.artistColor).filter(Boolean))].map(c => new THREE.Color(c));
+      const stops = [white, ...(artistColors.length ? artistColors : [new THREE.Color(0x7CFF9E)]), white];
+      const u = (now / 1000 % LOGO_CYCLE_SEC) / LOGO_CYCLE_SEC;
+      const f = u * (stops.length - 1);
+      const i0 = Math.min(stops.length - 2, Math.floor(f));
+      const c = stops[i0].clone().lerp(stops[i0 + 1], f - i0);
+      const src = renderLogoFace("#" + c.getHexString());
+      logo3dSideImgs.forEach(img => { img.src = src; });
+    }
+    requestAnimationFrame(tick);
+  }
+  tick();
 }
 
 // the hint text cycles the same colors as the button, per letter, so it

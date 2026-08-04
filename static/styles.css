@@ -121,7 +121,7 @@ body.gate-active::after{display:none}
      exactly on top of each other at different depths) - without an
      explicit size here the whole thing collapses to 0x0, since
      absolutely-positioned children can't establish their parent's size */
-  width:min(400px,90vw);aspect-ratio:8/3;
+  width:50vw;aspect-ratio:8/3;
   position:relative;transform-style:preserve-3d;
   animation:logo3dSpin 10.8s linear infinite; /* 20% heavier/slower spin */
   font-family:var(--font-display);font-weight:900;letter-spacing:-.02em;
@@ -276,7 +276,7 @@ body.scene-rings #stage{background:linear-gradient(to top,
 /* HANDS: a horizon behind the sphere tunnel - artist color low, fading to
    black higher up */
 body.scene-hands #stage{background:linear-gradient(to top,
-  color-mix(in srgb, var(--artist-color, #7CFF9E) 18%, black) 0%, #000000 55%)}
+  color-mix(in srgb, var(--artist-color, #7CFF9E) 18%, black) 0%, #000000 69%)}
 /* full-screen tint in the current track's artist color, sitting right on
    top of the 3D sphere/background video (z-index:0) but below every
    other overlay/UI layer (z-index:1+) - color set per-track in
@@ -285,6 +285,15 @@ body.scene-hands #stage{background:linear-gradient(to top,
    darkness, fading out toward the edges to 40% less dark (.15) since
    alpha is baked into each gradient stop, opacity itself is no longer
    used (it would darken the whole element uniformly, undoing the fade) */
+/* gradient.mp4 overlay: a subtle moving color-grade wash on top of every
+   3D scene, always on regardless of which background is active - sits
+   right above #stage (z-index:0), below the artist-color tint and all
+   other UI (z-index:1+) */
+#gradient-overlay{
+  position:fixed;inset:0;z-index:1;pointer-events:none;
+  width:100%;height:100%;object-fit:cover;
+  opacity:.15;
+}
 #artist-color-overlay{
   position:fixed;inset:0;z-index:1;pointer-events:none;
   background:radial-gradient(circle at 50% 50%,
