@@ -4145,12 +4145,12 @@ const dominoDarkMat = new THREE.MeshPhongMaterial({ color: 0x101010, specular: 0
 const dominoAltMats = [0, 1, 2, 3].map(() => new THREE.MeshPhongMaterial({ color: 0x101010, specular: 0xcccccc, shininess: 80 }));
 const dominoFloorMat = new THREE.MeshPhongMaterial({ color: 0x992222, specular: 0xffffff, shininess: 110,
   transparent: true, opacity: 0.72, side: THREE.DoubleSide });
+// normal blending (was multiply) so fog actually fades this layer out with
+// the rest of the ground instead of staying visible forever - multiply
+// blending has no distance term of its own, and disabling fog on it (the
+// old fix for multiply fighting fog) meant it just never faded at all
 const dominoFloorOverlayMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.15,
-  blending: THREE.MultiplyBlending, depthWrite: false });
-// multiply-blending a fog color onto this layer would brighten it instead
-// of fading it (the opposite of what fog should do) - fog stays off here
-// so it doesn't fight the base floor's own fade, which does the real work
-dominoFloorOverlayMat.fog = false;
+  depthWrite: false });
 // mirror counterparts - the same shared-material trick ROADS uses for its
 // floor reflections, just kept separate so they can sit darker/translucent
 // beneath the real floor
@@ -4162,14 +4162,6 @@ const dominoMirrorAltMats = [0, 1, 2, 3].map(() => new THREE.MeshBasicMaterial({
 function dominoPathX(z){
   const a = (z / DOMINO_CHUNK_LENGTH) * Math.PI * 2;
   return Math.sin(a) * 30 + Math.sin(a * 2 + 1) * 12;
-}
-// a second endless lane, offset to the side with its own curve (different
-// frequency/amplitude/phase) so it winds and bends independently instead
-// of just tracing a parallel copy of the first row
-const DOMINO_LANE2_X = 55;
-function dominoPathX2(z){
-  const a = (z / DOMINO_CHUNK_LENGTH) * Math.PI * 2;
-  return DOMINO_LANE2_X + Math.sin(a * 1.5 + 2) * 22 + Math.sin(a * 3 + 0.5) * 10;
 }
 {
   // hexagon-style tiles: same footprint (2.6 wide, 5.4 tall) as the old
@@ -4224,8 +4216,14 @@ function dominoPathX2(z){
   // this: taller stones left a visible gap they never actually reached,
   // shorter ones overshot into the next slot
   const TOUCH_RATIO = 0.42; // much tighter pack than before (was 0.92)
-  const STEP_AVG = 4.6; // only used to size the repeat count below
-  const N = Math.ceil(DOMINO_CHUNK_LENGTH / STEP_AVG);
+  // stone count sized from the ACTUAL expected gap (TOUCH_RATIO applied to
+  // the average stone height), not a stale unrelated constant - that
+  // mismatch was the real bug: it undercounted stones, so the chain only
+  // filled the first half of each chunk repeat and then just stopped,
+  // leaving a long dead gap (an "interruption") before the next repeat
+  const AVG_SIZE_SCALE = 0.85 + 0.35 / 2;
+  const STEP_AVG = AVG_SIZE_SCALE * HEX_H * TOUCH_RATIO;
+  const N = Math.ceil(DOMINO_CHUNK_LENGTH / STEP_AVG) + 2; // +2 margin so it slightly overlaps the seam rather than gapping it
   const sizes = [];
   for (let i = 0; i <= N; i++) sizes.push(0.85 + h(i, 71) * 0.35);
   const gaps = [];
@@ -4242,22 +4240,6 @@ function dominoPathX2(z){
       // could topple before the one ahead of it and appear to fall
       // straight through it)
       addStone(rep, x, z, yaw, (h(i, 8) - 0.5) * 0.6, i, sizes[i]);
-      z += gap;
-    }
-  }
-  // second endless lane, its own curve (dominoPathX2) and its own hash
-  // seeds so its sizes/stagger/palette split don't just mirror lane one
-  const sizes2 = [];
-  for (let i = 0; i <= N; i++) sizes2.push(0.85 + h(i + 500, 71) * 0.35);
-  const gaps2 = [];
-  for (let i = 0; i < N; i++) gaps2.push(sizes2[i] * HEX_H * TOUCH_RATIO);
-  for (let rep = -1; rep <= 1; rep++){
-    let z = 0;
-    for (let i = 0; i < N; i++){
-      const gap = gaps2[i];
-      const x = dominoPathX2(z);
-      const yaw = -Math.atan2(dominoPathX2(z + gap) - x, gap);
-      addStone(rep, x, z, yaw, (h(i + 500, 8) - 0.5) * 0.6, i + 500, sizes2[i]);
       z += gap;
     }
   }
@@ -4326,9 +4308,10 @@ const dominoFog = new THREE.FogExp2(0x220808, 0.045);
 function dominoRetint(tr){
   const { dominant } = artistScenePalette(tr);
   dominoFloorMat.color.copy(dominant.clone().multiplyScalar(0.8));
-  // every stone a dark version of the artist's color, in four shades
-  dominoDarkMat.color.copy(dominant.clone().multiplyScalar(0.28));
-  const shades = [0.2, 0.3, 0.38, 0.46];
+  // every stone a lighter version of the artist's color, in four shades
+  // (was 0.28/0.2-0.46 - read as near-black; brightened well clear of that)
+  dominoDarkMat.color.copy(dominant.clone().multiplyScalar(0.55));
+  const shades = [0.45, 0.58, 0.7, 0.85];
   dominoAltMats.forEach((m, i) => m.color.copy(dominant.clone().multiplyScalar(shades[i % shades.length])));
   // mirror stones darker still - a reflection, not a duplicate
   dominoMirrorDarkMat.color.copy(dominant.clone().multiplyScalar(0.28)).multiplyScalar(0.5);
