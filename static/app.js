@@ -1474,6 +1474,26 @@ function drawWaveCanvas(){
   dctx.strokeStyle = WAVE_COLOR;
   dctx.fillStyle = WAVE_COLOR;
   dctx.lineCap = "round";
+  // sphere scene: discrete vertical strokes at 20% transparency (80%
+  // opaque), instead of the connected line every other scene uses
+  const sphereStrokes = document.body.classList.contains("scene-sphere");
+  if (sphereStrokes){
+    dctx.globalAlpha = 0.8;
+    for (let s = 0; s <= WAVE_SEGMENTS; s++){
+      const u = s / WAVE_SEGMENTS;
+      const val = waveCurveAt(display, u);
+      const x = u * w, y = midY - Math.abs(val) * ampPx;
+      const intensity = Math.min(1, Math.abs(val) * 1.6);
+      dctx.lineWidth = 1 + intensity * 6;
+      dctx.strokeStyle = mixWithWhite(WAVE_COLOR, intensity * 0.6);
+      dctx.beginPath();
+      dctx.moveTo(x, midY);
+      dctx.lineTo(x, y);
+      dctx.stroke();
+    }
+    dctx.restore();
+    return;
+  }
   let prevX = 0, prevY = midY;
   for (let s = 0; s <= WAVE_SEGMENTS; s++){
     const u = s / WAVE_SEGMENTS;
@@ -1603,7 +1623,7 @@ function positionWaveCanvas(){
   // the sphere screen specifically - the canvas grows but keeps its
   // resting baseline (at 65% of its height, see drawWaveCanvas) pinned to
   // the exact same on-screen spot, so all the extra swing extends upward
-  const heightMul = document.body.classList.contains("scene-sphere") ? 8 : 6;
+  const heightMul = document.body.classList.contains("scene-sphere") ? 48 : 6; // sphere: 6x higher again (was 8x)
   const height = baseHeight * heightMul;
   const photoRect = photo.getBoundingClientRect();
   const centerY = photoRect.top + photoRect.height / 2;

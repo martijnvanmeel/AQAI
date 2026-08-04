@@ -266,9 +266,18 @@ body.scene-mist #stage{background:linear-gradient(to top, #101a3e 0%, #060a1c 55
    --artist-color (which would clash with the scene's own blue tones) */
 body.scene-beams #stage{background:linear-gradient(to top,
   #123064 0%, #000000 60%)}
-/* NATURE horizon: black up top sinking into 15% of the artist color */
-body.scene-check #stage{background:linear-gradient(to top,
-  color-mix(in srgb, var(--artist-color, #7CFF9E) 15%, black) 0%, #000000 60%)}
+/* NATURE horizon: black up top sinking into a modest dark blue (was the
+   artist color) - a taller gradient slowly drifting its visible window up
+   and down so the horizon itself reads as moving with the scene */
+body.scene-check #stage{
+  background-image:linear-gradient(to top, #16324f 0%, #000000 60%);
+  background-size:100% 200%;
+  animation:natureHorizonDrift 30s ease-in-out infinite;
+}
+@keyframes natureHorizonDrift{
+  0%, 100%{background-position:0% 0%}
+  50%{background-position:0% 100%}
+}
 /* RINGS: dark background, black up top sinking into the artist color as
    the primary color at the bottom (55% mix - still dark, not full bright) */
 body.scene-rings #stage{background:linear-gradient(to top,
