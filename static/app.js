@@ -2841,6 +2841,15 @@ const tileImageTextures = TILE_IMAGE_FILES.map(f => {
   return tex;
 });
 const tileHash = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+// TILES specifically uses just these three (the rest of the shared sheet
+// above is for CUBE/DOMINO)
+const TILES_IMAGE_FILES = ["1.jpg", "2.jpg", "3.jpg"];
+const tilesImageTextures = TILES_IMAGE_FILES.map(f => {
+  const tex = tileImageLoader.load("assets/tiles/" + f);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 8;
+  return tex;
+});
 
 /* ---------- Scene 1 "TILES": an op-art corridor of big square tiles -
    quarter circles, semicircles, arrows, slats and scallops on charcoal,
@@ -2860,15 +2869,15 @@ const tilesStripeMats = [];     // the cubes' photo-tile coats
 const tilesBlocks = []; // floating animated cubes, driven in animate()
 {
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
-  // walls/floor/ceiling: the same Tiles-folder photo sheet CUBE uses,
-  // one image per material, tinted per artist in tilesRetint() below
+  // walls/floor/ceiling: TILES' own 3-image set (1.jpg/2.jpg/3.jpg), one
+  // image per material, tinted per artist in tilesRetint() below
   for (let i = 0; i < 12; i++){
-    const tex = tileImageTextures[i % tileImageTextures.length];
+    const tex = tilesImageTextures[i % tilesImageTextures.length];
     tilesMats.push(new THREE.MeshPhongMaterial({ map: tex, side: THREE.DoubleSide,
       specular: 0x555555, shininess: 22 }));
   }
   for (let i = 0; i < 4; i++){
-    const tex = tileImageTextures[(i + 5) % tileImageTextures.length];
+    const tex = tilesImageTextures[i % tilesImageTextures.length];
     // Phong: the cubes catch a specular sheen from the key light (they
     // already cast and receive the scene's soft shadows)
     tilesStripeMats.push(new THREE.MeshPhongMaterial({ map: tex, specular: 0x999999, shininess: 48 }));
