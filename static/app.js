@@ -4577,7 +4577,7 @@ function dominoPathX(z){
   // next stone, whatever size either one is. A fixed STEP couldn't do
   // this: taller stones left a visible gap they never actually reached,
   // shorter ones overshot into the next slot
-  const TOUCH_RATIO = 0.42; // much tighter pack than before (was 0.92)
+  const TOUCH_RATIO = 0.21; // half the previous distance (was 0.42) - same fixed step for every stone
   // stone count sized from the ACTUAL expected gap (TOUCH_RATIO applied to
   // the average stone height), not a stale unrelated constant - that
   // mismatch was the real bug: it undercounted stones, so the chain only
@@ -4718,12 +4718,18 @@ const eyesIrisMats = [];
       const scl = new THREE.Mesh(eyeSclGeo, sclMat);
       const sclBaseH = size / 2 * 1.25 * 1.25; // half its own width, +25% taller twice now, open-eye state
       scl.scale.set(size, sclBaseH, 1);
+      scl.renderOrder = 0;
       const irisRing = new THREE.Mesh(eyeIrisRingGeo, eyesIrisMats[i % eyesIrisMats.length]);
       const pupil = new THREE.Mesh(eyePupilGeo, eyePupilMat);
       pupil.position.z = 0.01;
+      // both circles always draw on top of the white, by explicit
+      // renderOrder - not just z-position, which transparent depth-sort
+      // alone can't guarantee
+      irisRing.renderOrder = 1;
+      pupil.renderOrder = 2;
       const iris = new THREE.Group();
       iris.add(irisRing); iris.add(pupil);
-      iris.scale.set(size * 0.375, size * 0.375, 1);
+      iris.scale.set(size * 0.375 * 0.7, size * 0.375 * 0.7, 1); // 70% of the previous size
       iris.position.z = 0.3;
       eye.add(iris); eye.add(scl); // circle added before the white
       // biased toward the sides (left/right) and away from dead center,
@@ -5200,8 +5206,10 @@ function updateArtistBackground(tr){
     renderer.setClearColor(dominoBgColor, 1);
     scene.fog = dominoFog;
   } else if (wantEyes){
+    // flat colored horizon background removed - plain black behind
+    // everything now, fog still does the depth fade
     eyesRetint(tr);
-    renderer.setClearColor(eyesBgColor, 1);
+    renderer.setClearColor(0x000000, 1);
     scene.fog = eyesFog;
   } else if (wantHands){
     handsRetint(tr);
