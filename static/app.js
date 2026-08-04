@@ -4246,6 +4246,8 @@ function portalRetint(tr){
 const DOMINO_CHUNK_LENGTH = 150, DOMINO_SPEED = 8;
 const dominoGroup = new THREE.Group();
 const dominoPivots = [];
+const dominoShapeGeos = []; // rectangle, hexagon, square, round - see animate() for the cycle
+let dominoLastShapeIdx = -1;
 const dominoDarkMat = new THREE.MeshPhongMaterial({ color: 0x101010, specular: 0xcccccc, shininess: 80 });
 const dominoAltMats = [0, 1, 2, 3].map(() => new THREE.MeshPhongMaterial({ color: 0x101010, specular: 0xcccccc, shininess: 80 }));
 const dominoFloorMat = new THREE.MeshPhongMaterial({ color: 0x992222, specular: 0xffffff, shininess: 110,
@@ -4285,6 +4287,25 @@ function dominoPathX(z){
     hexShape.closePath(); }
   const boxGeo = new THREE.ExtrudeGeometry(hexShape, { depth: HEX_T, bevelEnabled: false });
   boxGeo.translate(0, 0, -HEX_T / 2);
+  // three more silhouettes the stones cycle through in animate() - each
+  // centered on its own origin the same way, so the ground pivot/topple
+  // math never needs to know which shape is currently showing
+  const rectShape = new THREE.Shape();
+  { const hw = HEX_W / 2, hh = HEX_H / 2;
+    rectShape.moveTo(-hw, -hh); rectShape.lineTo(hw, -hh);
+    rectShape.lineTo(hw, hh); rectShape.lineTo(-hw, hh); rectShape.closePath(); }
+  const rectGeo = new THREE.ExtrudeGeometry(rectShape, { depth: HEX_T, bevelEnabled: false });
+  rectGeo.translate(0, 0, -HEX_T / 2);
+  const squareShape = new THREE.Shape();
+  { const hs = 3.8 / 2;
+    squareShape.moveTo(-hs, -hs); squareShape.lineTo(hs, -hs);
+    squareShape.lineTo(hs, hs); squareShape.lineTo(-hs, hs); squareShape.closePath(); }
+  const squareGeo = new THREE.ExtrudeGeometry(squareShape, { depth: HEX_T, bevelEnabled: false });
+  squareGeo.translate(0, 0, -HEX_T / 2);
+  const roundGeo = new THREE.CylinderGeometry(HEX_H / 2, HEX_H / 2, HEX_T, 24);
+  roundGeo.rotateX(Math.PI / 2);
+  // rectangle -> hexagon -> square -> round -> back to rectangle
+  dominoShapeGeos.push(rectGeo, boxGeo, squareGeo, roundGeo);
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
   // yaw group (pivot at the ground, faces along the run) wrapping a tip
   // hinge (the animated topple) wrapping the stone itself
@@ -4311,6 +4332,7 @@ function dominoPathX(z){
     pv.userData.stagger = stagger;
     pv.userData.tip = tip;
     pv.userData.maxTopple = DOMINO_MAX_TOPPLE;
+    pv.userData.mesh = mesh;
     dominoPivots.push(pv);
     dominoGroup.add(pv);
   };
@@ -4409,7 +4431,7 @@ const dominoBgColor = new THREE.Color(0x220808);
 // denser still (was 0.01, then 0.022) - pulls the ground into the
 // background much closer to the camera instead of only fading out near
 // the far edge of the visible run
-const dominoFog = new THREE.FogExp2(0x220808, 0.045);
+const dominoFog = new THREE.FogExp2(0x220808, 0.036); // 20% less than before (was 0.045)
 function dominoRetint(tr){
   const { dominant } = artistScenePalette(tr);
   dominoFloorMat.color.copy(dominant.clone().multiplyScalar(0.8));
@@ -5713,6 +5735,19 @@ function animate(t){
     // until the wrap resets it far ahead
     dominoGroup.position.z = wrapScroll(flightDist * DOMINO_SPEED, DOMINO_CHUNK_LENGTH);
     dominoMirrorGroup.position.z = dominoGroup.position.z;
+    // every stone cycles through the same 4 silhouettes together -
+    // rectangle -> hexagon -> square -> round -> back to rectangle -
+    // swapped as a group every couple seconds rather than smoothly
+    // morphed vertex-by-vertex
+    const dominoShapeIdx = Math.floor(((t || 0) * 0.001) / 2) % dominoShapeGeos.length;
+    if (dominoShapeIdx !== dominoLastShapeIdx){
+      dominoLastShapeIdx = dominoShapeIdx;
+      const geo = dominoShapeGeos[dominoShapeIdx];
+      dominoPivots.forEach((pv, i) => {
+        pv.userData.mesh.geometry = geo;
+        dominoMirrorTips[i].children[0].geometry = geo;
+      });
+    }
     dominoPivots.forEach((pv, i) => {
       const wz = pv.position.z + dominoGroup.position.z;
       // realistic topple: a fast accelerating fall (smoothstep over a
