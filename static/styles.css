@@ -269,10 +269,10 @@ body.scene-beams #stage{background:linear-gradient(to top,
 /* NATURE horizon: black up top sinking into 15% of the artist color */
 body.scene-check #stage{background:linear-gradient(to top,
   color-mix(in srgb, var(--artist-color, #7CFF9E) 15%, black) 0%, #000000 60%)}
-/* RINGS: dark background, black up top sinking into 20% of the artist
-   color at the bottom */
+/* RINGS: dark background, black up top sinking into the artist color as
+   the primary color at the bottom (55% mix - still dark, not full bright) */
 body.scene-rings #stage{background:linear-gradient(to top,
-  color-mix(in srgb, var(--artist-color, #7CFF9E) 20%, black) 0%, #000000 60%)}
+  color-mix(in srgb, var(--artist-color, #7CFF9E) 55%, black) 0%, #000000 60%)}
 /* HANDS: a horizon behind the sphere tunnel - artist color low, fading to
    black higher up */
 body.scene-hands #stage{background:linear-gradient(to top,

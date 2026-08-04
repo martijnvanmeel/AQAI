@@ -3779,7 +3779,10 @@ scene.add(prismGroup);
 // lines' speed, one rushing past at 1.7x - so the slat curtain sits
 // between two parallax depths
 const prismStarLayers = [];
-[[0.5, 120, 1.6], [1.7, 80, 2.4]].forEach(([speedMul, count, size], li) => {
+// perspective-scaled now (was a fixed pixel size) so a star visibly grows
+// as it nears the camera instead of staying one constant screen size -
+// world sizes tuned so the closest stars read at roughly 5px
+[[0.5, 120, 0.7], [1.7, 80, 1.0]].forEach(([speedMul, count, size], li) => {
   const hh = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
   const positions = [], colors = [];
   const pal = [0xffffff, 0xd9e8ff, 0xffe8d2].map(c => new THREE.Color(c));
@@ -3794,7 +3797,7 @@ const prismStarLayers = [];
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-  const mat = new THREE.PointsMaterial({ size, vertexColors: true, sizeAttenuation: false,
+  const mat = new THREE.PointsMaterial({ size, vertexColors: true, sizeAttenuation: true,
     map: roadDotTexture, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
   mat.fog = false;
   const points = new THREE.Points(geo, mat);
@@ -3853,7 +3856,7 @@ function prismRetint(tr){
    slots: four shades of the artist color, four cycling the others. ---------- */
 const RINGS_CHUNK_LENGTH = 260; // stretched: much more z-space between gates
 const RINGS_REPEATS = 3;
-const RINGS_SPEED = 6; // 1.5x forward pace
+const RINGS_SPEED = 7.2; // 20% faster still (was 6)
 const RINGS_GATES_PER_CHUNK = 6;
 // the light-up wave's gate-index range - rep runs -1..RINGS_REPEATS-1,
 // gi runs 0..RINGS_GATES_PER_CHUNK-1, so gate = gi + rep*GATES_PER_CHUNK
@@ -3912,7 +3915,7 @@ let ringsGlowMat = null;
       bands.push({ r0: holeR + bi * bandStep, r1: holeR + bi * bandStep + bandW,
         slot: Math.floor(h(gi * 13 + bi, 8) * 8) });
     }
-    bands.forEach(band => {
+    bands.forEach((band, bi) => {
       // smaller rings recede further behind the gate plane
       band.zOff = (outerR - band.r1) * 0.6;
       // position along the gate's radial sweep, 0 innermost .. 1 outermost -
@@ -3924,8 +3927,11 @@ let ringsGlowMat = null;
       // so the same baseScale-driven pulse animation below still works
       // exactly as it did for the plane version.
       // tube pumped up 2.2x thicker than the band's own width so every
-      // ring unmistakably reads as a real 3D torus, not a thin flat rim
-      const midR = (band.r0 + band.r1) / 2, tubeR = (band.r1 - band.r0) / 2 * 2.2;
+      // ring unmistakably reads as a real 3D torus, not a thin flat rim -
+      // then a per-band multiplier (0.75-1.5x) so rings vary in thickness
+      // instead of all reading the same, some notably chunkier/thinner
+      const thickMul = 0.75 + h(gi * 23 + bi, 31) * 0.75;
+      const midR = (band.r0 + band.r1) / 2, tubeR = (band.r1 - band.r0) / 2 * 2.2 * thickMul;
       band.geo = new THREE.TorusGeometry(midR / band.r1, tubeR / band.r1, 10, 48);
     });
     ringsGates.push({ bands, outerR });
@@ -3990,7 +3996,9 @@ const ringsFog = new THREE.FogExp2(0x000000, 0.008);
 const ringsStars = (() => {
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
   const group = new THREE.Group();
-  [[160, 1.6], [40, 3]].forEach(([count, size], si) => {
+  // sizes now perspective-scaled (was a fixed pixel size) so stars visibly
+  // grow as they near the camera, tuned so the closest read at ~5px
+  [[160, 0.7], [40, 1.3]].forEach(([count, size], si) => {
     const positions = [];
     for (let rep = -1; rep < RINGS_REPEATS; rep++){
       for (let i = 0; i < count; i++){
@@ -4000,7 +4008,7 @@ const ringsStars = (() => {
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    const mat = new THREE.PointsMaterial({ size, sizeAttenuation: false, map: roadDotTexture,
+    const mat = new THREE.PointsMaterial({ size, sizeAttenuation: true, map: roadDotTexture,
       color: 0xffffff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
     mat.fog = false;
     const points = new THREE.Points(geo, mat);
@@ -4030,8 +4038,8 @@ function ringsRetint(tr){
     others[3 % others.length].clone().multiplyScalar(1.25),
   ];
   // more intense across the board - a straight saturation/brightness
-  // punch on top of the ramp above
-  stops.forEach(c => c.offsetHSL(0, 0.16, 0.03));
+  // punch on top of the ramp above, plus a little brighter still
+  stops.forEach(c => c.offsetHSL(0, 0.16, 0.03).multiplyScalar(1.15));
   const gradientAt = t => {
     const f = t * (stops.length - 1);
     const i0 = Math.min(stops.length - 2, Math.floor(f));
