@@ -4242,27 +4242,35 @@ function portalRetint(tr){
   portalFrames.forEach(m => m.material.color.copy(cols[m.userData.ci % cols.length]));
 }
 
-// -- BURST, replaced a third time: FOUR winding lines grow forward
-// together through the dark, each tipped with its own glowing head. The
-// camera rides first-person right behind the lead line's head, looking
-// forward along its own direction of travel (not orbiting from outside
-// anymore) - the other three grow alongside, visible as we pass them.
-// A full growth cycle now takes ~5 minutes before it resets and regrows,
-// via a long total path length while the visual winding "wavelength"
-// stays short (BURST_WAVELEN), so it still reads as a richly curling
-// line rather than one giant slow arc. ---------- */
-const BURST_WAVELEN = 170; // spatial period of the winding - unrelated to total length
+// -- BURST, replaced a fourth time: THREE lines braid/swirl around a
+// shared winding spine as they grow forward together through the dark,
+// each tipped with its own glowing head - like strands of a loosely
+// twisted rope instead of independent parallel lines. The camera rides
+// first-person right behind the lead line's head, looking forward along
+// its own direction of travel. A full growth cycle takes ~5 minutes
+// before it resets and regrows, via a long total path length while the
+// visual winding "wavelength" stays short (BURST_WAVELEN), so it still
+// reads as a richly curling braid rather than one giant slow arc. ---------- */
+const BURST_WAVELEN = 170; // spatial period of the shared spine's own bend
 const BURST_SPEED = 9;
 const BURST_CHUNK_LENGTH = BURST_SPEED * 300; // ~5 minutes to fully grow once, at the usual 1 flightDist-unit/sec cruise
 const BURST_TUBE_SEG = 900, BURST_RADIAL_SEG = 7;
-const BURST_LINES = 4;
+const BURST_LINES = 3;
+const BURST_ORBIT_R = 6.5; // how far each strand swirls from the shared spine
+const BURST_ORBIT_WAVELEN = 46; // spatial period of one full swirl around the spine
 const burstGroup = new THREE.Group();
 function burstPathAt(distZ, li){
-  const a = (distZ / BURST_WAVELEN) * Math.PI * 2 + li * 1.7;
-  const s = 1 + li * 0.23; // each line winds at a slightly different scale
+  // the shared spine every strand braids around - one continuous bend in
+  // both x and y, same for all three lines
+  const a = (distZ / BURST_WAVELEN) * Math.PI * 2;
+  const spineX = Math.sin(a) * 22 + Math.sin(a * 3 + 1) * 8;
+  const spineY = Math.sin(a * 2 + 2) * 17 + Math.sin(a * 5) * 6;
+  // each strand orbits the spine at its own 120-degree offset, swirling
+  // around it as it travels forward - a loose three-strand braid
+  const orbitA = (li / BURST_LINES) * Math.PI * 2 + (distZ / BURST_ORBIT_WAVELEN) * Math.PI * 2;
   return {
-    x: (Math.sin(a) * 22 + Math.sin(a * 3 + 1 + li) * 8) * s + (li - 1.5) * 14,
-    y: (Math.sin(a * 2 + 2 + li) * 17 + Math.sin(a * 5) * 6) * s,
+    x: spineX + Math.cos(orbitA) * BURST_ORBIT_R,
+    y: spineY + Math.sin(orbitA) * BURST_ORBIT_R,
   };
 }
 const burstCurves = [], burstLineGeos = [], burstLineMats = [], burstHeads = [], burstHeadMats = [], burstHalos = [], burstHaloMats = [];
@@ -4314,7 +4322,7 @@ const burstFog = new THREE.FogExp2(0x050505, 0.006);
 function burstRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
   const w = new THREE.Color(0xffffff);
-  const cols = [dominant, others[0], others[1 % others.length], others[2 % others.length]];
+  const cols = [dominant, others[0], others[1 % others.length]];
   cols.forEach((c, li) => {
     burstLineMats[li].color.copy(c).lerp(w, 0.35);
     burstHeadMats[li].color.copy(c).lerp(w, 0.75);
