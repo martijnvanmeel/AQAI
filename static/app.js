@@ -4194,10 +4194,14 @@ function checkRetint(tr){
   // 1-3 are the big circles - artist color first, then two other hues.
   // Punched up more intense overall: much less lerp toward white (was
   // washing everything out) and a higher brightness floor
+  // a light yellow/green/red touch mixed into the "other hue" circles -
+  // subtle (25%), so they stay in the same tone field as the artist
+  // palette instead of reading as a separate clashing set of colors
+  const checkAccents = [0xffd400, 0x3ddc73, 0xff4d4d];
   checkDotMats.forEach((mat, i) => {
     const c = i === 0 ? dominant.clone().lerp(new THREE.Color(0xffffff), 0.3) // spray - a light tint, stays in the background
       : i === 1 ? dominant.clone()
-      : others[(i - 2) % others.length].clone();
+      : others[(i - 2) % others.length].clone().lerp(new THREE.Color(checkAccents[(i - 2) % checkAccents.length]), 0.25);
     mat.color.copy(c.lerp(new THREE.Color(0xffffff), 0.15).multiplyScalar(0.85));
     mat.color.offsetHSL(0, 0.15, 0);
   });
@@ -4555,7 +4559,7 @@ const eyesIrisMats = [];
       const eye = new THREE.Group();
       const size = 10 + h(i, 11) * 18;
       const scl = new THREE.Mesh(eyeSclGeo, sclMat);
-      scl.scale.set(size, size * 0.5 * 6, 1); // sclera height 600% of before
+      scl.scale.set(size, 100, 1); // fixed 100-unit sclera height for every eye, regardless of its own size
       const irisRing = new THREE.Mesh(eyeIrisRingGeo, eyesIrisMats[i % eyesIrisMats.length]);
       const pupil = new THREE.Mesh(eyePupilGeo, eyePupilMat);
       pupil.position.z = 0.01;
@@ -4627,16 +4631,23 @@ const eyesCubeList = [];
       // biased away from the centerline too, same as the eyes, so the
       // flight corridor down the middle stays clear of clutter
       const cside = h(i, 81) < 0.5 ? -1 : 1;
+      const baseX = cside * (16 + h(i, 84) * 34);
       const baseY = (h(i, 82) - 0.5) * 70;
-      cube.position.set(cside * (16 + h(i, 84) * 34), baseY,
+      cube.position.set(baseX, baseY,
         -(rep * EYES_CHUNK_LENGTH + (i / NC) * EYES_CHUNK_LENGTH + h(i, 83) * 8));
       // spins on its own axis while it bobs up/down around its base y
       cube.userData.spinAxis = new THREE.Vector3(h(i, 85) - 0.5, h(i, 86) - 0.5, h(i, 87) - 0.5).normalize();
       cube.userData.spinRate = 0.4 + h(i, 88) * 0.8;
+      cube.userData.baseX = baseX;
       cube.userData.baseY = baseY;
       cube.userData.bobAmp = 3 + h(i, 89) * 5;
       cube.userData.bobRate = 0.3 + h(i, 90) * 0.4;
       cube.userData.bobPhase = h(i, 91) * Math.PI * 2;
+      // same outward-avoidance direction the eyes use, so the cubes push
+      // off the camera's path the same way as it nears them
+      const outLen = Math.hypot(baseX, baseY) || 1;
+      cube.userData.outX = baseX / outLen;
+      cube.userData.outY = baseY / outLen;
       eyesCubeList.push(cube);
       eyesCubesGroup.add(cube);
     }
@@ -5954,10 +5965,16 @@ function animate(t){
     });
     eyesMirrorGroup.position.z = eyesGroup.position.z;
     eyesCubesGroup.position.z = wrapScroll(flightDist * EYES_SPEED * EYES_CUBE_SPEED_MULT, EYES_CHUNK_LENGTH);
-    // each cube spins on its own axis while it bobs up/down around its base y
+    // each cube spins on its own axis while it bobs up/down around its base
+    // y, and pushes off the camera's path the same way (and direction) the
+    // eyes do as it nears the camera's own z position
     eyesCubeList.forEach(c => {
       c.rotateOnAxis(c.userData.spinAxis, c.userData.spinRate * dtSec);
-      c.position.y = c.userData.baseY + Math.sin(nowSec * c.userData.bobRate + c.userData.bobPhase) * c.userData.bobAmp;
+      const worldZc = c.position.z + eyesCubesGroup.position.z;
+      const nearC = Math.max(0, 1 - Math.abs(worldZc - camera.position.z) / 22);
+      c.position.x = c.userData.baseX + c.userData.outX * nearC * 9;
+      c.position.y = c.userData.baseY + c.userData.outY * nearC * 9
+        + Math.sin(nowSec * c.userData.bobRate + c.userData.bobPhase) * c.userData.bobAmp;
     });
     camera.position.x = Math.sin(swayT * 0.017) * 6;
     camera.position.y = Math.sin(swayT * 0.013 + 1) * 4;
