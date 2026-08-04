@@ -2765,12 +2765,29 @@ function artistScenePalette(tr){
   return palette;
 }
 
+// the referenced op-art photo sheet from the Tiles folder - loaded once,
+// shared by every scene that tiles real photos across its surfaces
+// (TILES walls/cubes, CUBE tunnel/cubes, DOMINO's floor overlay)
+const TILE_IMAGE_FILES = [
+  "25d73e3fee645d181aef898f84bdb11f.jpg", "3e4212a870ab324c0e6e0a37f95ec471.jpg",
+  "541734a5d30bca16f2538329da91e09f.jpg", "5fe2945063fef90830a92ac8d2c470da.jpg",
+  "8ad805ea9d0253123e94e4a5e510d0ac.jpg", "a3cafd679965810ebdc39238767b6c62.jpg",
+  "b9530e2e2b36aafea2285b5a456031bd.jpg", "cb7d8e39abce16c03920426af5cda7e6.jpg",
+  "d947ba314bded280265fa656d34615ac.jpg", "f75986841978c5dea0b3c198a420f51b.jpg",
+];
+const tileImageLoader = new THREE.TextureLoader();
+const tileImageTextures = TILE_IMAGE_FILES.map(f => {
+  const tex = tileImageLoader.load("assets/tiles/" + f);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 8;
+  return tex;
+});
+
 /* ---------- Scene 1 "TILES": an op-art corridor of big square tiles -
    quarter circles, semicircles, arrows, slats and scallops on charcoal,
    straight from the mod/op-art reference boards. Two walls plus a floor,
    chunk-tiled and scrolled like every other fly-through; tile faces are
-   canvas textures regenerated per artist (dominant color on ~half the
-   tiles, the other artists' colors on the rest). ---------- */
+   the same photo tile sheet used by CUBE, tinted per artist. ---------- */
 const TILES_TILE = 8;
 const TILES_DEPTH_TILES = 12;
 const TILES_CHUNK_LENGTH = TILES_TILE * TILES_DEPTH_TILES;
@@ -2780,34 +2797,21 @@ const TILES_HALF_W = 28; // 2x the corridor cross-section
 const TILES_HALF_H = 48; // walls run 12 tiles tall (was 6), floor/ceiling at +/-48
 const tilesGroup = new THREE.Group();
 const tilesMats = [];
-const tilesCanvases = [];
-const tilesStripeMats = [];     // the cubes' striped coats - their offsets animate
-const tilesStripeCanvases = [];
+const tilesStripeMats = [];     // the cubes' photo-tile coats
 const tilesBlocks = []; // floating animated cubes, driven in animate()
 {
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+  // walls/floor/ceiling: the same Tiles-folder photo sheet CUBE uses,
+  // one image per material, tinted per artist in tilesRetint() below
   for (let i = 0; i < 12; i++){
-    const cv = document.createElement("canvas");
-    cv.width = cv.height = 256;
-    tilesCanvases.push(cv);
-    const tex = new THREE.CanvasTexture(cv);
-    // repeat-wrapped: whole surfaces run one continuous self-tileable
-    // pattern, every tile matching its neighbours exactly
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    // lit: walls/floor/ceiling now react to the key light too (soft
-    // specular sheen) and receive the floating blocks' cast shadows,
-    // instead of showing their patterns flat/unlit
+    const tex = tileImageTextures[i % tileImageTextures.length];
     tilesMats.push(new THREE.MeshPhongMaterial({ map: tex, side: THREE.DoubleSide,
       specular: 0x555555, shininess: 22 }));
   }
   for (let i = 0; i < 4; i++){
-    const cv = document.createElement("canvas");
-    cv.width = cv.height = 256;
-    tilesStripeCanvases.push(cv);
-    const tex = new THREE.CanvasTexture(cv);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    // Phong: the striped cubes catch a specular sheen from the key light
-    // (they already cast and receive the scene's soft shadows)
+    const tex = tileImageTextures[(i + 5) % tileImageTextures.length];
+    // Phong: the cubes catch a specular sheen from the key light (they
+    // already cast and receive the scene's soft shadows)
     tilesStripeMats.push(new THREE.MeshPhongMaterial({ map: tex, specular: 0x999999, shininess: 48 }));
   }
   // merged geometry per material: one draw call each instead of ~600 meshes.
@@ -3191,24 +3195,6 @@ function cubePathAt(distZ){
 }
 let cubeCamX = 0, cubeCamY = 0, cubeCamYaw = 0, cubeCamPitch = 0, cubeCamBank = 0;
 const donutGroup = new THREE.Group();
-// the referenced op-art photo sheet - loaded once, tiled, and spread
-// across the tunnel in multi-station "areas" so different stretches of
-// wall show different patterns instead of one texture end to end
-const TILE_IMAGE_FILES = [
-  "25d73e3fee645d181aef898f84bdb11f.jpg", "3e4212a870ab324c0e6e0a37f95ec471.jpg",
-  "541734a5d30bca16f2538329da91e09f.jpg", "5fe2945063fef90830a92ac8d2c470da.jpg",
-  "8ad805ea9d0253123e94e4a5e510d0ac.jpg", "a3cafd679965810ebdc39238767b6c62.jpg",
-  "b9530e2e2b36aafea2285b5a456031bd.jpg", "cb7d8e39abce16c03920426af5cda7e6.jpg",
-  "d947ba314bded280265fa656d34615ac.jpg", "f75986841978c5dea0b3c198a420f51b.jpg",
-];
-const tileImageLoader = new THREE.TextureLoader();
-const tileImageTextures = TILE_IMAGE_FILES.map(f => {
-  const tex = tileImageLoader.load("assets/tiles/" + f);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.anisotropy = 8;
-  return tex;
-});
-const tileHash = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
 // lit like TILES' walls: same soft specular sheen, and the tunnel
 // receives the floating cubes' cast shadows - one material per image
 const donutMats = tileImageTextures.map(tex => new THREE.MeshPhongMaterial({ map: tex, side: THREE.DoubleSide,
@@ -3335,11 +3321,11 @@ let tilesLastPalette = null;
 function tilesRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
   tilesLastPalette = { dominant, others };
-  const black = "#0a0a0a";
-  // vertical zoning: the LOW canvases (even indexes 0/2 walls, 4 floor,
-  // 6 low gate) always draw in the artist's color; the HIGH canvases
-  // (1/3 upper walls, 5 ceiling, 7 top gate) draw in muted grey / blue /
-  // green / purple / near-black variants
+  // vertical zoning: even-index materials tint toward the artist's color,
+  // odd-index toward a muted grey/blue/green/purple variant - same split
+  // the old procedural pattern used, just tinting the photo tiles now
+  // instead of drawing onto them. Lerped toward white so the photo's own
+  // detail stays visible under the tint rather than being flattened
   const domVariants = [
     dominant.clone().multiplyScalar(0.85),
     dominant.clone().multiplyScalar(0.6),
@@ -3347,34 +3333,22 @@ function tilesRetint(tr){
     dominant.clone().lerp(new THREE.Color(0xffffff), 0.15),
   ];
   const muted = [0x8a8a8a, 0x3a5aa8, 0x3f8a5a, 0x7a4fa8, 0x232323].map(c => new THREE.Color(c));
-  tilesCanvases.forEach((cv, i) => {
-    const isLow = i === 0 || i === 2 || i === 4 || i === 6;
-    const c = isLow
-      ? domVariants[(i / 2) % domVariants.length]
-      : muted[Math.floor(Math.random() * muted.length)].clone().multiplyScalar(0.9 + Math.random() * 0.25);
-    // the walls (canvases 0-3) mostly run tileable LINE patterns with the
-    // odd motif sheet mixed in; floor, ceiling and gates always draw from
-    // the shared motif sheet
-    const draw = i < 4 ? (Math.random() < 0.4 ? drawTileMotif : drawTileStripes) : drawTileMotif;
-    draw(cv.getContext("2d"), "#" + c.getHexString(), black);
-    tilesMats[i].map.needsUpdate = true;
+  tilesMats.forEach((m, i) => {
+    const base = i % 2 === 0 ? domVariants[(i / 2) % domVariants.length] : muted[i % muted.length];
+    m.color.copy(new THREE.Color(0xffffff).lerp(base, 0.55));
   });
   tilesRedrawStripes();
 }
-// the cubes' stripe coats - redrawn on retint AND every few seconds so
-// the stripes change direction now and then
 function tilesRedrawStripes(){
   if (!tilesLastPalette) return;
   const { dominant, others } = tilesLastPalette;
-  const black = "#0a0a0a";
-  tilesStripeCanvases.forEach((cv, i) => {
+  tilesStripeMats.forEach((m, i) => {
     const c = i < 2 ? dominant.clone().multiplyScalar(0.6)
       : others[i % others.length].clone().lerp(new THREE.Color(0xffffff), 0.2);
-    drawTileStripes(cv.getContext("2d"), "#" + c.getHexString(), black);
-    tilesStripeMats[i].map.needsUpdate = true;
+    m.color.copy(new THREE.Color(0xffffff).lerp(c, 0.55));
   });
 }
-let tilesStripeFlipT = 6; // seconds until the next stripe-direction change
+let tilesStripeFlipT = 6; // seconds until the next stripe re-tint refresh
 
 /* ---------- Scene 2 "ROADS": five Polaroid-style road ribbons side by
    side over a glossy black floor. Cubes of different sizes drop in from
@@ -4332,7 +4306,7 @@ function dominoPathX(z){
   // next stone, whatever size either one is. A fixed STEP couldn't do
   // this: taller stones left a visible gap they never actually reached,
   // shorter ones overshot into the next slot
-  const TOUCH_RATIO = 0.92;
+  const TOUCH_RATIO = 0.42; // much tighter pack than before (was 0.92)
   const STEP_AVG = 4.6; // only used to size the repeat count below
   const N = Math.ceil(DOMINO_CHUNK_LENGTH / STEP_AVG);
   const sizes = [];
@@ -4408,7 +4382,10 @@ const dominoAmbient = new THREE.AmbientLight(0xffffff, 0.4);
 dominoAmbient.visible = false;
 scene.add(dominoAmbient);
 const dominoBgColor = new THREE.Color(0x220808);
-const dominoFog = new THREE.FogExp2(0x220808, 0.01);
+// denser than before (was 0.01) - the ground plane needs a stronger fog
+// pull to actually read as fading into the background within the chunk's
+// visible range, not just a faint haze at the far edge
+const dominoFog = new THREE.FogExp2(0x220808, 0.022);
 function dominoRetint(tr){
   const { dominant } = artistScenePalette(tr);
   dominoFloorMat.color.copy(dominant.clone().multiplyScalar(0.8));
@@ -4467,8 +4444,6 @@ const eyesWireMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: 
       eye.userData.blinkPhase = h(i, 15) * Math.PI * 2;
       eye.userData.blinkSpeed = 0.7 + h(i, 16) * 0.8;
       eye.userData.doubleWink = h(i, 17) < 0.35; // these sometimes wink twice, fast
-      eye.userData.irisPhase = h(i, 18) * Math.PI * 2;
-      eye.userData.irisSpeed = 0.3 + h(i, 19) * 0.5;
       eye.userData.size = size;
       eye.userData.scl = scl;
       eye.userData.iris = iris;
@@ -5714,13 +5689,27 @@ function animate(t){
       if (u.doubleWink) b = Math.min(1, b + pulse(0.85));
       u.scl.scale.y = Math.max(0.06, 1 - b * 0.94);
       u.iris.visible = b < 0.75; // the lid covers the ball at full close
-      // wander stays strictly inside the white: the almond narrows toward
-      // its corners, so the tiny vertical drift shrinks as the ball nears
-      // either corner (ellipse-bounded)
-      const xw = Math.sin(nowSec * u.irisSpeed + u.irisPhase) * u.size * 0.26;
-      u.iris.position.x = xw;
-      u.iris.position.y = Math.sin(nowSec * u.irisSpeed * 0.7 + u.irisPhase * 2)
-        * u.size * 0.022 * (1 - Math.pow(xw / (u.size * 0.3), 2));
+      // saccade-style iris movement: snap quickly to a new spot, hold
+      // briefly, then snap again - real eye movement instead of a smooth
+      // continuous wander. Mostly side to side, occasionally a bigger
+      // up/down glance, always bounded by the almond's ellipse shape (the
+      // vertical range shrinks toward the corners) so it stays in the white
+      if (u.irisNextJump === undefined || nowSec >= u.irisNextJump){
+        u.irisFromX = u.irisToX || 0;
+        u.irisFromY = u.irisToY || 0;
+        const nx = (Math.random() - 0.5) * 2 * u.size * 0.28;
+        const vertical = Math.random() < 0.3; // occasional bigger glance up/down
+        const yAmp = (vertical ? 0.16 : 0.05) * (1 - Math.pow(nx / (u.size * 0.3), 2));
+        u.irisToX = nx;
+        u.irisToY = (Math.random() - 0.5) * 2 * u.size * yAmp;
+        u.irisMoveStart = nowSec;
+        u.irisMoveDur = 0.1 + Math.random() * 0.12; // fast snap, ~100-220ms
+        u.irisNextJump = nowSec + u.irisMoveDur + 0.35 + Math.random() * 0.9; // brief pause after
+      }
+      const p = Math.min(1, (nowSec - u.irisMoveStart) / u.irisMoveDur);
+      const ease = 1 - Math.pow(1 - p, 3); // fast out, settles smoothly
+      u.iris.position.x = u.irisFromX + (u.irisToX - u.irisFromX) * ease;
+      u.iris.position.y = u.irisFromY + (u.irisToY - u.irisFromY) * ease;
     });
     camera.position.x = Math.sin(swayT * 0.017) * 6;
     camera.position.y = Math.sin(swayT * 0.013 + 1) * 4;
@@ -5763,35 +5752,6 @@ function animate(t){
     // were built along, banking into the curves - exactly the RINGS/TILES
     // flythrough pattern (lerp-follow + look-ahead yaw/pitch/bank), just
     // with a taller, wilder bend
-    const nowSec = (t || 0) * 0.001;
-    // every 2s each wall texture picks a new random direction (up/down/
-    // left/right) and slides 200px that way over the first 1s (eased),
-    // then holds for the second 1s before the next texture reassigns -
-    // the WHICH-photo-goes-where assignment itself never changes, only
-    // each photo's own offset shifts
-    const cubeCycleIdx = Math.floor(nowSec / 2);
-    const cubeMoveT = Math.min(1, (nowSec - cubeCycleIdx * 2) / 1);
-    const cubeEased = cubeMoveT < 1 ? (1 - Math.cos(cubeMoveT * Math.PI)) / 2 : 1;
-    tileImageTextures.forEach((tex, i) => {
-      // tex.image exists (a real <img>) the moment loading STARTS, well
-      // before it's actually decoded - width/height are still 0 then, so
-      // this guard has to check the real dimensions, not just truthiness.
-      // Skipping that check was the actual CUBE-scene bug: 200/0 produced
-      // Infinity, which corrupted texture.offset into NaN/Infinity - once
-      // that happened the wall/cube textures went black or vanished
-      // entirely and stayed that way (every following cycle re-read the
-      // corrupted offset as its new base), even though nothing threw
-      if (!tex.image || !tex.image.width || !tex.image.height) return;
-      if (tex.userData.cycleIdx !== cubeCycleIdx){
-        tex.userData.cycleIdx = cubeCycleIdx;
-        tex.userData.baseX = tex.offset.x; tex.userData.baseY = tex.offset.y;
-        const dirPick = Math.floor(tileHash(cubeCycleIdx, i * 97 + 1) * 4);
-        const dx = 200 / tex.image.width, dy = 200 / tex.image.height;
-        tex.userData.dirX = dirPick === 2 ? -dx : dirPick === 3 ? dx : 0;
-        tex.userData.dirY = dirPick === 0 ? dy : dirPick === 1 ? -dy : 0;
-      }
-      tex.offset.set(tex.userData.baseX + tex.userData.dirX * cubeEased, tex.userData.baseY + tex.userData.dirY * cubeEased);
-    });
     const scroll = flightDist * CUBEW_SPEED;
     donutGroup.position.z = wrapScroll(scroll, CUBEW_CHUNK_LENGTH);
     const here = cubePathAt(scroll - 8);

@@ -292,7 +292,11 @@ body.scene-hands #stage{background:linear-gradient(to top,
 #gradient-overlay{
   position:fixed;inset:0;z-index:1;pointer-events:none;
   width:100%;height:100%;object-fit:cover;
-  opacity:.15;
+  /* .15 base, +15% then +25% more strength on top of that */
+  opacity:.216;
+  /* reads as a genuine color-grade wash over the scene, not just a
+     translucent video sitting on top of it */
+  mix-blend-mode:color;
 }
 #artist-color-overlay{
   position:fixed;inset:0;z-index:1;pointer-events:none;
