@@ -808,7 +808,8 @@ function renderMeta(){
   // more intense across the board - boosted the same way the 3D scenes'
   // shared palette function is, so the whole UI (logo, pill, lyrics,
   // wave visualizer, background tint) reads more vivid too
-  const artistColor = "#" + new THREE.Color(tr.artistColor || "#7CFF9E").offsetHSL(0, 0.12, 0.02).getHexString();
+  // fixed app-wide blue scheme now (ROADS' own palette), not per-artist
+  const artistColor = "#" + new THREE.Color(ROADS_BLUE_HEX).offsetHSL(0, 0.12, 0.02).getHexString();
   document.documentElement.style.setProperty("--artist-color", artistColor);
   WAVE_COLOR = artistColor;
   positionBgGradient();
@@ -2749,15 +2750,16 @@ const dtStars = (() => {
 /* ---------- shared palette rule for the numbered scenes: the current
    artist's color dominates (~50% of surfaces), and the other artists'
    colors fill the rest ---------- */
+// the whole app now runs ROADS' own fixed blue palette everywhere,
+// regardless of the current track's artist - no longer per-artist at all
+const ROADS_BLUE_HEX = "#2e6de0";
+const ROADS_BLUE_OTHERS_HEX = ["#0d2a5e", "#4fc3f7", "#1e3c72", "#00c6ff"];
 function artistScenePalette(tr){
-  const domHex = (tr && tr.artistColor) || "#7CFF9E";
-  const dominant = new THREE.Color(domHex);
-  const others = [...new Set(TRACKS.map(t => t.artistColor).filter(c => c && c !== domHex))]
-    .map(c => new THREE.Color(c));
-  const palette = { dominant, others: others.length ? others : [new THREE.Color("#7FD6FF")] };
-  // every artist's colors, more intense across the board - this is the
-  // one shared source every scene's retint pulls from, so the boost
-  // reaches everywhere at once instead of needing a per-scene tweak
+  const palette = {
+    dominant: new THREE.Color(ROADS_BLUE_HEX),
+    others: ROADS_BLUE_OTHERS_HEX.map(c => new THREE.Color(c)),
+  };
+  // punched up more intense, same as every other scene
   palette.dominant.offsetHSL(0, 0.12, 0.02);
   palette.others.forEach(c => c.offsetHSL(0, 0.12, 0.02));
   return palette;
@@ -4561,10 +4563,13 @@ const handsVideoTex = new THREE.VideoTexture(handsVideoEl);
 // many tunnel panels are showing it at once
 const handsVideoMat = new THREE.MeshBasicMaterial({ map: handsVideoTex, side: THREE.DoubleSide });
 {
-  const RING_R = 20, PANEL_W = 30, PANEL_H = 18, SIDES = 6, STEP = 24;
+  const RING_R = 20, SPHERE_R = 8, SIDES = 6, STEP = 24;
   const stations = Math.round(HANDS_CHUNK_LENGTH / STEP);
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
-  const panelGeo = new THREE.PlaneGeometry(PANEL_W, PANEL_H);
+  // low-poly sphere, exactly 40 triangular faces (5 width x 5 height
+  // segments -> 5*4*2 = 40) - the video plays across its facets instead
+  // of one flat screen
+  const sphereGeo = new THREE.SphereGeometry(SPHERE_R, 5, 5);
   for (let rep = -1; rep <= 1; rep++){
     for (let si = 0; si < stations; si++){
       const z = -(rep * HANDS_CHUNK_LENGTH + si * STEP);
@@ -4575,15 +4580,35 @@ const handsVideoMat = new THREE.MeshBasicMaterial({ map: handsVideoTex, side: TH
       for (let k = 0; k < SIDES; k++){
         if (h(si * 7 + k, 40) < 0.16) continue;
         const a = (k / SIDES) * Math.PI * 2 + rot;
-        const mesh = new THREE.Mesh(panelGeo, handsVideoMat);
+        const mesh = new THREE.Mesh(sphereGeo, handsVideoMat);
         mesh.position.set(Math.cos(a) * RING_R, Math.sin(a) * RING_R * 0.72, z);
-        mesh.lookAt(0, mesh.position.y, z);
+        // each sphere spins slowly around its own random axis
+        mesh.userData.spinAxis = new THREE.Vector3(h(si * 13 + k, 41) - 0.5, h(si * 17 + k, 42) - 0.5, h(si * 19 + k, 43) - 0.5).normalize();
+        mesh.userData.spinRate = 0.15 + h(si * 23 + k, 44) * 0.25;
         handsList.push(mesh);
         handsGroup.add(mesh);
       }
     }
   }
 }
+// a fast-moving star field - flies past noticeably quicker than the
+// sphere tunnel itself, via its own scroll speed in animate()
+const HANDS_STAR_COUNT = 500;
+const handsStarsGeo = new THREE.BufferGeometry();
+{
+  const pos = new Float32Array(HANDS_STAR_COUNT * 3);
+  const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+  for (let i = 0; i < HANDS_STAR_COUNT; i++){
+    pos[i * 3] = (h(i, 51) - 0.5) * 140;
+    pos[i * 3 + 1] = (h(i, 52) - 0.5) * 100;
+    pos[i * 3 + 2] = -h(i, 53) * HANDS_CHUNK_LENGTH * 2;
+  }
+  handsStarsGeo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+}
+const handsStarsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.9, sizeAttenuation: true, transparent: true, opacity: 0.85 });
+const handsStars = new THREE.Points(handsStarsGeo, handsStarsMat);
+handsStars.frustumCulled = false;
+handsGroup.add(handsStars);
 handsGroup.visible = false;
 scene.add(handsGroup);
 const handsBgColor = new THREE.Color(0x401008);
@@ -4712,6 +4737,7 @@ function updateArtistBackground(tr){
   dominoAmbient.visible = wantDomino;
   eyesGroup.visible = wantEyes;
   handsGroup.visible = wantHands;
+  document.body.classList.toggle("scene-hands", wantHands);
   const wantSphere = !gateActive && !want3d;
   if (panoMesh) panoMesh.visible = wantSphere;
   if (panoMirrorMesh) panoMirrorMesh.visible = wantSphere;
@@ -4770,7 +4796,7 @@ function updateArtistBackground(tr){
     scene.fog = mistFog;
   } else if (wantMaze){
     // near-black warm brown: the corridor's far end vanishes into it
-    applyDowntownTint(tr ? tr.artistColor : null);
+    applyDowntownTint(ROADS_BLUE_HEX); // fixed app-wide blue scheme, not per-artist anymore
     renderer.setClearColor(0x120a05, 1);
     scene.fog = downtownFog;
   } else if (wantTiles){
@@ -4827,7 +4853,9 @@ function updateArtistBackground(tr){
     scene.fog = eyesFog;
   } else if (wantHands){
     handsRetint(tr);
-    renderer.setClearColor(handsBgColor, 1);
+    // transparent clear - the horizon is a CSS gradient behind the canvas
+    // (body.scene-hands #stage), same pattern as ROADS/RINGS/NATURE
+    renderer.setClearColor(0x000000, 0);
     scene.fog = handsFog;
   } else {
     renderer.setClearColor(0x000000, 0);
@@ -5600,6 +5628,13 @@ function animate(t){
     // so the nested rings slide around each other
     const nowSec = (t || 0) * 0.001;
     portalGroup.position.z = wrapScroll(flightDist * PORTAL_SPEED, PORTAL_CHUNK_LENGTH);
+    // each incoming panel now drifts up/down (and a little side to side)
+    // by its own amount as it approaches, instead of staying dead-centered
+    // on the tunnel axis the whole way in
+    portalFrames.forEach(m => {
+      m.position.y = Math.sin(nowSec * 0.15 + m.userData.ci * 1.3) * 22;
+      m.position.x = Math.sin(nowSec * 0.11 + m.userData.ci * 2.1) * 10;
+    });
     // the roaming light keeps the specular sheen alive on the walls
     portalLight.position.x = Math.sin(swayT * 0.045) * 34;
     portalLight.position.y = Math.sin(swayT * 0.037 + 2) * 26;
@@ -5704,6 +5739,13 @@ function animate(t){
     // wander side to side and a gentle look-around so it never feels like
     // a rigid rail
     handsGroup.position.z = wrapScroll(flightDist * HANDS_SPEED, HANDS_CHUNK_LENGTH);
+    // each sphere spins slowly on its own axis
+    handsList.forEach(m => m.rotateOnAxis(m.userData.spinAxis, m.userData.spinRate * dtSec));
+    // the star field flies past noticeably quicker than the tunnel itself -
+    // its own faster scroll, layered on top of (and cancelling out) the
+    // group's own slower scroll since it's a child of handsGroup
+    const HANDS_STAR_SPEED = HANDS_SPEED * 2.6;
+    handsStars.position.z = wrapScroll(flightDist * HANDS_STAR_SPEED, HANDS_CHUNK_LENGTH * 2) - handsGroup.position.z;
     camera.position.x = Math.sin(swayT * 0.017) * 6;
     camera.position.y = Math.sin(swayT * 0.013 + 1) * 4;
     camera.rotation.x = Math.sin(swayT * 0.01 + 2) * 0.05;

@@ -267,6 +267,10 @@ body.scene-check #stage{background:linear-gradient(to top,
    color at the bottom */
 body.scene-rings #stage{background:linear-gradient(to top,
   color-mix(in srgb, var(--artist-color, #7CFF9E) 20%, black) 0%, #000000 60%)}
+/* HANDS: a horizon behind the sphere tunnel - artist color low, fading to
+   black higher up */
+body.scene-hands #stage{background:linear-gradient(to top,
+  color-mix(in srgb, var(--artist-color, #7CFF9E) 18%, black) 0%, #000000 55%)}
 /* full-screen tint in the current track's artist color, sitting right on
    top of the 3D sphere/background video (z-index:0) but below every
    other overlay/UI layer (z-index:1+) - color set per-track in
