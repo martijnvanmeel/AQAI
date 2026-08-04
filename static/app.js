@@ -5653,7 +5653,9 @@ function animate(t){
     // slowed further and amplitudes opened up a little for a more
     // noticeable, unhurried all-direction wander
     camera.position.x = -(Math.sin(swayT * 0.031) * 12 + Math.sin(swayT * 0.013 + 3) * 5);
-    camera.position.y = 5.5 - (Math.sin(swayT * 0.026 + 1) * 5 + Math.sin(swayT * 0.011) * 2);
+    // floor-clamped so the drift's low point never dips the camera under
+    // the ground plane (y=0) - always stays a couple units above it
+    camera.position.y = Math.max(2.6, 5.5 - (Math.sin(swayT * 0.026 + 1) * 5 + Math.sin(swayT * 0.011) * 2));
     camera.position.z = 8 - Math.sin(swayT * 0.010 + 5) * 4;
     // down-tilt tuned so the horizon sits at the profile picture's
     // vertical midpoint (~60% down the frame)
