@@ -805,7 +805,10 @@ function renderMeta(){
   // animation, and the background overlay tint (see styles.css); the
   // wave visualizer reads it separately into WAVE_COLOR below since
   // canvas drawing can't reference a CSS custom property directly
-  const artistColor = tr.artistColor || "#7CFF9E";
+  // more intense across the board - boosted the same way the 3D scenes'
+  // shared palette function is, so the whole UI (logo, pill, lyrics,
+  // wave visualizer, background tint) reads more vivid too
+  const artistColor = "#" + new THREE.Color(tr.artistColor || "#7CFF9E").offsetHSL(0, 0.12, 0.02).getHexString();
   document.documentElement.style.setProperty("--artist-color", artistColor);
   WAVE_COLOR = artistColor;
   positionBgGradient();
@@ -2751,7 +2754,13 @@ function artistScenePalette(tr){
   const dominant = new THREE.Color(domHex);
   const others = [...new Set(TRACKS.map(t => t.artistColor).filter(c => c && c !== domHex))]
     .map(c => new THREE.Color(c));
-  return { dominant, others: others.length ? others : [new THREE.Color("#7FD6FF")] };
+  const palette = { dominant, others: others.length ? others : [new THREE.Color("#7FD6FF")] };
+  // every artist's colors, more intense across the board - this is the
+  // one shared source every scene's retint pulls from, so the boost
+  // reaches everywhere at once instead of needing a per-scene tweak
+  palette.dominant.offsetHSL(0, 0.12, 0.02);
+  palette.others.forEach(c => c.offsetHSL(0, 0.12, 0.02));
+  return palette;
 }
 
 /* ---------- Scene 1 "TILES": an op-art corridor of big square tiles -
