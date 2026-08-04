@@ -3137,7 +3137,7 @@ tilesGroup.visible = false;
 scene.add(tilesGroup);
 // black-tinted haze: the corridor's far end reads ~30% darker than the
 // area around the camera
-const tilesFog = new THREE.FogExp2(0x000000, 0.0075); // denser - objects fade into the background sooner
+const tilesFog = new THREE.FogExp2(0x000000, 0.012); // even denser - fades closer in still
 // the geometric motif sheet (from the Bauhaus-poster reference): quarter
 // and half circles, donuts, dot + ring grids, clovers, arches, pac-men,
 // wings, petals, bowties, fans, domes, rainbows, leaves... shared by the
@@ -4438,8 +4438,6 @@ function portalRetint(tr){
 const DOMINO_CHUNK_LENGTH = 150, DOMINO_SPEED = 8;
 const dominoGroup = new THREE.Group();
 const dominoPivots = [];
-const dominoShapeGeos = []; // rectangle, hexagon, square, round - see animate() for the cycle
-let dominoLastShapeIdx = -1;
 const dominoDarkMat = new THREE.MeshPhongMaterial({ color: 0x101010, specular: 0xcccccc, shininess: 80 });
 const dominoAltMats = [0, 1, 2, 3].map(() => new THREE.MeshPhongMaterial({ color: 0x101010, specular: 0xcccccc, shininess: 80 }));
 const dominoFloorMat = new THREE.MeshPhongMaterial({ color: 0x992222, specular: 0xffffff, shininess: 110,
@@ -4460,44 +4458,16 @@ const dominoMirrorAltMats = [0, 1, 2, 3].map(() => new THREE.MeshBasicMaterial({
 // much harder now (more degrees of turn) than the original gentle S-curve
 function dominoPathX(z){
   const a = (z / DOMINO_CHUNK_LENGTH) * Math.PI * 2;
-  return Math.sin(a) * 30 + Math.sin(a * 2 + 1) * 12;
+  // a new, more winding route - three integer-multiple sine terms so it
+  // still closes perfectly on itself at the chunk seam
+  return Math.sin(a * 3) * 16 + Math.sin(a * 2 - 1) * 24 + Math.sin(a + 2) * 12;
 }
 {
-  // hexagon-style tiles: same footprint (2.6 wide, 5.4 tall) as the old
-  // rectangular slab, just a hexagonal profile extruded to the same 0.9
-  // thickness - centered on its own origin exactly like BoxGeometry was,
-  // so every position/pivot offset below still lines up unchanged
-  const HEX_W = 2.6, HEX_H = 5.4, HEX_T = 0.9;
-  const hexShape = new THREE.Shape();
-  { const hw = HEX_W / 2, hh = HEX_H / 2;
-    hexShape.moveTo(0, hh);
-    hexShape.lineTo(hw, hh * 0.5);
-    hexShape.lineTo(hw, -hh * 0.5);
-    hexShape.lineTo(0, -hh);
-    hexShape.lineTo(-hw, -hh * 0.5);
-    hexShape.lineTo(-hw, hh * 0.5);
-    hexShape.closePath(); }
-  const boxGeo = new THREE.ExtrudeGeometry(hexShape, { depth: HEX_T, bevelEnabled: false });
-  boxGeo.translate(0, 0, -HEX_T / 2);
-  // three more silhouettes the stones cycle through in animate() - each
-  // centered on its own origin the same way, so the ground pivot/topple
-  // math never needs to know which shape is currently showing
-  const rectShape = new THREE.Shape();
-  { const hw = HEX_W / 2, hh = HEX_H / 2;
-    rectShape.moveTo(-hw, -hh); rectShape.lineTo(hw, -hh);
-    rectShape.lineTo(hw, hh); rectShape.lineTo(-hw, hh); rectShape.closePath(); }
-  const rectGeo = new THREE.ExtrudeGeometry(rectShape, { depth: HEX_T, bevelEnabled: false });
-  rectGeo.translate(0, 0, -HEX_T / 2);
-  const squareShape = new THREE.Shape();
-  { const hs = 3.8 / 2;
-    squareShape.moveTo(-hs, -hs); squareShape.lineTo(hs, -hs);
-    squareShape.lineTo(hs, hs); squareShape.lineTo(-hs, hs); squareShape.closePath(); }
-  const squareGeo = new THREE.ExtrudeGeometry(squareShape, { depth: HEX_T, bevelEnabled: false });
-  squareGeo.translate(0, 0, -HEX_T / 2);
+  // every stone is the same flat round disc - same footprint (5.4
+  // diameter, 0.9 thick) the old rectangular slab used
+  const HEX_H = 5.4, HEX_T = 0.9;
   const roundGeo = new THREE.CylinderGeometry(HEX_H / 2, HEX_H / 2, HEX_T, 24);
   roundGeo.rotateX(Math.PI / 2);
-  // rectangle -> hexagon -> square -> round -> back to rectangle
-  dominoShapeGeos.push(rectGeo, boxGeo, squareGeo, roundGeo);
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
   // yaw group (pivot at the ground, faces along the run) wrapping a tip
   // hinge (the animated topple) wrapping the stone itself
@@ -4514,7 +4484,7 @@ function dominoPathX(z){
     pv.position.set(x, 0, -(rep * DOMINO_CHUNK_LENGTH + z));
     pv.rotation.y = yaw;
     const tip = new THREE.Group();
-    const mesh = new THREE.Mesh(boxGeo, useAlt ? dominoAltMats[mi % 4] : dominoDarkMat);
+    const mesh = new THREE.Mesh(roundGeo, useAlt ? dominoAltMats[mi % 4] : dominoDarkMat);
     mesh.scale.setScalar(sizeScale);
     mesh.position.y = 2.7 * sizeScale;
     mesh.castShadow = true;
@@ -4540,11 +4510,11 @@ function dominoPathX(z){
   // mismatch was the real bug: it undercounted stones, so the chain only
   // filled the first half of each chunk repeat and then just stopped,
   // leaving a long dead gap (an "interruption") before the next repeat
-  const AVG_SIZE_SCALE = 0.85 + 0.35 / 2;
-  const STEP_AVG = AVG_SIZE_SCALE * HEX_H * TOUCH_RATIO;
+  // every stone the same size now, so the spacing math is just a fixed step
+  const STEP_AVG = HEX_H * TOUCH_RATIO;
   const N = Math.ceil(DOMINO_CHUNK_LENGTH / STEP_AVG) + 2; // +2 margin so it slightly overlaps the seam rather than gapping it
   const sizes = [];
-  for (let i = 0; i <= N; i++) sizes.push(0.85 + h(i, 71) * 0.35);
+  for (let i = 0; i <= N; i++) sizes.push(1);
   const gaps = [];
   for (let i = 0; i < N; i++) gaps.push(sizes[i] * HEX_H * TOUCH_RATIO);
   for (let rep = -1; rep <= 1; rep++){
@@ -4667,13 +4637,13 @@ const eyesIrisMats = [];
   const sclMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false });
   for (let i = 0; i < 5; i++) eyesIrisMats.push(new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false }));
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
-  const N = 36; // was 26 - more eyes, and biased further out to the sides below
+  const N = 18; // half the count (was 36)
   for (let rep = -1; rep <= 1; rep++){
     for (let i = 0; i < N; i++){
       const eye = new THREE.Group();
       const size = 10 + h(i, 11) * 18;
       const scl = new THREE.Mesh(eyeSclGeo, sclMat);
-      const sclBaseH = size / 2 * 1.25; // half its own width, +25% taller, open-eye state
+      const sclBaseH = size / 2 * 1.25 * 1.25; // half its own width, +25% taller twice now, open-eye state
       scl.scale.set(size, sclBaseH, 1);
       const irisRing = new THREE.Mesh(eyeIrisRingGeo, eyesIrisMats[i % eyesIrisMats.length]);
       const pupil = new THREE.Mesh(eyePupilGeo, eyePupilMat);
@@ -4682,7 +4652,7 @@ const eyesIrisMats = [];
       iris.add(irisRing); iris.add(pupil);
       iris.scale.set(size * 0.375, size * 0.375, 1);
       iris.position.z = 0.3;
-      eye.add(scl); eye.add(iris);
+      eye.add(iris); eye.add(scl); // circle added before the white
       // biased toward the sides (left/right) and away from dead center,
       // so the camera's own flight corridor down the middle stays open
       const side = h(i, 12) < 0.5 ? -1 : 1;
@@ -4737,7 +4707,7 @@ const eyesCubeList = [];
 {
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
   for (let i = 0; i < 5; i++) eyesCubeMats.push(new THREE.MeshPhongMaterial({ specular: 0xffffff, shininess: 70,
-    transparent: true, opacity: 0.5, side: THREE.DoubleSide }));
+    transparent: true, opacity: 0.5 }));
   const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
   const NC = 40;
   for (let rep = -1; rep <= 1; rep++){
@@ -5994,19 +5964,6 @@ function animate(t){
     // until the wrap resets it far ahead
     dominoGroup.position.z = wrapScroll(flightDist * DOMINO_SPEED, DOMINO_CHUNK_LENGTH);
     dominoMirrorGroup.position.z = dominoGroup.position.z;
-    // every stone cycles through the same 4 silhouettes together -
-    // rectangle -> hexagon -> square -> round -> back to rectangle -
-    // swapped as a group every couple seconds rather than smoothly
-    // morphed vertex-by-vertex
-    const dominoShapeIdx = Math.floor(((t || 0) * 0.001) / 2) % dominoShapeGeos.length;
-    if (dominoShapeIdx !== dominoLastShapeIdx){
-      dominoLastShapeIdx = dominoShapeIdx;
-      const geo = dominoShapeGeos[dominoShapeIdx];
-      dominoPivots.forEach((pv, i) => {
-        pv.userData.mesh.geometry = geo;
-        dominoMirrorTips[i].children[0].geometry = geo;
-      });
-    }
     dominoPivots.forEach((pv, i) => {
       const wz = pv.position.z + dominoGroup.position.z;
       // realistic topple: a fast accelerating fall (smoothstep over a
