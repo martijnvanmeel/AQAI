@@ -4666,7 +4666,7 @@ const dominoBgColor = new THREE.Color(0x220808);
 // denser still (was 0.01, then 0.022) - pulls the ground into the
 // background much closer to the camera instead of only fading out near
 // the far edge of the visible run
-const dominoFog = new THREE.FogExp2(0x220808, 0.036); // 20% less than before (was 0.045)
+const dominoFog = new THREE.FogExp2(0x220808, 0.028); // less dense still - more of the scene visible (was 0.036)
 function dominoRetint(tr){
   const { dominant } = artistScenePalette(tr);
   dominoFloorMat.color.copy(dominant.clone().multiplyScalar(0.8));
@@ -6184,6 +6184,7 @@ function animate(t){
     // were built along, banking into the curves - exactly the RINGS/TILES
     // flythrough pattern (lerp-follow + look-ahead yaw/pitch/bank), just
     // with a taller, wilder bend
+    const nowSec = (t || 0) * 0.001;
     const scroll = flightDist * CUBEW_SPEED;
     donutGroup.position.z = wrapScroll(scroll, CUBEW_CHUNK_LENGTH);
     const here = cubePathAt(scroll - 8);
