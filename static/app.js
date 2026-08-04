@@ -4482,7 +4482,10 @@ function roundedRectShape(w, hh, r){
   const FRAME_STEP = 27; // 3x the old spacing between layers
   for (let rep = -1; rep <= 2; rep++){
     for (let i = 0; i < PORTAL_CHUNK_LENGTH / FRAME_STEP; i++){
-      const mat = new THREE.MeshPhongMaterial({ specular: 0xffffff, shininess: 60 });
+      // softer, more diffuse sheen - dimmer specular color and lower
+      // shininess spread the highlight out instead of punching a hard
+      // bright hotspot across the big flat panel areas
+      const mat = new THREE.MeshPhongMaterial({ specular: 0x444444, shininess: 18 });
       const mesh = new THREE.Mesh(portalGeo, mat);
       mesh.position.z = -(rep * PORTAL_CHUNK_LENGTH + i * FRAME_STEP);
       mesh.castShadow = true;
@@ -4497,11 +4500,11 @@ portalGroup.visible = false;
 scene.add(portalGroup);
 // the sheen: a roaming point light near the camera raking the walls,
 // plus a dim ambient so the far side of each wall never goes fully black
-const portalLight = new THREE.PointLight(0xffffff, 1.15, 320, 1.6);
+const portalLight = new THREE.PointLight(0xffffff, 0.7, 320, 1.6); // less heavy than before (was 1.15)
 portalLight.position.set(20, 30, -14);
 portalLight.visible = false;
 scene.add(portalLight);
-const portalAmbient = new THREE.AmbientLight(0xffffff, 0.6);
+const portalAmbient = new THREE.AmbientLight(0xffffff, 0.75); // raised to keep the panels visible with the dimmer point light
 portalAmbient.visible = false;
 scene.add(portalAmbient);
 const portalFog = new THREE.FogExp2(0x070707, 0.014);

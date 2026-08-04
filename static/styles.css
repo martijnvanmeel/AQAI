@@ -574,7 +574,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   margin:0 0 40px 0;
   -webkit-overflow-scrolling:touch;
   text-align:left;
-  display:flex;flex-direction:column;gap:25px; /* 25px cellspace between sentences */
+  display:flex;flex-direction:column;gap:12.5px; /* half the previous 25px cellspace between sentences */
 }
 /* scrollbar: a 15px thumb, horizontally centred under the close button
    (button at right:13px, width 30.4px → centre 28.2px in from the card
