@@ -6249,7 +6249,7 @@ function renderLogoFace(fillColor, strokeColor, specular){
     const grad = ctx.createLinearGradient(0, H * 0.15, W * 0.6, H * 0.85);
     grad.addColorStop(0, "rgba(255,255,255,0)");
     grad.addColorStop(0.42, "rgba(255,255,255,0)");
-    grad.addColorStop(0.5, "rgba(255,255,255,0.95)");
+    grad.addColorStop(0.5, "rgba(255,255,255,0.35)"); // light sheen (was 0.95)
     grad.addColorStop(0.58, "rgba(255,255,255,0)");
     grad.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = grad;
@@ -6266,12 +6266,7 @@ const logo3dSideImgs = [];
 if (logo3dEl){
   (async () => {
     try { await document.fonts.load(`900 ${450 * 0.85}px Brice`); } catch (e) {}
-    const capArtistColors = [...new Set(TRACKS.map(t => t.artistColor).filter(Boolean))].map(c => new THREE.Color(c));
-    const capColors = capArtistColors.length ? capArtistColors : [new THREE.Color(0x7CFF9E)];
-    const capColor = capColors.reduce((acc, c) => acc.add(c), new THREE.Color(0, 0, 0))
-      .multiplyScalar(1 / capColors.length).multiplyScalar(0.9).offsetHSL(0, 0, 0.15) // bright base
-      .multiplyScalar(0.5).offsetHSL(0, 0.2, 0); // 50% darker + more intense (saturated)
-    const blackSrc = renderLogoFace("#" + capColor.getHexString(), "#ffffff", true); // front/back: fixed, never animated - bright + a glossy specular sheen
+    const blackSrc = renderLogoFace("#000000", "#ffffff", true); // front/back: fixed, never animated - black again, with a light specular sheen
     const sideSrc = renderLogoFace("#ffffff"); // sides: start white, then cycle
     for (let i = LOGO3D_DEPTH; i >= 0; i--){
       const isEndCap = i === 0 || i === LOGO3D_DEPTH;
