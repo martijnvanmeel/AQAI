@@ -2419,6 +2419,7 @@ const MIST_CORES = [0xffc25e, 0xffdd7a, 0xff9a5e].map(c => new THREE.Color(c).mu
 const MIST_UNDER = [0x7de8c8, 0x9aa8ff, 0x86c8f0, 0xb49aff].map(c => new THREE.Color(c).multiplyScalar(0.055));
 const mistGroup = new THREE.Group();
 const mistReactiveMats = []; // ball-flock materials that pulse with the music
+const mistOrbitPoints = []; // Points objects whose circles orbit their flock's center - see animate()
 {
   // hash-driven template (no Math.random) so every tile is an exact copy -
   // that's what makes the scroll wrap invisible and the flight endless.
@@ -2475,11 +2476,11 @@ const mistReactiveMats = []; // ball-flock materials that pulse with the music
   // two parallel bucket sets: normal flocks, and "reactive" flocks whose
   // size/brightness pulse with the music (see the mist branch in animate())
   const mkBuckets = () => [
-    { size: 3, positions: [], colors: [] },
-    { size: 6, positions: [], colors: [] },
-    { size: 10, positions: [], colors: [] },
-    { size: 16, positions: [], colors: [] },
-    { size: 48, positions: [], colors: [] }, // the occasional 3x jumbo circle
+    { size: 3, positions: [], colors: [], cx: [], cy: [], cz: [], r: [], phase: [], speed: [] },
+    { size: 6, positions: [], colors: [], cx: [], cy: [], cz: [], r: [], phase: [], speed: [] },
+    { size: 10, positions: [], colors: [], cx: [], cy: [], cz: [], r: [], phase: [], speed: [] },
+    { size: 16, positions: [], colors: [], cx: [], cy: [], cz: [], r: [], phase: [], speed: [] },
+    { size: 48, positions: [], colors: [], cx: [], cy: [], cz: [], r: [], phase: [], speed: [] }, // the occasional 3x jumbo circle
   ];
   const ballBuckets = mkBuckets(), reactiveBuckets = mkBuckets();
   const FLOCKS = 88; // 4x more
@@ -2495,11 +2496,20 @@ const mistReactiveMats = []; // ball-flock materials that pulse with the music
         const pick = h(fi * 41 + bi, 5);
         // ~7% of a flock's circles are the 3x jumbos
         const bucket = pick < 0.07 ? set[4] : set[Math.floor(pick * 4) % 4];
-        // tight grouping - the flock reads as one huddled cluster
-        bucket.positions.push(
-          fx + (h(fi * 41 + bi, 6) - 0.5) * 14,
-          fy + (h(fi * 41 + bi, 7) - 0.5) * 11,
-          fz + (h(fi * 41 + bi, 8) - 0.5) * 14);
+        // tight grouping - the flock reads as one huddled cluster. Each
+        // circle's own starting offset from the flock center becomes its
+        // orbit radius/phase, so it now slowly circles that same center
+        // (see animate()) instead of sitting frozen in place
+        const dx = (h(fi * 41 + bi, 6) - 0.5) * 14;
+        const dy = (h(fi * 41 + bi, 7) - 0.5) * 11;
+        const dz = (h(fi * 41 + bi, 8) - 0.5) * 14;
+        bucket.positions.push(fx + dx, fy + dy, fz + dz);
+        bucket.cx.push(fx); bucket.cy.push(fy + dy); bucket.cz.push(fz);
+        bucket.r.push(Math.hypot(dx, dz));
+        bucket.phase.push(Math.atan2(dz, dx));
+        // slow, and varied per circle - different circles in the same
+        // flock drift around the center at different (still slow) speeds
+        bucket.speed.push(0.025 + h(fi * 41 + bi, 17) * 0.05);
         const c = flockPalette[(fi + bi) % flockPalette.length];
         bucket.colors.push(c.r, c.g, c.b);
       }
@@ -2519,7 +2529,14 @@ const mistReactiveMats = []; // ball-flock materials that pulse with the music
     }
     const points = new THREE.Points(geo, mat);
     points.frustumCulled = false;
+    points.userData.orbitCX = new Float32Array(b.cx);
+    points.userData.orbitCY = new Float32Array(b.cy);
+    points.userData.orbitCZ = new Float32Array(b.cz);
+    points.userData.orbitR = new Float32Array(b.r);
+    points.userData.orbitPhase = new Float32Array(b.phase);
+    points.userData.orbitSpeed = new Float32Array(b.speed);
     mistGroup.add(points);
+    mistOrbitPoints.push(points);
   };
   ballBuckets.forEach(b => buildBucketPoints(b, false));
   reactiveBuckets.forEach(b => buildBucketPoints(b, true));
@@ -5339,6 +5356,17 @@ function animate(t){
     mistReactiveMats.forEach(m => {
       m.size = m.userData.baseSize * (1 + mistBeat * 0.6);
       m.opacity = 0.45 + mistBeat * 0.3;
+    });
+    // every circle slowly orbits its own flock's center, each at its own
+    // (slow) speed, instead of sitting frozen at its starting offset
+    mistOrbitPoints.forEach(points => {
+      const pos = points.geometry.attributes.position;
+      const { orbitCX, orbitCY, orbitCZ, orbitR, orbitPhase, orbitSpeed } = points.userData;
+      for (let i = 0; i < orbitR.length; i++){
+        const theta = orbitPhase[i] + nowSec * orbitSpeed[i];
+        pos.setXYZ(i, orbitCX[i] + Math.cos(theta) * orbitR[i], orbitCY[i], orbitCZ[i] + Math.sin(theta) * orbitR[i]);
+      }
+      pos.needsUpdate = true;
     });
   } else if (downtownGroup.visible){
     // wide-roaming glide through the big block maze: sweeping left/right/
