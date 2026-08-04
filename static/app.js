@@ -4488,39 +4488,48 @@ const eyesGroup = new THREE.Group();
 const eyesList = [];
 const eyesIrisMats = [];
 {
-  // sclera (never tinted): a plain white almond - the wandering
-  // iris+pupil disc below carries the "ball" of the eye
-  const cvS = document.createElement("canvas"); cvS.width = 512; cvS.height = 256;
-  const gS = cvS.getContext("2d");
-  gS.fillStyle = "#ffffff";
-  gS.beginPath(); gS.moveTo(10, 128);
-  gS.quadraticCurveTo(256, -70, 502, 128);
-  gS.quadraticCurveTo(256, 326, 10, 128);
-  gS.closePath(); gS.fill();
-  const texS = new THREE.CanvasTexture(cvS);
-  // iris ring (tinted per artist palette) with the black pupil baked in
-  // - black stays black under the multiplicative tint
-  const cvI = document.createElement("canvas"); cvI.width = 256; cvI.height = 256;
-  const gI = cvI.getContext("2d");
-  gI.fillStyle = "#ffffff";
-  gI.beginPath(); gI.arc(128, 128, 96, 0, Math.PI * 2);
-  gI.arc(128, 128, 52, 0, Math.PI * 2, true); gI.fill();
-  gI.fillStyle = "#000000";
-  gI.beginPath(); gI.arc(128, 128, 52, 0, Math.PI * 2); gI.fill();
-  const texI = new THREE.CanvasTexture(cvI);
-  for (let i = 0; i < 5; i++) eyesIrisMats.push(new THREE.MeshBasicMaterial({ map: texI, transparent: true, depthWrite: false }));
-  const sclMat = new THREE.MeshBasicMaterial({ map: texS, transparent: true, depthWrite: false });
+  // every part is real vector geometry now (THREE.Shape), not a canvas
+  // texture - a unit almond for the sclera, an annulus + a separate solid
+  // disc for the iris/pupil, each instance just scaling the shared shape
+  const eyeSclShape = new THREE.Shape();
+  eyeSclShape.moveTo(-0.5, 0);
+  eyeSclShape.quadraticCurveTo(0, 0.5, 0.5, 0);
+  eyeSclShape.quadraticCurveTo(0, -0.5, -0.5, 0);
+  eyeSclShape.closePath();
+  const eyeSclGeo = new THREE.ShapeGeometry(eyeSclShape, 16);
+  const eyeIrisRingShape = new THREE.Shape();
+  eyeIrisRingShape.absarc(0, 0, 0.5, 0, Math.PI * 2, false);
+  const irisHole = new THREE.Path();
+  irisHole.absarc(0, 0, 0.27, 0, Math.PI * 2, true);
+  eyeIrisRingShape.holes.push(irisHole);
+  const eyeIrisRingGeo = new THREE.ShapeGeometry(eyeIrisRingShape, 24);
+  const eyePupilShape = new THREE.Shape();
+  eyePupilShape.absarc(0, 0, 0.27, 0, Math.PI * 2, false);
+  const eyePupilGeo = new THREE.ShapeGeometry(eyePupilShape, 24);
+  const eyePupilMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+  const sclMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false });
+  for (let i = 0; i < 5; i++) eyesIrisMats.push(new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false }));
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
-  const N = 26; // was 14 - a noticeably denser field of eyes
+  const N = 36; // was 26 - more eyes, and biased further out to the sides below
   for (let rep = -1; rep <= 1; rep++){
     for (let i = 0; i < N; i++){
       const eye = new THREE.Group();
       const size = 10 + h(i, 11) * 18;
-      const scl = new THREE.Mesh(new THREE.PlaneGeometry(size, size / 2), sclMat);
-      const iris = new THREE.Mesh(new THREE.PlaneGeometry(size * 0.375, size * 0.375), eyesIrisMats[i % eyesIrisMats.length]);
+      const scl = new THREE.Mesh(eyeSclGeo, sclMat);
+      scl.scale.set(size, size * 0.5, 1);
+      const irisRing = new THREE.Mesh(eyeIrisRingGeo, eyesIrisMats[i % eyesIrisMats.length]);
+      const pupil = new THREE.Mesh(eyePupilGeo, eyePupilMat);
+      pupil.position.z = 0.01;
+      const iris = new THREE.Group();
+      iris.add(irisRing); iris.add(pupil);
+      iris.scale.set(size * 0.375, size * 0.375, 1);
       iris.position.z = 0.3;
       eye.add(scl); eye.add(iris);
-      const ex = (h(i, 12) - 0.5) * 90, ey = (h(i, 13) - 0.5) * 60;
+      // biased toward the sides (left/right) and away from dead center,
+      // so the camera's own flight corridor down the middle stays open
+      const side = h(i, 12) < 0.5 ? -1 : 1;
+      const ex = side * (14 + h(i, 18) * 31); // |x| in [14, 45] - never right on the centerline
+      const ey = (h(i, 13) - 0.5) * 60;
       eye.position.set(ex, ey,
         -(rep * EYES_CHUNK_LENGTH + (i / N) * EYES_CHUNK_LENGTH + h(i, 14) * 8));
       eye.userData.blinkPhase = h(i, 15) * Math.PI * 2;
@@ -4575,7 +4584,10 @@ const eyesCubesGroup = new THREE.Group();
       const cube = new THREE.Mesh(cubeGeo, eyesCubeMats[i % eyesCubeMats.length]);
       const r = 1.2 + h(i, 80) * 2.2;
       cube.scale.setScalar(r);
-      cube.position.set((h(i, 81) - 0.5) * 100, (h(i, 82) - 0.5) * 70,
+      // biased away from the centerline too, same as the eyes, so the
+      // flight corridor down the middle stays clear of clutter
+      const cside = h(i, 81) < 0.5 ? -1 : 1;
+      cube.position.set(cside * (16 + h(i, 84) * 34), (h(i, 82) - 0.5) * 70,
         -(rep * EYES_CHUNK_LENGTH + (i / NC) * EYES_CHUNK_LENGTH + h(i, 83) * 8));
       eyesCubesGroup.add(cube);
     }
@@ -5871,7 +5883,8 @@ function animate(t){
     camera.position.y = Math.sin(swayT * 0.013 + 1) * 4;
     camera.rotation.x = Math.sin(swayT * 0.01 + 2) * 0.05;
     camera.rotation.y = Math.sin(swayT * 0.012) * 0.06;
-    camera.rotation.z = Math.sin(swayT * 0.008 + 3) * 0.07 + cameraRollOffset;
+    // gentle roll, plus a slow +-20 degree rotation sweep layered under it
+    camera.rotation.z = Math.sin(swayT * 0.008 + 3) * 0.07 + Math.sin(swayT * 0.0045) * (20 * Math.PI / 180) + cameraRollOffset;
   } else if (handsGroup.visible){
     // flying straight down the video tunnel's own centerline, with a slow
     // wander side to side and a gentle look-around so it never feels like
