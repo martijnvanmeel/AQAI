@@ -3178,144 +3178,53 @@ function drawTileStripes(g, fg, bg){
     }
   }
 }
-/* ---------- CUBE, replaced: a winding tunnel of the same op-art block
-   motifs as TILES, but bending left/right AND up/down on a tall curve
-   (not just side to side) - built as a square tube extruded along a
-   winding spine, chunk-tiled and scrolled like every other flythrough.
-   Chrome-mirror balls float inside, reflecting the tunnel around them
-   live via a shared cube-camera probe. ---------- */
-const CUBEW_CHUNK_LENGTH = 200, CUBEW_REPEATS = 3, CUBEW_SPEED = 4, CUBEW_STEP = 8;
-const CUBEW_HALF_W = 15, CUBEW_HALF_H = 15;
-function cubePathAt(distZ){
-  const a = (distZ / CUBEW_CHUNK_LENGTH) * Math.PI * 2;
-  return {
-    x: Math.sin(a) * 26 + Math.sin(a * 3 + 1) * 9,
-    y: Math.sin(a * 2 + 2) * 20 + Math.sin(a * 5) * 7,
-  };
-}
-let cubeCamX = 0, cubeCamY = 0, cubeCamYaw = 0, cubeCamPitch = 0, cubeCamBank = 0;
+/* ---------- CUBE, back to the original brief: a huge box seen from the
+   inside, every face papered with a 4x4 grid of cells - ~100 different
+   motif/rotation combinations from the shared Bauhaus motif sheet
+   (drawMotifCell, 20 drawers) across the six faces, artist color on
+   roughly half the cells, the whole room slowly turning off the shared
+   flight clock while the camera drifts and pans. Sized well inside the
+   camera's 900 far plane so the walls never clip. ---------- */
+const donutCanvases = [];
+const donutMats = [];
 const donutGroup = new THREE.Group();
-// lit like TILES' walls: same soft specular sheen, and the tunnel
-// receives the floating cubes' cast shadows - one material per image
-const donutMats = tileImageTextures.map(tex => new THREE.MeshPhongMaterial({ map: tex, side: THREE.DoubleSide,
-  specular: 0x555555, shininess: 22 }));
 {
-  const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
-  const AREA_LEN = 4; // stations per texture "area" before it switches
-  const buffers = donutMats.map(() => ({ pos: [], uv: [], idx: [] }));
-  const push = (mi, corners, u0, v0) => {
-    const b = buffers[mi];
-    const base = b.pos.length / 3;
-    corners.forEach(c => b.pos.push(c[0], c[1], c[2]));
-    // each wall spans exactly one full repeat of the tile image so it
-    // reads as a proper seamless tiled surface, not one stretched photo
-    b.uv.push(u0, v0, u0 + 1, v0, u0 + 1, v0 + 1, u0, v0 + 1);
-    b.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
-  };
-  const stations = Math.round(CUBEW_CHUNK_LENGTH / CUBEW_STEP);
-  const W = CUBEW_HALF_W, H = CUBEW_HALF_H;
-  for (let rep = -1; rep < CUBEW_REPEATS; rep++){
-    for (let si = 0; si < stations; si++){
-      const areaIdx = Math.floor(si / AREA_LEN) + rep * Math.ceil(stations / AREA_LEN);
-      const mi = Math.floor(h(areaIdx, 61) * donutMats.length) % donutMats.length;
-      const zN = -(si * CUBEW_STEP + rep * CUBEW_CHUNK_LENGTH);
-      const zF = -((si + 1) * CUBEW_STEP + rep * CUBEW_CHUNK_LENGTH);
-      const pN = cubePathAt(-zN), pF = cubePathAt(-zF);
-      push(mi, [[pN.x - W, pN.y - H, zN], [pF.x - W, pF.y - H, zF], [pF.x - W, pF.y + H, zF], [pN.x - W, pN.y + H, zN]], si, 0);
-      push(mi, [[pN.x + W, pN.y + H, zN], [pF.x + W, pF.y + H, zF], [pF.x + W, pF.y - H, zF], [pN.x + W, pN.y - H, zN]], si, 1);
-      push(mi, [[pN.x - W, pN.y - H, zN], [pN.x + W, pN.y - H, zN], [pF.x + W, pF.y - H, zF], [pF.x - W, pF.y - H, zF]], si, 2);
-      push(mi, [[pF.x - W, pF.y + H, zF], [pF.x + W, pF.y + H, zF], [pN.x + W, pN.y + H, zN], [pN.x - W, pN.y + H, zN]], si, 3);
-    }
+  for (let f = 0; f < 6; f++){
+    const cv = document.createElement("canvas");
+    cv.width = cv.height = 1024;
+    donutCanvases.push(cv);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.anisotropy = 8;
+    donutMats.push(new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide }));
   }
-  buffers.forEach((b, mi) => {
-    if (!b.pos.length) return;
-    const donutGeo = new THREE.BufferGeometry();
-    donutGeo.setAttribute("position", new THREE.Float32BufferAttribute(b.pos, 3));
-    donutGeo.setAttribute("uv", new THREE.Float32BufferAttribute(b.uv, 2));
-    donutGeo.setIndex(b.idx);
-    donutGeo.computeVertexNormals();
-    const tunnelMesh = new THREE.Mesh(donutGeo, donutMats[mi]);
-    tunnelMesh.frustumCulled = false;
-    tunnelMesh.receiveShadow = true;
-    donutGroup.add(tunnelMesh);
-  });
-}
-scene.add(donutGroup);
-// floating spinning cubes - same photo sheet as the tunnel walls (a
-// different image per cube), a brighter specular coat (matching TILES'
-// floating blocks), casting/receiving real shadows
-const donutCubeMats = tileImageTextures.map(tex => new THREE.MeshPhongMaterial({ map: tex, specular: 0x999999, shininess: 48 }));
-const donutCubes = [];
-{
-  const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
-  const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
-  const stations = Math.round(CUBEW_CHUNK_LENGTH / CUBEW_STEP);
-  for (let rep = -1; rep < CUBEW_REPEATS; rep++){
-    for (let si = 0; si < stations; si += 2){
-      const i = si + rep * stations;
-      const cube = new THREE.Mesh(cubeGeo, donutCubeMats[Math.floor(h(i, 61) * donutCubeMats.length) % donutCubeMats.length]);
-      const r = 1.6 + h(i, 51) * 2.4;
-      cube.scale.setScalar(r);
-      const bz = -(si * CUBEW_STEP + rep * CUBEW_CHUNK_LENGTH + h(i, 57) * CUBEW_STEP);
-      const bp = cubePathAt(-bz);
-      cube.position.set(
-        bp.x + (h(i, 53) - 0.5) * (CUBEW_HALF_W * 2 - r * 2 - 3),
-        bp.y + (h(i, 54) - 0.5) * (CUBEW_HALF_H * 2 - r * 2 - 3),
-        bz);
-      cube.userData.baseX = cube.position.x;
-      cube.userData.baseY = cube.position.y;
-      cube.userData.driftPhase = h(i, 55) * Math.PI * 2;
-      cube.userData.driftRate = 0.2 + h(i, 56) * 0.3;
-      cube.userData.spin = new THREE.Vector3(h(i, 58) - 0.5, h(i, 59) - 0.5, h(i, 60) - 0.5).multiplyScalar(1.4);
-      cube.castShadow = true;
-      cube.receiveShadow = true;
-      cube.frustumCulled = false;
-      donutCubes.push(cube);
-      donutGroup.add(cube);
-    }
-  }
+  donutGroup.add(new THREE.Mesh(new THREE.BoxGeometry(880, 880, 880), donutMats));
 }
 donutGroup.visible = false;
-// the light rig - same "travels with the camera" pattern as TILES: a
-// shadow-casting key plus a shadowless fill on the same axis, and a base
-// ambient so the far side of the tunnel never goes fully black
-const donutDirLight = new THREE.DirectionalLight(0xfff4e8, 0.084); // shadow depth cut to 20% (rest moved to the fill)
-donutDirLight.castShadow = true;
-donutDirLight.shadow.radius = 32.4; // 20% blurrier
-donutDirLight.shadow.mapSize.set(512, 512);
-donutDirLight.shadow.camera.left = -60;
-donutDirLight.shadow.camera.right = 60;
-donutDirLight.shadow.camera.top = 60;
-donutDirLight.shadow.camera.bottom = -60;
-donutDirLight.shadow.camera.near = 1;
-donutDirLight.shadow.camera.far = 120;
-donutDirLight.visible = false;
-scene.add(donutDirLight);
-scene.add(donutDirLight.target);
-const donutDirFill = new THREE.DirectionalLight(0xfff4e8, 0.516); // absorbs the intensity moved off the key light
-donutDirFill.target = donutDirLight.target;
-donutDirFill.visible = false;
-scene.add(donutDirFill);
-const donutAmbient = new THREE.AmbientLight(0xffffff, 0.38);
-donutAmbient.visible = false;
-scene.add(donutAmbient);
-// a soft haze standing in for real depth-of-field blur (no post-process
-// pipeline in this renderer) - the tunnel reads sharp close around the
-// camera, then softens/fades further back instead of staying crisp the
-// whole way down
-const donutFog = new THREE.FogExp2(0x050505, 0.028);
+scene.add(donutGroup);
 function donutRetint(tr){
-  // the photo tiles carry their own rich color already - just a light
-  // per-track wash so the scene still ties into the artist's color
-  // without washing out the pattern itself
-  const { dominant } = artistScenePalette(tr);
-  const tint = new THREE.Color(0xffffff).lerp(dominant, 0.18);
-  donutMats.forEach(m => m.color.copy(tint));
-  donutCubeMats.forEach(m => m.color.copy(tint));
-  // the far haze/backdrop is the artist color (10% darker) instead of
-  // fading to black - the renderer's clear color reads straight off this
-  // same THREE.Color so the two never visibly seam
-  donutFog.color.copy(dominant).multiplyScalar(0.9);
+  const { dominant, others } = artistScenePalette(tr);
+  donutCanvases.forEach((cv, f) => {
+    const g = cv.getContext("2d");
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.fillStyle = "#0c0c0c"; g.fillRect(0, 0, 1024, 1024);
+    const cells = 4, cs = 1024 / cells, pad = cs * 0.14;
+    for (let i = 0; i < cells; i++){
+      for (let j = 0; j < cells; j++){
+        // every cell gets its own motif/rotation combo, cycling through
+        // the whole sheet so no two neighbouring cells repeat
+        const n = f * cells * cells + i * cells + j;
+        // palette rule: roughly half the motifs in the artist's own
+        // color, the rest in the other artists' colors
+        const c = (n * 7) % 16 < 8 ? dominant : others[n % others.length];
+        g.fillStyle = "#" + c.getHexString();
+        g.save();
+        g.translate(j * cs + pad, i * cs + pad);
+        drawMotifCell(g, cs - pad * 2, n % MOTIF_COUNT, Math.floor(n / MOTIF_COUNT) % 4);
+        g.restore();
+      }
+    }
+    donutMats[f].map.needsUpdate = true;
+  });
 }
 let tilesLastPalette = null;
 function tilesRetint(tr){
@@ -4765,20 +4674,7 @@ function updateArtistBackground(tr){
   if (panoMirrorMesh) panoMirrorMesh.visible = wantSphere;
   sphereFloor.visible = wantSphere;
   sphereFloorLight.visible = wantSphere;
-  // snap the lerp-follow camera state straight to the tunnel's centerline
-  // the instant this scene turns on - otherwise the camera starts at
-  // wherever it was left (often (0,0), outside the bent tube's actual
-  // wall radius) and visibly drifts from outside the tunnel to inside it
-  // over the first couple of seconds
-  if (wantCube && !donutGroup.visible){
-    const here0 = cubePathAt(flightDist * CUBEW_SPEED - 8);
-    cubeCamX = here0.x; cubeCamY = here0.y;
-    cubeCamYaw = 0; cubeCamPitch = 0; cubeCamBank = 0;
-  }
   donutGroup.visible = wantCube;
-  donutDirLight.visible = wantCube;
-  donutDirFill.visible = wantCube;
-  donutAmbient.visible = wantCube;
   if (wantCube && tr) donutRetint(tr);
   // the wave visualizer runs 6x taller on the sphere screen (see
   // positionWaveCanvas), so re-measure whenever the scene flips
@@ -4851,12 +4747,9 @@ function updateArtistBackground(tr){
     renderer.setClearColor(0x000000, 0);
     scene.fog = checkFog;
   } else if (wantCube){
-    // fully enclosed donut tunnel - its own walls are the backdrop, and
-    // fog softly hazes the far walls for a depth-of-field feel. Clear
-    // color matches the fog's own (artist-tinted) color exactly, so the
-    // haze fades into the backdrop instead of fading to black
-    renderer.setClearColor(donutFog.color, 1);
-    scene.fog = donutFog;
+    // fully enclosed room - the cube's own faces are the backdrop
+    renderer.setClearColor(0x050505, 1);
+    scene.fog = null;
   } else if (wantPortal){
     portalRetint(tr);
     renderer.setClearColor(0x070707, 1);
@@ -5345,7 +5238,10 @@ function animate(t){
     // slowed further and amplitudes opened up a little for a more
     // noticeable, unhurried all-direction wander
     camera.position.x = -(Math.sin(swayT * 0.031) * 12 + Math.sin(swayT * 0.013 + 3) * 5);
-    camera.position.y = 5.5 - (Math.sin(swayT * 0.026 + 1) * 5 + Math.sin(swayT * 0.011) * 2);
+    camera.position.y = 15.5 - (Math.sin(swayT * 0.026 + 1) * 5 + Math.sin(swayT * 0.011) * 2); // base height raised well clear of the ground (was 5.5)
+    // hard floor: whatever the sway is doing, never let the camera sink
+    // back down near/under the ground plane (y=0)
+    camera.position.y = Math.max(camera.position.y, 2.6);
     camera.position.z = 8 - Math.sin(swayT * 0.010 + 5) * 4;
     // down-tilt tuned so the horizon sits at the profile picture's
     // vertical midpoint (~60% down the frame)
@@ -5776,42 +5672,18 @@ function animate(t){
     camera.rotation.y = Math.sin(swayT * 0.012) * 0.075;
     camera.rotation.z = Math.sin(swayT * 0.008 + 3) * 0.0875 + cameraRollOffset;
   } else if (donutGroup.visible){
-    // winding tunnel: the camera follows the same bending spine the walls
-    // were built along, banking into the curves - exactly the RINGS/TILES
-    // flythrough pattern (lerp-follow + look-ahead yaw/pitch/bank), just
-    // with a taller, wilder bend
-    const scroll = flightDist * CUBEW_SPEED;
-    donutGroup.position.z = wrapScroll(scroll, CUBEW_CHUNK_LENGTH);
-    const here = cubePathAt(scroll - 8);
-    const ahead = cubePathAt(scroll - 8 + 16);
-    const follow = 0.02;
-    cubeCamX += (here.x - cubeCamX) * follow;
-    cubeCamY += (here.y - cubeCamY) * follow;
-    cubeCamYaw += (-Math.atan2(ahead.x - here.x, 16) * 0.7 + Math.sin(swayT * 0.013) * 0.05 - cubeCamYaw) * follow;
-    cubeCamPitch += (Math.atan2(ahead.y - here.y, 16) * 0.6 + Math.sin(swayT * 0.015 + 2) * 0.04 - cubeCamPitch) * follow;
-    cubeCamBank += (-Math.atan2(ahead.x - here.x, 16) * 0.5 - cubeCamBank) * follow;
-    camera.position.x = cubeCamX;
-    camera.position.y = cubeCamY;
-    camera.rotation.x = cubeCamPitch;
-    camera.rotation.y = cubeCamYaw;
-    camera.rotation.z = cubeCamBank + cameraRollOffset;
-    // the cubes drift a little within their own slot as the tunnel scrolls
-    // them past (riding the shared group transform automatically), and
-    // tumble continuously on their own axis
-    donutCubes.forEach(b => {
-      const wobble = Math.sin(nowSec * b.userData.driftRate + b.userData.driftPhase);
-      b.position.x = b.userData.baseX + wobble * 1.3;
-      b.position.y = b.userData.baseY + Math.sin(nowSec * b.userData.driftRate * 0.7 + b.userData.driftPhase) * 1.3;
-      b.rotation.x += b.userData.spin.x * dtSec;
-      b.rotation.y += b.userData.spin.y * dtSec;
-      b.rotation.z += b.userData.spin.z * dtSec;
-    });
-    // the invisible light travels WITH the camera, same as TILES - a soft
-    // diffuse key riding above and ahead so light and shadows sweep along
-    // the bends (the shadowless fill shares its axis and target)
-    donutDirLight.position.set(cubeCamX + 12, cubeCamY + 26, 8 + 18);
-    donutDirLight.target.position.set(cubeCamX, cubeCamY, 8 - 40);
-    donutDirFill.position.copy(donutDirLight.position);
+    // inside the giant pattern cube: the room itself turns off the shared
+    // flight clock (arrow keys speed/reverse it) while the camera slowly
+    // pans all the way around, drifting off-center so the walls approach
+    // and recede
+    camera.position.x = Math.sin(swayT * 0.014) * 90;
+    camera.position.y = Math.sin(swayT * 0.011 + 2) * 70;
+    camera.rotation.y = swayT * 0.012;
+    camera.rotation.x = Math.sin(swayT * 0.009) * 0.25;
+    camera.rotation.z = Math.sin(swayT * 0.008 + 1) * 0.06 + cameraRollOffset;
+    donutGroup.rotation.y = flightDist * 0.01;
+    donutGroup.rotation.x = Math.sin(swayT * 0.007) * 0.2;
+    donutGroup.rotation.z = Math.sin(swayT * 0.005 + 1) * 0.15;
   } else if (!tunnelGroup.visible){
     // the sphere (auto) screen: a drone-style glide in the Polaroid
     // spirit - slow translational sweeps and a gentle bank layered over
@@ -5899,7 +5771,7 @@ const logo3dEl = $("#gate-logo3d");
 // fillColor now parameterized - the intro logo cycles through it (see
 // startLogoColorCycle below), so every face gets re-rendered with a new
 // fill on each color step instead of a fixed black
-function renderLogoFace(fillColor){
+function renderLogoFace(fillColor, strokeColor){
   const W = 1200, H = 450;
   const canvas = document.createElement("canvas");
   canvas.width = W; canvas.height = H;
@@ -5908,14 +5780,16 @@ function renderLogoFace(fillColor){
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   const cx = W / 2, cy = H / 2 + H * 0.03;
-  // fill with a white hairline outline (stroke drawn first so the fill
-  // covers its inner half, leaving just the outer edge visible) - this
-  // canvas renders at 1200px wide then displays at 50% of the screen
-  // width (see .logo3d's width:50vw)
+  // fill with a hairline outline (stroke drawn first so the fill covers
+  // its inner half, leaving just the outer edge visible) - this canvas
+  // renders at 1200px wide then displays at 50% of the screen width (see
+  // .logo3d's width:50vw). Stroke defaults to the fill color itself (was
+  // always hardcoded white) so the sides' color-cycle carries all the way
+  // to the edge instead of keeping a fixed white rim
   ctx.lineJoin = "round";
   ctx.fillStyle = fillColor;
   ctx.fillText("AQAI", cx, cy);
-  ctx.strokeStyle = "#ffffff"; // white 1px hairline outline (3px @1200 ≈ 1px on screen)
+  ctx.strokeStyle = strokeColor || fillColor; // 1px hairline outline (3px @1200 ≈ 1px on screen)
   ctx.lineWidth = 3;
   ctx.strokeText("AQAI", cx, cy);
   return canvas.toDataURL("image/png");
@@ -5926,7 +5800,7 @@ const logo3dSideImgs = [];
 if (logo3dEl){
   (async () => {
     try { await document.fonts.load(`900 ${450 * 0.85}px Brice`); } catch (e) {}
-    const blackSrc = renderLogoFace("#000000"); // front/back: fixed, never animated
+    const blackSrc = renderLogoFace("#000000", "#ffffff"); // front/back: fixed, never animated - keeps its white rim
     const sideSrc = renderLogoFace("#ffffff"); // sides: start white, then cycle
     for (let i = LOGO3D_DEPTH; i >= 0; i--){
       const isEndCap = i === 0 || i === LOGO3D_DEPTH;
