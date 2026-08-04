@@ -17,6 +17,7 @@ import json
 import mimetypes
 import os
 import re
+import shutil
 import socketserver
 import urllib.parse
 
@@ -680,6 +681,68 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return
             refresh_index()
             self._send_json({"ok": True, "name": new_name})
+            return
+
+        if path == "/api/track/relocate":
+            # moves a single song's files (audio + its .json metadata + any
+            # .karaoke.json sidecar) into a different top-level library
+            # folder - "artist" is just which folder a song's files live
+            # in, so this is the only way to genuinely move one song to a
+            # different artist without also renaming/merging every other
+            # song that artist has
+            if self._is_public_request():
+                self.send_error(403, "Editing is only available locally")
+                return
+            length = int(self.headers.get("Content-Length", 0))
+            raw = self.rfile.read(length)
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                self.send_error(400, "Invalid JSON")
+                return
+            track_id_val = payload.get("id", "")
+            target_folder = (payload.get("targetFolder") or "").strip()
+            if not track_id_val or not target_folder:
+                self._send_json({"ok": False, "error": "Missing id or targetFolder"})
+                return
+            tracks = scan_library()
+            track = next((t for t in tracks if t["id"] == track_id_val), None)
+            if not track:
+                self._send_json({"ok": False, "error": "Unknown track"})
+                return
+            folder_set = {t["folder"] for t in tracks}
+            if target_folder not in folder_set:
+                self._send_json({"ok": False, "error": "Unknown target artist folder"})
+                return
+            if target_folder == track["folder"]:
+                self._send_json({"ok": False, "error": "Song is already with that artist"})
+                return
+            target_dir = os.path.join(LIBRARY_ROOT, target_folder)
+            source_paths = [p for p in (track.get("_path"), track.get("_meta_path"), track.get("_karaoke_path")) if p]
+            dest_paths = [os.path.join(target_dir, os.path.basename(p)) for p in source_paths]
+            collisions = [d for d in dest_paths if os.path.exists(d)]
+            if collisions:
+                self._send_json({"ok": False, "error": "A file with the same name already exists there"})
+                return
+            moved = []
+            try:
+                os.makedirs(target_dir, exist_ok=True)
+                for src, dst in zip(source_paths, dest_paths):
+                    shutil.move(src, dst)
+                    moved.append((src, dst))
+            except OSError as e:
+                # best-effort rollback of whatever already moved, so a
+                # failure partway through doesn't leave the song split
+                # across two folders
+                for src, dst in moved:
+                    try:
+                        shutil.move(dst, src)
+                    except OSError:
+                        pass
+                self._send_json({"ok": False, "error": str(e)})
+                return
+            refresh_index()
+            self._send_json({"ok": True, "folder": target_folder})
             return
 
         self.send_error(404)

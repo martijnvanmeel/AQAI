@@ -278,6 +278,17 @@ body.scene-check #stage{
   0%, 100%{background-position:0% 0%}
   50%{background-position:0% 100%}
 }
+/* BLOCKS background: black sinking into a dark red/blue gradient, the
+   same drifting-window trick as NATURE so it visibly moves with the scene */
+body.scene-maze #stage{
+  background-image:linear-gradient(to top, #2a0a12 0%, #0a1030 50%, #000000 100%);
+  background-size:100% 200%;
+  animation:mazeGradientDrift 30s ease-in-out infinite;
+}
+@keyframes mazeGradientDrift{
+  0%, 100%{background-position:0% 0%}
+  50%{background-position:0% 100%}
+}
 /* RINGS: dark background, black up top sinking into the artist color as
    the primary color at the bottom (55% mix - still dark, not full bright) */
 body.scene-rings #stage{background:linear-gradient(to top,
@@ -525,9 +536,36 @@ body.scene-hands #stage{background:linear-gradient(to top,
 /* owner-only cluster (rename pencils + delete) - hidden entirely unless
    the server says this request is local AND the gate password wasn't the
    restricted one (see EDITABLE/updateEditControlsVisibility() in app.js) */
-.lf-edit-btns{display:flex;align-items:center;gap:6px;margin-left:auto}
+.lf-edit-btns{display:flex;align-items:center;gap:6px;margin-left:auto;position:relative}
 .lf-edit-btns .util-btn{width:26px;height:26px;border-radius:9px}
 .lf-edit-btns .util-btn svg{width:13px;height:13px}
+/* persistent pressed state (aria-pressed, not just :active/:hover) for
+   toggles like #lf-btn-edit-lyrics */
+.lf-edit-btns .util-btn[aria-pressed="true"]{
+  background:var(--artist-color, var(--active-green));color:#000000;
+  border-color:var(--artist-color, var(--active-green));
+}
+/* a dashed outline on every sentence while lyrics-edit mode is on, so
+   click-to-edit reads as an active affordance instead of a hidden one */
+#lyrics-full.lf-editing-lyrics .lyric-row{
+  outline:1px dashed color-mix(in srgb, var(--artist-color, var(--active-green)) 55%, transparent);
+  outline-offset:4px;border-radius:4px;
+}
+/* the "move to another artist" popover - a simple flyout list of every
+   other artist, one button each */
+.lf-artist-picker{
+  display:none;position:absolute;top:calc(100% + 8px);right:0;z-index:20;
+  min-width:160px;max-height:240px;overflow-y:auto;padding:6px;
+  background:rgba(20,20,20,.92);backdrop-filter:blur(10px);
+  border:1px solid var(--artist-color, var(--active-green));border-radius:10px;
+  box-shadow:0 8px 24px rgba(0,0,0,.4);
+}
+.lf-artist-picker.open{display:flex;flex-direction:column;gap:2px}
+.lf-artist-picker button{
+  all:unset;cursor:pointer;padding:7px 10px;border-radius:6px;
+  font-family:var(--font-display);font-size:12px;color:#fff;white-space:nowrap;
+}
+.lf-artist-picker button:hover{background:var(--artist-color, var(--active-green));color:#000}
 #lf-list{
   flex:1;overflow-y:auto;padding:20px 8px 20px 38px; /* text nudged 2px left */
   /* 20px top padding keeps the first line (tight line-height) from being

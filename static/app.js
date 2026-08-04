@@ -1126,6 +1126,75 @@ $("#lf-folder-input").addEventListener("keydown", e => {
 });
 $("#lf-btn-delete").onclick = () => { closeFullLyrics(); deleteCurrentSong(); };
 
+/* edit-lyrics affordance toggle - sentences are already click-to-edit
+   whenever EDITABLE is on (see updateEditControlsVisibility), this just
+   makes that discoverable with a dashed outline + a pressed button state */
+$("#lf-btn-edit-lyrics").onclick = () => {
+  const btn = $("#lf-btn-edit-lyrics");
+  const on = !$("#lyrics-full").classList.contains("lf-editing-lyrics");
+  $("#lyrics-full").classList.toggle("lf-editing-lyrics", on);
+  btn.setAttribute("aria-pressed", on ? "true" : "false");
+};
+
+/* move this song to a different existing artist - moves its audio +
+   metadata + karaoke files into that artist's own library folder
+   server-side (see /api/track/relocate) */
+async function relocateTrackToArtist(tr, targetFolder){
+  try {
+    const res = await fetch("/api/track/relocate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: tr.id, targetFolder })
+    });
+    const data = await res.json();
+    if (data.ok){
+      toast("Song moved");
+      const res2 = await fetch("/api/tracks");
+      const data2 = await res2.json();
+      TRACKS = data2.tracks.map(t => ({
+        id: t.id, title: t.title, artist: t.artist, folder: t.folder,
+        artistPhoto: t.artistPhoto || null, artistColor: t.artistColor || null,
+        duration: t.duration || 0, tags: t.tags || "", url: t.audioUrl,
+        downloadName: t.downloadName, rawLyrics: t.lyrics || [],
+        sectionBreaks: t.sectionBreaks || [], lines: [], _lyricsLoaded: false,
+      }));
+      const newIdx = TRACKS.findIndex(t => t.folder === data.folder && t.title === tr.title);
+      cur = newIdx !== -1 ? newIdx : Math.min(cur, TRACKS.length - 1);
+      renderMeta(); renderList(); syncButtons();
+      ensureLyricsLoaded(cur);
+      if (fullLyricsOpen) buildFullLyrics();
+    } else {
+      toast(data.error || "Could not move song");
+    }
+  } catch (e){
+    toast("Could not move song");
+  }
+}
+function closeArtistPicker(){
+  $("#lf-artist-picker").classList.remove("open");
+}
+$("#lf-btn-relocate-artist").onclick = e => {
+  e.stopPropagation();
+  const picker = $("#lf-artist-picker");
+  if (picker.classList.contains("open")){ closeArtistPicker(); return; }
+  const tr = TRACKS[cur];
+  if (!tr) return;
+  const others = [...new Map(TRACKS.filter(t => t.folder !== tr.folder).map(t => [t.folder, t.artist])).entries()];
+  picker.innerHTML = others.length
+    ? others.map(([folder, artist]) => `<button data-folder="${folder.replace(/"/g, "&quot;")}">${artist}</button>`).join("")
+    : `<button disabled style="opacity:.5;cursor:default">No other artists</button>`;
+  picker.querySelectorAll("button[data-folder]").forEach(b => {
+    b.onclick = () => { closeArtistPicker(); relocateTrackToArtist(TRACKS[cur], b.dataset.folder); };
+  });
+  picker.classList.add("open");
+};
+document.addEventListener("click", e => {
+  const picker = $("#lf-artist-picker");
+  if (picker && picker.classList.contains("open") && !picker.contains(e.target) && e.target.id !== "lf-btn-relocate-artist"){
+    closeArtistPicker();
+  }
+});
+
 /* mute */
 
 /* volume */
@@ -1474,26 +1543,6 @@ function drawWaveCanvas(){
   dctx.strokeStyle = WAVE_COLOR;
   dctx.fillStyle = WAVE_COLOR;
   dctx.lineCap = "round";
-  // sphere scene: discrete vertical strokes at 20% transparency (80%
-  // opaque), instead of the connected line every other scene uses
-  const sphereStrokes = document.body.classList.contains("scene-sphere");
-  if (sphereStrokes){
-    dctx.globalAlpha = 0.8;
-    for (let s = 0; s <= WAVE_SEGMENTS; s++){
-      const u = s / WAVE_SEGMENTS;
-      const val = waveCurveAt(display, u);
-      const x = u * w, y = midY - Math.abs(val) * ampPx;
-      const intensity = Math.min(1, Math.abs(val) * 1.6);
-      dctx.lineWidth = 1 + intensity * 6;
-      dctx.strokeStyle = mixWithWhite(WAVE_COLOR, intensity * 0.6);
-      dctx.beginPath();
-      dctx.moveTo(x, midY);
-      dctx.lineTo(x, y);
-      dctx.stroke();
-    }
-    dctx.restore();
-    return;
-  }
   let prevX = 0, prevY = midY;
   for (let s = 0; s <= WAVE_SEGMENTS; s++){
     const u = s / WAVE_SEGMENTS;
@@ -1623,7 +1672,7 @@ function positionWaveCanvas(){
   // the sphere screen specifically - the canvas grows but keeps its
   // resting baseline (at 65% of its height, see drawWaveCanvas) pinned to
   // the exact same on-screen spot, so all the extra swing extends upward
-  const heightMul = document.body.classList.contains("scene-sphere") ? 48 : 6; // sphere: 6x higher again (was 8x)
+  const heightMul = document.body.classList.contains("scene-sphere") ? 8 : 6;
   const height = baseHeight * heightMul;
   const photoRect = photo.getBoundingClientRect();
   const centerY = photoRect.top + photoRect.height / 2;
@@ -2637,6 +2686,10 @@ const DT_BASE_COLORS = [0x6e4420, 0x8a5a2c, 0x9c6428, 0x4a2f18, 0x7a3c1e, 0x5c3a
 const dtMats = DT_BASE_COLORS.map(color => new THREE.MeshPhongMaterial({ color: color.clone(), specular: 0x2a1c10, shininess: 8 }));
 const dtEdgeMat = new THREE.LineBasicMaterial({ color: 0xd8b088, transparent: true, opacity: 0.55 });
 const dtEdgeBaseColor = new THREE.Color(0xd8b088); // the edges' own tint, before the music-reactive white flash lerps over it
+// one single line (not every edge) reacts to the music - its own material,
+// separate from the shared dtEdgeMat every other box's edges use
+const dtHeroLineMat = new THREE.LineBasicMaterial({ color: 0xd8b088, transparent: true, opacity: 0.85 });
+const dtHeroBaseColor = new THREE.Color(0xd8b088);
 const dtReactiveSlabs = []; // slabs that light up with the music (see animate())
 const dtBobSlabs = [];      // every box, corridor and outer - all bob up/down in animate()
 const dtLineMats = [];      // every box's vertical-line material - lit by the music
@@ -2735,7 +2788,9 @@ const downtownGroup = new THREE.Group();
         box.userData.pulsePhase = h(k, 9) * Math.PI * 2;
         dtReactiveSlabs.push(box);
       }
-      box.add(new THREE.LineSegments(dtEdgeGeo, dtEdgeMat));
+      // the very first outer box of the first repeat carries the one
+      // music-reactive line; every other box keeps the plain shared edge material
+      box.add(new THREE.LineSegments(dtEdgeGeo, (rep === 0 && i === 0) ? dtHeroLineMat : dtEdgeMat));
       registerBob(box, k + rep * 1000, 4 + h(k, 11) * 5);
       downtownGroup.add(box);
       addBoxLine(box, mat, k);
@@ -2773,11 +2828,13 @@ function applyDowntownTint(artistColor){
     slab.material.emissive.copy(dtTintColor).multiplyScalar(0.5);
     slab.material.emissiveIntensity = 0;
   });
-  // the box wireframe outlines follow the artist color too, brightened -
-  // base color stashed so the music-reactive white flash (see animate())
-  // has something to lerp from instead of drifting further white each beat
+  // the box wireframe outlines follow the artist color too, brightened
   dtEdgeBaseColor.copy(dtTintColor).lerp(new THREE.Color(0xffffff), 0.45);
   dtEdgeMat.color.copy(dtEdgeBaseColor);
+  // the one hero line: same base tint, but its own material so it alone
+  // reacts to the music (see animate())
+  dtHeroBaseColor.copy(dtEdgeBaseColor);
+  dtHeroLineMat.color.copy(dtHeroBaseColor);
 }
 downtownGroup.visible = false;
 scene.add(downtownGroup);
@@ -3408,6 +3465,9 @@ let tilesLastPalette = null;
 function tilesRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
   tilesLastPalette = { dominant, others };
+  // deeper objects fade into the background, which is the artist color
+  // 60% darker (40% of full brightness) rather than flat black/charcoal
+  tilesFog.color.copy(dominant).multiplyScalar(0.4);
   // vertical zoning: even-index materials tint toward the artist's color,
   // odd-index toward a muted grey/blue/green/purple variant - same split
   // the old procedural pattern used, just tinting the photo tiles now
@@ -3589,6 +3649,10 @@ let beamsFloorTex = null;
       beamsScenery.add(mirrorStars);
     });
   }
+  // soft round diffuse shadow blob under each cube - not a real shadow
+  // map (that's TILES-only), just a dark, soft-edged disc pinned to the
+  // ground below the cube's own x/z, scaling with cube size
+  const cubeShadowGeo = new THREE.PlaneGeometry(1, 1);
   for (let i = 0; i < BEAMS_CUBE_COUNT; i++){
     const mi = i;
     const cube = new THREE.Mesh(cubeGeo, beamsCubeMats[mi]);
@@ -3598,7 +3662,14 @@ let beamsFloorTex = null;
     cube.frustumCulled = mirror.frustumCulled = false;
     beamsScenery.add(cube);
     beamsScenery.add(mirror);
-    beamsCubes.push({ mesh: cube, mirror, size: 1, state: "wait", timer: i * 0.35, vy: 0,
+    const shadowMat = new THREE.MeshBasicMaterial({ map: roadDotTexture, color: 0x000000,
+      transparent: true, opacity: 0.4, depthWrite: false });
+    const shadow = new THREE.Mesh(cubeShadowGeo, shadowMat);
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.visible = false;
+    shadow.frustumCulled = false;
+    beamsScenery.add(shadow);
+    beamsCubes.push({ mesh: cube, mirror, shadow, size: 1, state: "wait", timer: i * 0.35, vy: 0,
       av: new THREE.Vector3() });
   }
 }
@@ -4602,7 +4673,8 @@ const eyesIrisMats = [];
       const eye = new THREE.Group();
       const size = 10 + h(i, 11) * 18;
       const scl = new THREE.Mesh(eyeSclGeo, sclMat);
-      scl.scale.set(size, 100, 1); // fixed 100-unit sclera height for every eye, regardless of its own size
+      const sclBaseH = size / 2; // sclera height is half its own width, open-eye state
+      scl.scale.set(size, sclBaseH, 1);
       const irisRing = new THREE.Mesh(eyeIrisRingGeo, eyesIrisMats[i % eyesIrisMats.length]);
       const pupil = new THREE.Mesh(eyePupilGeo, eyePupilMat);
       pupil.position.z = 0.01;
@@ -4622,6 +4694,7 @@ const eyesIrisMats = [];
       eye.userData.blinkSpeed = 0.7 + h(i, 16) * 0.8;
       eye.userData.doubleWink = h(i, 17) < 0.35; // these sometimes wink twice, fast
       eye.userData.size = size;
+      eye.userData.sclBaseH = sclBaseH;
       // base position + outward direction, used in animate() to gently
       // shove an eye away from the camera's path as it nears it
       eye.userData.baseX = ex;
@@ -4663,7 +4736,8 @@ const eyesCubesGroup = new THREE.Group();
 const eyesCubeList = [];
 {
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
-  for (let i = 0; i < 5; i++) eyesCubeMats.push(new THREE.MeshPhongMaterial({ specular: 0xffffff, shininess: 70 }));
+  for (let i = 0; i < 5; i++) eyesCubeMats.push(new THREE.MeshPhongMaterial({ specular: 0xffffff, shininess: 70,
+    transparent: true, opacity: 0.5, side: THREE.DoubleSide }));
   const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
   const NC = 40;
   for (let rep = -1; rep <= 1; rep++){
@@ -5007,6 +5081,7 @@ function updateArtistBackground(tr){
   document.body.classList.toggle("scene-beams", wantBeams);
   document.body.classList.toggle("scene-check", wantCheck);
   document.body.classList.toggle("scene-rings", wantRings);
+  document.body.classList.toggle("scene-maze", wantMaze);
   // tighter lens in every constructed environment (incl. the intro
   // tunnel) = a more zoomed, cinematic framing; only the plain video
   // sphere keeps the natural 1x lens
@@ -5030,14 +5105,17 @@ function updateArtistBackground(tr){
     mistFog.color.set(0x0c1330);
     scene.fog = mistFog;
   } else if (wantMaze){
-    // near-black warm brown: the corridor's far end vanishes into it
+    // near-black warm brown fog swallows the corridor's far end; transparent
+    // clear so the CSS black-to-dark-red/blue gradient (body.scene-maze
+    // #stage) shows through behind it
     applyDowntownTint(ROADS_BLUE_HEX); // fixed app-wide blue scheme, not per-artist anymore
-    renderer.setClearColor(0x120a05, 1);
+    renderer.setClearColor(0x000000, 0);
     scene.fog = downtownFog;
   } else if (wantTiles){
-    // op-art charcoal box, tiles regenerated in the current palette
+    // op-art box, tiles regenerated in the current palette - background
+    // and fog both match the artist color at 60% darker
     tilesRetint(tr);
-    renderer.setClearColor(0x232323, 1);
+    renderer.setClearColor(tilesFog.color, 1);
     scene.fog = tilesFog;
   } else if (wantBeams){
     // transparent clear: a subtle vertical CSS gradient stands behind the
@@ -5478,8 +5556,9 @@ function animate(t){
     downtownGroup.position.z = wrapScroll(flightDist * DT_SPEED, DT_CHUNK_LENGTH);
     // the starfield streams past at 3x the blocks' speed
     dtStars.position.z = wrapScroll(flightDist * DT_SPEED * 3, DT_CHUNK_LENGTH);
-    // the block edge lines flash toward white with the music's intensity
-    dtEdgeMat.color.copy(dtEdgeBaseColor).lerp(new THREE.Color(0xffffff), panoUniforms.uIntensity.value);
+    // just the one hero line flashes toward white with the music's
+    // intensity - every other block edge stays at its plain base tint
+    dtHeroLineMat.color.copy(dtHeroBaseColor).lerp(new THREE.Color(0xffffff), panoUniforms.uIntensity.value);
     camera.position.x = Math.sin(swayT * 0.05) * 24 + Math.sin(swayT * 0.021 + 3) * 10;
     camera.position.y = Math.sin(swayT * 0.042 + 1) * 18 + Math.sin(swayT * 0.017) * 8;
     camera.rotation.x = Math.sin(swayT * 0.036 + 2) * 0.16;
@@ -5582,8 +5661,10 @@ function animate(t){
     // continuous slight left/right gaze on two overlapping slow beats -
     // never still, never abrupt
     camera.rotation.y = Math.sin(swayT * 0.026) * 0.14 + Math.sin(swayT * 0.011 + 2) * 0.08;
-    // roll kept slight - a gentle lean left and right
-    camera.rotation.z = Math.sin(swayT * 0.021 + 4) * 0.13 + cameraRollOffset;
+    // roll: the gentle lean plus a slow, wide 25-degree clockwise/
+    // counter-clockwise sweep layered on top
+    camera.rotation.z = Math.sin(swayT * 0.021 + 4) * 0.13
+      + Math.sin(swayT * 0.008) * (25 * Math.PI / 180) + cameraRollOffset;
     beamsCubes.forEach(c => {
       if (c.state === "wait"){
         c.timer -= dtSec;
@@ -5610,7 +5691,7 @@ function animate(t){
           c.vz = 0;
           c.av.set((Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5);
           c.state = "fall";
-          c.mesh.visible = c.mirror.visible = true;
+          c.mesh.visible = c.mirror.visible = c.shadow.visible = true;
         }
       } else {
         // landed or airborne, everything drifts with the ground scroll
@@ -5623,6 +5704,12 @@ function animate(t){
         const e = beamsRotMat.elements;
         const gY = beamsGroundY(c.mesh.position.x, c.mesh.position.z);
         const support = (Math.abs(e[1]) + Math.abs(e[5]) + Math.abs(e[9])) * (c.size / 2) + gY;
+        // diffuse shadow blob: pinned under the cube, softly scaling with
+        // its size, fading a touch the higher off the ground it still is
+        const shadowHeightF = Math.max(0.35, 1 - (c.mesh.position.y - support) / 14);
+        c.shadow.position.set(c.mesh.position.x, gY + 0.04, c.mesh.position.z);
+        c.shadow.scale.setScalar(c.size * 1.8);
+        c.shadow.material.opacity = 0.4 * shadowHeightF;
         // knock-on velocity from cube-cube collisions, air/ground damped
         c.mesh.position.x += (c.vx || 0) * dtSec;
         c.mesh.position.z += (c.vz || 0) * dtSec;
@@ -5678,6 +5765,10 @@ function animate(t){
                 s.life = 0;
                 s.strength = Math.min(1, impact / 22);
                 s.cube = c;
+                // wider for a bigger cube - 5 to 25 (world) units across,
+                // scaled off the base 0.4-wide plane
+                const sizeT = Math.min(1, Math.max(0, (c.size - 0.6) / (3.0 - 0.6)));
+                s.mesh.scale.x = (5 + sizeT * 20) / 0.4;
                 s.mesh.position.set(c.mesh.position.x, gY + 0.1, 0);
                 s.mesh.visible = true;
                 s.mat.opacity = 0;
@@ -5704,7 +5795,7 @@ function animate(t){
         if (c.mesh.position.z > 30){
           c.state = "wait";
           c.timer = Math.random() * 3;
-          c.mesh.visible = c.mirror.visible = false;
+          c.mesh.visible = c.mirror.visible = c.shadow.visible = false;
         }
       }
     });
@@ -5961,7 +6052,7 @@ function animate(t){
       const pulse = at => Math.exp(-Math.pow((cyc - at) / 0.11, 2));
       let b = pulse(0.35);
       if (u.doubleWink) b = Math.min(1, b + pulse(0.85));
-      u.scl.scale.y = Math.max(0.06, 1 - b * 0.94);
+      u.scl.scale.y = u.sclBaseH * Math.max(0.06, 1 - b * 0.94);
       u.iris.visible = b < 0.75; // the lid covers the ball at full close
       // saccade-style iris movement: snap quickly to a new spot, hold
       // briefly, then snap again - real eye movement instead of a smooth
@@ -6170,7 +6261,7 @@ const logo3dEl = $("#gate-logo3d");
 // fillColor now parameterized - the intro logo cycles through it (see
 // startLogoColorCycle below), so every face gets re-rendered with a new
 // fill on each color step instead of a fixed black
-function renderLogoFace(fillColor, strokeColor, specular){
+function renderLogoFace(fillColor, strokeColor, specular, specularPos){
   const W = 1200, H = 450;
   const canvas = document.createElement("canvas");
   canvas.width = W; canvas.height = H;
@@ -6192,16 +6283,18 @@ function renderLogoFace(fillColor, strokeColor, specular){
   ctx.lineWidth = 3;
   ctx.strokeText("AQAI", cx, cy);
   if (specular){
-    // a bright diagonal glossy sheen, painted only over the already-lit
-    // text pixels (source-atop) so it reads as a specular highlight
-    // instead of a flat overlay outside the letterforms
+    // a soft, wide diagonal glossy sheen (much more diffuse than a tight
+    // hotspot), painted only over the already-lit text pixels (source-atop)
+    // so it reads as a specular highlight instead of a flat overlay
+    // outside the letterforms. Its position sweeps back and forth (see
+    // startLogoColorCycle) so it reads as light moving across the surface
+    const pos = specularPos == null ? 0.5 : specularPos;
     ctx.globalCompositeOperation = "source-atop";
     const grad = ctx.createLinearGradient(0, H * 0.15, W * 0.6, H * 0.85);
-    grad.addColorStop(0, "rgba(255,255,255,0)");
-    grad.addColorStop(0.42, "rgba(255,255,255,0)");
-    grad.addColorStop(0.5, "rgba(255,255,255,0.35)"); // light sheen (was 0.95)
-    grad.addColorStop(0.58, "rgba(255,255,255,0)");
-    grad.addColorStop(1, "rgba(255,255,255,0)");
+    grad.addColorStop(Math.max(0, pos - 0.45), "rgba(255,255,255,0)");
+    grad.addColorStop(Math.max(0, pos - 0.05), "rgba(255,255,255,0.22)");
+    grad.addColorStop(Math.min(1, pos + 0.05), "rgba(255,255,255,0.22)");
+    grad.addColorStop(Math.min(1, pos + 0.45), "rgba(255,255,255,0)");
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
     ctx.globalCompositeOperation = "source-over";
@@ -6213,10 +6306,11 @@ function renderLogoFace(fillColor, strokeColor, specular){
 // animated), but at the 10%-darkest version of the same artist colors
 // the sides cycle through, instead of pure black
 const logo3dSideImgs = [];
+const logo3dCapImgs = []; // front/back - color stays fixed black, but the specular sheen sweeps across them
 if (logo3dEl){
   (async () => {
     try { await document.fonts.load(`900 ${450 * 0.85}px Brice`); } catch (e) {}
-    const blackSrc = renderLogoFace("#000000", "#ffffff", true); // front/back: fixed, never animated - black again, with a light specular sheen
+    const blackSrc = renderLogoFace("#000000", "#ffffff", true, 0.5); // front/back: fixed black, with a light specular sheen (position animates)
     const sideSrc = renderLogoFace("#ffffff"); // sides: start white, then cycle
     for (let i = LOGO3D_DEPTH; i >= 0; i--){
       const isEndCap = i === 0 || i === LOGO3D_DEPTH;
@@ -6230,6 +6324,7 @@ if (logo3dEl){
       layer.appendChild(img);
       logo3dEl.appendChild(layer);
       if (!isEndCap) logo3dSideImgs.push(img);
+      else logo3dCapImgs.push(img);
     }
     startLogoColorCycle();
   })();
@@ -6256,6 +6351,12 @@ function startLogoColorCycle(){
       const c = stops[i0].clone().lerp(stops[i0 + 1], f - i0);
       const src = renderLogoFace("#" + c.getHexString());
       logo3dSideImgs.forEach(img => { img.src = src; });
+      // the front/back caps' own specular sheen sweeps back and forth
+      // slowly across the letters, like light moving over the surface
+      const CAP_SWEEP_SEC = 6;
+      const sweepU = (1 - Math.cos(now / 1000 / CAP_SWEEP_SEC * Math.PI * 2)) / 2;
+      const capSrc = renderLogoFace("#000000", "#ffffff", true, sweepU);
+      logo3dCapImgs.forEach(img => { img.src = capSrc; });
     }
     requestAnimationFrame(tick);
   }
