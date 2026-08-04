@@ -1128,12 +1128,23 @@ $("#lf-btn-delete").onclick = () => { closeFullLyrics(); deleteCurrentSong(); };
 
 /* edit-lyrics affordance toggle - sentences are already click-to-edit
    whenever EDITABLE is on (see updateEditControlsVisibility), this just
-   makes that discoverable with a dashed outline + a pressed button state */
-$("#lf-btn-edit-lyrics").onclick = () => {
-  const btn = $("#lf-btn-edit-lyrics");
-  const on = !$("#lyrics-full").classList.contains("lf-editing-lyrics");
+   makes that discoverable with a dashed outline + a pressed button state.
+   Two entry points (the main player screen's #btn-edit-lyrics and the
+   full-lyrics overlay's own #lf-btn-edit-lyrics) share the same on/off
+   state and stay in sync with each other. */
+function setLyricsEditing(on){
   $("#lyrics-full").classList.toggle("lf-editing-lyrics", on);
-  btn.setAttribute("aria-pressed", on ? "true" : "false");
+  $("#btn-edit-lyrics").setAttribute("aria-pressed", on ? "true" : "false");
+  $("#lf-btn-edit-lyrics").setAttribute("aria-pressed", on ? "true" : "false");
+}
+$("#lf-btn-edit-lyrics").onclick = () => {
+  setLyricsEditing(!$("#lyrics-full").classList.contains("lf-editing-lyrics"));
+};
+// the main-screen button also opens the full lyrics overlay, since
+// editing only makes sense once it's visible
+$("#btn-edit-lyrics").onclick = () => {
+  if (!fullLyricsOpen) openFullLyrics();
+  setLyricsEditing(!$("#lyrics-full").classList.contains("lf-editing-lyrics"));
 };
 
 /* move this song to a different existing artist - moves its audio +
@@ -1171,11 +1182,11 @@ async function relocateTrackToArtist(tr, targetFolder){
   }
 }
 function closeArtistPicker(){
-  $("#lf-artist-picker").classList.remove("open");
+  $("#artist-picker").classList.remove("open");
 }
-$("#lf-btn-relocate-artist").onclick = e => {
+$("#btn-relocate-artist").onclick = e => {
   e.stopPropagation();
-  const picker = $("#lf-artist-picker");
+  const picker = $("#artist-picker");
   if (picker.classList.contains("open")){ closeArtistPicker(); return; }
   const tr = TRACKS[cur];
   if (!tr) return;
@@ -1189,8 +1200,8 @@ $("#lf-btn-relocate-artist").onclick = e => {
   picker.classList.add("open");
 };
 document.addEventListener("click", e => {
-  const picker = $("#lf-artist-picker");
-  if (picker && picker.classList.contains("open") && !picker.contains(e.target) && e.target.id !== "lf-btn-relocate-artist"){
+  const picker = $("#artist-picker");
+  if (picker && picker.classList.contains("open") && !picker.contains(e.target) && e.target.id !== "btn-relocate-artist"){
     closeArtistPicker();
   }
 });
@@ -6521,7 +6532,8 @@ const GATE_PASSWORD_FULL = "aqaimusic";
 // hidden entirely in restricted mode; #btn-sphere-control deliberately isn't
 // here - it stays visible in both modes (it's a view control, not editing)
 const OWNER_ONLY_SELECTORS = [
-  "#pano-btns", "#btn-delete", "#btn-edit-title", "#btn-edit-artist", "#lf-edit-btns",
+  "#pano-btns", "#btn-delete", "#btn-edit-title", "#btn-edit-artist",
+  "#btn-edit-lyrics", "#btn-relocate-artist", "#lf-edit-btns",
 ];
 // true only when the server confirms this request never crossed the public
 // reverse proxy (see "editable" on /api/tracks and _is_public_request() in
