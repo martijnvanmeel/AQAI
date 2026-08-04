@@ -2686,10 +2686,76 @@ const DT_BASE_COLORS = [0x6e4420, 0x8a5a2c, 0x9c6428, 0x4a2f18, 0x7a3c1e, 0x5c3a
 const dtMats = DT_BASE_COLORS.map(color => new THREE.MeshPhongMaterial({ color: color.clone(), specular: 0x2a1c10, shininess: 8 }));
 const dtEdgeMat = new THREE.LineBasicMaterial({ color: 0xd8b088, transparent: true, opacity: 0.55 });
 const dtEdgeBaseColor = new THREE.Color(0xd8b088); // the edges' own tint, before the music-reactive white flash lerps over it
-// one single line (not every edge) reacts to the music - its own material,
-// separate from the shared dtEdgeMat every other box's edges use
-const dtHeroLineMat = new THREE.LineBasicMaterial({ color: 0xd8b088, transparent: true, opacity: 0.85 });
+// one single line (not every edge) reacts to the music - a real
+// screen-space "fat line" mesh (same technique as the intro tunnel's
+// buildTunnelFatLineGeometry/Material) so its width can actually grow
+// with the music, not just a LineBasicMaterial (WebGL caps line width
+// at 1px on almost every platform/driver)
+function buildFatLineGeometry(edgesGeo){
+  const src = edgesGeo.attributes.position;
+  const segCount = src.count / 2;
+  const positions = new Float32Array(segCount * 4 * 3);
+  const others = new Float32Array(segCount * 4 * 3);
+  const sides = new Float32Array(segCount * 4);
+  const indices = [];
+  const put = (vi, px, py, pz, ox, oy, oz, side) => {
+    positions[vi * 3] = px; positions[vi * 3 + 1] = py; positions[vi * 3 + 2] = pz;
+    others[vi * 3] = ox; others[vi * 3 + 1] = oy; others[vi * 3 + 2] = oz;
+    sides[vi] = side;
+  };
+  for (let s = 0; s < segCount; s++){
+    const ax = src.getX(s * 2), ay = src.getY(s * 2), az = src.getZ(s * 2);
+    const bx = src.getX(s * 2 + 1), by = src.getY(s * 2 + 1), bz = src.getZ(s * 2 + 1);
+    const base = s * 4;
+    put(base, ax, ay, az, bx, by, bz, -1);
+    put(base + 1, ax, ay, az, bx, by, bz, 1);
+    put(base + 2, bx, by, bz, ax, ay, az, -1);
+    put(base + 3, bx, by, bz, ax, ay, az, 1);
+    indices.push(base, base + 2, base + 1, base + 2, base + 3, base + 1);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute("aOther", new THREE.Float32BufferAttribute(others, 3));
+  geo.setAttribute("aSide", new THREE.Float32BufferAttribute(sides, 1));
+  geo.setIndex(indices);
+  return geo;
+}
+function buildFatLineMaterial(){
+  return new THREE.ShaderMaterial({
+    uniforms: { uResolution: { value: tunnelLineResolution }, uLineWidth: { value: 2 },
+      uColor: { value: new THREE.Color(0xd8b088) }, uOpacity: { value: 0.85 } },
+    side: THREE.DoubleSide,
+    transparent: true,
+    vertexShader: `
+      attribute vec3 aOther;
+      attribute float aSide;
+      uniform vec2 uResolution;
+      uniform float uLineWidth;
+      void main(){
+        vec4 mvSelf = modelViewMatrix * vec4( position, 1.0 );
+        vec4 mvOther = modelViewMatrix * vec4( aOther, 1.0 );
+        vec4 clipSelf = projectionMatrix * mvSelf;
+        vec4 clipOther = projectionMatrix * mvOther;
+        vec2 screenSelf = clipSelf.xy / clipSelf.w * uResolution;
+        vec2 screenOther = clipOther.xy / clipOther.w * uResolution;
+        vec2 dir = normalize( screenOther - screenSelf + 1e-4 );
+        vec2 normal = vec2( -dir.y, dir.x );
+        vec2 offsetPx = normal * ( uLineWidth * 0.5 ) * aSide;
+        clipSelf.xy += ( offsetPx / uResolution ) * clipSelf.w;
+        gl_Position = clipSelf;
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 uColor;
+      uniform float uOpacity;
+      void main(){
+        gl_FragColor = vec4( uColor, uOpacity );
+      }
+    `,
+  });
+}
 const dtHeroBaseColor = new THREE.Color(0xd8b088);
+let dtHeroFatMat = null; // built below, once the hero box's fat-line geometry exists
 const dtReactiveSlabs = []; // slabs that light up with the music (see animate())
 const dtBobSlabs = [];      // every box, corridor and outer - all bob up/down in animate()
 const dtLineMats = [];      // every box's vertical-line material - lit by the music
@@ -2700,6 +2766,10 @@ const downtownGroup = new THREE.Group();
   // one shared unit-box edge geometry: added as a child of each box it
   // inherits that box's scale, drawing the wireframe outline around it
   const dtEdgeGeo = new THREE.EdgesGeometry(boxGeo);
+  // the one hero box's fat-line outline - built once, reused as that one
+  // box's edge mesh below
+  const dtHeroFatGeo = buildFatLineGeometry(dtEdgeGeo);
+  dtHeroFatMat = buildFatLineMaterial();
   // one shared vertical-line geometry: a thin line shooting far up and far
   // down through every box, in that box's own color (the line material
   // SHARES the box material's Color instance, so artist retints follow).
@@ -2789,8 +2859,11 @@ const downtownGroup = new THREE.Group();
         dtReactiveSlabs.push(box);
       }
       // the very first outer box of the first repeat carries the one
-      // music-reactive line; every other box keeps the plain shared edge material
-      box.add(new THREE.LineSegments(dtEdgeGeo, (rep === 0 && i === 0) ? dtHeroLineMat : dtEdgeMat));
+      // music-reactive line, as a real fat-line mesh so its width can
+      // grow with the music; every other box keeps the plain thin shared
+      // edge material
+      if (rep === 0 && i === 0) box.add(new THREE.Mesh(dtHeroFatGeo, dtHeroFatMat));
+      else box.add(new THREE.LineSegments(dtEdgeGeo, dtEdgeMat));
       registerBob(box, k + rep * 1000, 4 + h(k, 11) * 5);
       downtownGroup.add(box);
       addBoxLine(box, mat, k);
@@ -2834,7 +2907,7 @@ function applyDowntownTint(artistColor){
   // the one hero line: same base tint, but its own material so it alone
   // reacts to the music (see animate())
   dtHeroBaseColor.copy(dtEdgeBaseColor);
-  dtHeroLineMat.color.copy(dtHeroBaseColor);
+  dtHeroFatMat.uniforms.uColor.value.copy(dtHeroBaseColor);
 }
 downtownGroup.visible = false;
 scene.add(downtownGroup);
@@ -5526,9 +5599,11 @@ function animate(t){
     downtownGroup.position.z = wrapScroll(flightDist * DT_SPEED, DT_CHUNK_LENGTH);
     // the starfield streams past at 3x the blocks' speed
     dtStars.position.z = wrapScroll(flightDist * DT_SPEED * 3, DT_CHUNK_LENGTH);
-    // just the one hero line flashes toward white with the music's
-    // intensity - every other block edge stays at its plain base tint
-    dtHeroLineMat.color.copy(dtHeroBaseColor).lerp(new THREE.Color(0xffffff), panoUniforms.uIntensity.value);
+    // just the one hero line reacts to the music - flashes toward white
+    // and grows from 2px to 5px wide with the intensity; every other
+    // block edge stays at its plain thin base tint
+    dtHeroFatMat.uniforms.uColor.value.copy(dtHeroBaseColor).lerp(new THREE.Color(0xffffff), panoUniforms.uIntensity.value);
+    dtHeroFatMat.uniforms.uLineWidth.value = 2 + panoUniforms.uIntensity.value * 3;
     camera.position.x = Math.sin(swayT * 0.05) * 24 + Math.sin(swayT * 0.021 + 3) * 10;
     camera.position.y = Math.sin(swayT * 0.042 + 1) * 18 + Math.sin(swayT * 0.017) * 8;
     camera.rotation.x = Math.sin(swayT * 0.036 + 2) * 0.16;
