@@ -3370,6 +3370,7 @@ const BEAMS_CUBE_COUNT = 36; // bumped up for whole-screen coverage now that cub
 const beamsCubeBase = []; // per-cube base colors, darkened by depth in animate()
 const beamsRipples = []; // floor impact rings (water-drip pulses)
 const beamsStreaks = []; // fading front-to-back floor light streaks on impact
+let beamsLastDominant = null; // stashed so the streak color animation can ease toward it each frame
 let beamsLastSpawn = -10; // global gate: cubes launch one by one, never together
 let beamsFloorCanvas = null;
 let beamsFloorTex = null;
@@ -3589,7 +3590,7 @@ function beamsRetint(tr){
   });
   // impact ripples glow in a bright artist tint
   beamsRipples.forEach(r => { r.mat.color.copy(dominant).lerp(new THREE.Color(0xffffff), 0.5); });
-  beamsStreaks.forEach(s => { s.mat.color.copy(dominant).lerp(new THREE.Color(0xffffff), 0.6); });
+  beamsLastDominant = dominant.clone();
   // floor gradient: the artist color at 50% brightness right in front of
   // the camera, running away into a deep blue at the far end
   if (beamsFloorCanvas){
@@ -5365,8 +5366,10 @@ function animate(t){
     // so the whole drift runs the opposite way from before; frequencies
     // slowed further and amplitudes opened up a little for a more
     // noticeable, unhurried all-direction wander
-    camera.position.x = -(Math.sin(swayT * 0.031) * 12 + Math.sin(swayT * 0.013 + 3) * 5);
-    camera.position.y = 15.5 - (Math.sin(swayT * 0.026 + 1) * 5 + Math.sin(swayT * 0.011) * 2); // base height raised well clear of the ground (was 5.5)
+    // a big slow sweep (+-50 units) layered under the existing detail sway,
+    // on top of the fixed base height
+    camera.position.x = -(Math.sin(swayT * 0.031) * 12 + Math.sin(swayT * 0.013 + 3) * 5) + Math.sin(swayT * 0.006) * 50;
+    camera.position.y = 15.5 - (Math.sin(swayT * 0.026 + 1) * 5 + Math.sin(swayT * 0.011) * 2) + Math.sin(swayT * 0.0055 + 2) * 50; // base height raised well clear of the ground (was 5.5)
     // hard floor: whatever the sway is doing, never let the camera sink
     // back down near/under the ground plane (y=0)
     camera.position.y = Math.max(camera.position.y, 2.6);
@@ -5377,8 +5380,9 @@ function animate(t){
     // continuous slight left/right gaze on two overlapping slow beats -
     // never still, never abrupt
     camera.rotation.y = Math.sin(swayT * 0.026) * 0.14 + Math.sin(swayT * 0.011 + 2) * 0.08;
-    // roll kept slight - a gentle lean left and right
-    camera.rotation.z = Math.sin(swayT * 0.021 + 4) * 0.13 + cameraRollOffset;
+    // roll: the existing gentle lean, plus a big slow +-20 degree rotation
+    // sweep layered under it
+    camera.rotation.z = Math.sin(swayT * 0.021 + 4) * 0.13 + Math.sin(swayT * 0.004) * (20 * Math.PI / 180) + cameraRollOffset;
     beamsCubes.forEach(c => {
       if (c.state === "wait"){
         c.timer -= dtSec;
@@ -5474,8 +5478,10 @@ function animate(t){
                 s.strength = Math.min(1, impact / 22);
                 s.cube = c;
                 s.mesh.position.set(c.mesh.position.x, gY + 0.1, 0);
+                s.mesh.scale.x = 1;
                 s.mesh.visible = true;
                 s.mat.opacity = 0;
+                s.mat.color.setRGB(1, 1, 1); // starts bright white, eases into the artist color as it fades in
               }
             }
           }
@@ -5551,10 +5557,16 @@ function animate(t){
       const targetOpacity = 0.5 * s.strength;
       const cubeGone = !s.cube || !s.cube.mesh.visible;
       if (cubeGone){
+        // fading away: thicken the line while it fades, easing the rest
+        // of the way into the artist's own color as it goes
+        if (beamsLastDominant) s.mat.color.lerp(beamsLastDominant, Math.min(1, dtSec * 2));
+        s.mesh.scale.x = Math.min(6, s.mesh.scale.x + dtSec * 6);
         s.mat.opacity = Math.max(0, s.mat.opacity - dtSec / 0.9 * targetOpacity);
         if (s.mat.opacity <= 0){ s.life = 1; s.mesh.visible = false; }
       } else if (s.mat.opacity < targetOpacity){
         s.mat.opacity = Math.min(targetOpacity, s.mat.opacity + dtSec / 0.25 * targetOpacity);
+        // fading in: ease from white toward the artist color as it brightens
+        if (beamsLastDominant) s.mat.color.copy(beamsLastDominant).lerp(new THREE.Color(0xffffff), 1 - s.mat.opacity / targetOpacity);
       }
     });
     // mirror clones follow after all position corrections, and every cube
@@ -5724,6 +5736,7 @@ function animate(t){
     camera.rotation.x = -0.18 + dive * 0.12 + Math.sin(swayT * 0.011) * 0.04;
     camera.rotation.y = -Math.atan2(aheadX - hereX, 32) * 0.5 + Math.sin(swayT * 0.013) * 0.04;
     camera.rotation.z = Math.sin(swayT * 0.01 + 2) * 0.05 + cameraRollOffset;
+    camera.position.z = 5; // a little closer to the toppling row (was the unset 8 default)
   } else if (eyesGroup.visible){
     // floating eye field: quick winks (a third of the eyes sometimes
     // double-wink) squash only the white - the iris ball never scales
