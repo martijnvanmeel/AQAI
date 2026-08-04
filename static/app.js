@@ -2840,7 +2840,6 @@ const tileImageTextures = TILE_IMAGE_FILES.map(f => {
   tex.anisotropy = 8;
   return tex;
 });
-const tileHash = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
 // TILES specifically uses just these three (the rest of the shared sheet
 // above is for CUBE/DOMINO)
 const TILES_IMAGE_FILES = ["1.jpg", "2.jpg", "3.jpg"];
@@ -3437,7 +3436,6 @@ const BEAMS_CUBE_COUNT = 36; // bumped up for whole-screen coverage now that cub
 const beamsCubeBase = []; // per-cube base colors, darkened by depth in animate()
 const beamsRipples = []; // floor impact rings (water-drip pulses)
 const beamsStreaks = []; // fading front-to-back floor light streaks on impact
-let beamsLastDominant = null; // stashed so the streak color animation can ease toward it each frame
 let beamsLastSpawn = -10; // global gate: cubes launch one by one, never together
 let beamsFloorCanvas = null;
 let beamsFloorTex = null;
@@ -3539,19 +3537,16 @@ let beamsFloorTex = null;
     beamsMirrorMats.push(new THREE.MeshPhongMaterial({ specular: 0x888888, shininess: 90,
       transparent: true, opacity: 0.4 }));
   }
-  // little starfield above the horizon - round stars 1px to 4px, flying
-  // toward the camera (see BEAMS_STAR_SPEED in animate()) - with a faint
-  // mirrored copy under the glossy floor as its reflection
-  const BEAMS_STAR_DEPTH = 280, BEAMS_STAR_SPEED = 26;
-  const beamsStarsGroup = new THREE.Group();
+  // little starfield above the horizon - round stars 1px to 5px - with a
+  // faint mirrored copy under the glossy floor as its reflection
   {
     const hh = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
     const starPal = [0xffffff, 0xd9e8ff, 0xffe8d2].map(c => new THREE.Color(c));
-    [[90, 1], [60, 2], [40, 3], [18, 4]].forEach(([count, size], si) => {
+    [[90, 1], [60, 2], [40, 3], [18, 5]].forEach(([count, size], si) => {
       const positions = [], colors = [];
       for (let i = 0; i < count; i++){
         positions.push((hh(i * 3 + si * 97, 1) - 0.5) * 320, 8 + hh(i * 5 + si * 31, 2) * 85,
-          -40 - hh(i * 7 + si * 53, 3) * BEAMS_STAR_DEPTH);
+          -40 - hh(i * 7 + si * 53, 3) * 280);
         const c = starPal[i % starPal.length];
         colors.push(c.r, c.g, c.b);
       }
@@ -3566,15 +3561,14 @@ let beamsFloorTex = null;
       };
       const stars = new THREE.Points(geo, mkMat(0.9));
       stars.frustumCulled = false;
-      beamsStarsGroup.add(stars);
+      beamsScenery.add(stars);
       // the reflection: same field flipped under the floor, faint
       const mirrorStars = new THREE.Points(geo.clone(), mkMat(0.22));
       mirrorStars.scale.y = -1;
       mirrorStars.frustumCulled = false;
-      beamsStarsGroup.add(mirrorStars);
+      beamsScenery.add(mirrorStars);
     });
   }
-  beamsScenery.add(beamsStarsGroup);
   for (let i = 0; i < BEAMS_CUBE_COUNT; i++){
     const mi = i;
     const cube = new THREE.Mesh(cubeGeo, beamsCubeMats[mi]);
@@ -3657,7 +3651,7 @@ function beamsRetint(tr){
   });
   // impact ripples glow in a bright artist tint
   beamsRipples.forEach(r => { r.mat.color.copy(dominant).lerp(new THREE.Color(0xffffff), 0.5); });
-  beamsLastDominant = dominant.clone();
+  beamsStreaks.forEach(s => { s.mat.color.copy(dominant).lerp(new THREE.Color(0xffffff), 0.6); });
   // floor gradient: the artist color at 50% brightness right in front of
   // the camera, running away into a deep blue at the far end
   if (beamsFloorCanvas){
@@ -5551,8 +5545,6 @@ function animate(t){
     // scrolling ground
     const nowSec = (t || 0) * 0.001;
     beamsGroup.position.z = wrapScroll(flightDist * BEAMS_SPEED, BEAMS_CHUNK_LENGTH);
-    // stars stream toward the camera, independent of the ground scroll
-    beamsStarsGroup.position.z = wrapScroll(flightDist * BEAMS_STAR_SPEED, BEAMS_STAR_DEPTH);
     // how far the ground moved this frame - landed cubes ride along
     const beamsScrollDz = (flightDist - beamsPrevFlight) * BEAMS_SPEED;
     beamsPrevFlight = flightDist;
@@ -5561,13 +5553,8 @@ function animate(t){
     // so the whole drift runs the opposite way from before; frequencies
     // slowed further and amplitudes opened up a little for a more
     // noticeable, unhurried all-direction wander
-    // a big slow sweep (+-50 units) layered under the existing detail sway,
-    // on top of the fixed base height
-    camera.position.x = -(Math.sin(swayT * 0.031) * 12 + Math.sin(swayT * 0.013 + 3) * 5) + Math.sin(swayT * 0.006) * 50;
-    camera.position.y = 15.5 - (Math.sin(swayT * 0.026 + 1) * 5 + Math.sin(swayT * 0.011) * 2) + Math.sin(swayT * 0.0055 + 2) * 50; // base height raised well clear of the ground (was 5.5)
-    // hard floor: whatever the sway is doing, never let the camera sink
-    // back down near/under the ground plane (y=0)
-    camera.position.y = Math.max(camera.position.y, 2.6);
+    camera.position.x = -(Math.sin(swayT * 0.031) * 12 + Math.sin(swayT * 0.013 + 3) * 5);
+    camera.position.y = 5.5 - (Math.sin(swayT * 0.026 + 1) * 5 + Math.sin(swayT * 0.011) * 2);
     camera.position.z = 8 - Math.sin(swayT * 0.010 + 5) * 4;
     // down-tilt tuned so the horizon sits at the profile picture's
     // vertical midpoint (~60% down the frame)
@@ -5575,9 +5562,8 @@ function animate(t){
     // continuous slight left/right gaze on two overlapping slow beats -
     // never still, never abrupt
     camera.rotation.y = Math.sin(swayT * 0.026) * 0.14 + Math.sin(swayT * 0.011 + 2) * 0.08;
-    // roll: the existing gentle lean, plus a big slow +-20 degree rotation
-    // sweep layered under it
-    camera.rotation.z = Math.sin(swayT * 0.021 + 4) * 0.13 + Math.sin(swayT * 0.004) * (20 * Math.PI / 180) + cameraRollOffset;
+    // roll kept slight - a gentle lean left and right
+    camera.rotation.z = Math.sin(swayT * 0.021 + 4) * 0.13 + cameraRollOffset;
     beamsCubes.forEach(c => {
       if (c.state === "wait"){
         c.timer -= dtSec;
@@ -5673,10 +5659,8 @@ function animate(t){
                 s.strength = Math.min(1, impact / 22);
                 s.cube = c;
                 s.mesh.position.set(c.mesh.position.x, gY + 0.1, 0);
-                s.mesh.scale.x = 1;
                 s.mesh.visible = true;
                 s.mat.opacity = 0;
-                s.mat.color.setRGB(1, 1, 1); // starts bright white, eases into the artist color as it fades in
               }
             }
           }
@@ -5752,16 +5736,10 @@ function animate(t){
       const targetOpacity = 0.5 * s.strength;
       const cubeGone = !s.cube || !s.cube.mesh.visible;
       if (cubeGone){
-        // fading away: thicken the line while it fades, easing the rest
-        // of the way into the artist's own color as it goes
-        if (beamsLastDominant) s.mat.color.lerp(beamsLastDominant, Math.min(1, dtSec * 2));
-        s.mesh.scale.x = Math.min(6, s.mesh.scale.x + dtSec * 6);
         s.mat.opacity = Math.max(0, s.mat.opacity - dtSec / 0.9 * targetOpacity);
         if (s.mat.opacity <= 0){ s.life = 1; s.mesh.visible = false; }
       } else if (s.mat.opacity < targetOpacity){
         s.mat.opacity = Math.min(targetOpacity, s.mat.opacity + dtSec / 0.25 * targetOpacity);
-        // fading in: ease from white toward the artist color as it brightens
-        if (beamsLastDominant) s.mat.color.copy(beamsLastDominant).lerp(new THREE.Color(0xffffff), 1 - s.mat.opacity / targetOpacity);
       }
     });
     // mirror clones follow after all position corrections, and every cube
@@ -6053,35 +6031,6 @@ function animate(t){
     // were built along, banking into the curves - exactly the RINGS/TILES
     // flythrough pattern (lerp-follow + look-ahead yaw/pitch/bank), just
     // with a taller, wilder bend
-    const nowSec = (t || 0) * 0.001;
-    // every 2s each wall texture picks a new random direction (up/down/
-    // left/right) and slides 200px that way over the first 1s (eased),
-    // then holds for the second 1s before the next texture reassigns -
-    // the WHICH-photo-goes-where assignment itself never changes, only
-    // each photo's own offset shifts
-    const cubeCycleIdx = Math.floor(nowSec / 2);
-    const cubeMoveT = Math.min(1, (nowSec - cubeCycleIdx * 2) / 1);
-    const cubeEased = cubeMoveT < 1 ? (1 - Math.cos(cubeMoveT * Math.PI)) / 2 : 1;
-    tileImageTextures.forEach((tex, i) => {
-      // tex.image exists (a real <img>) the moment loading STARTS, well
-      // before it's actually decoded - width/height are still 0 then, so
-      // this guard has to check the real dimensions, not just truthiness.
-      // Skipping that check was the actual CUBE-scene bug: 200/0 produced
-      // Infinity, which corrupted texture.offset into NaN/Infinity - once
-      // that happened the wall/cube textures went black or vanished
-      // entirely and stayed that way (every following cycle re-read the
-      // corrupted offset as its new base), even though nothing threw
-      if (!tex.image || !tex.image.width || !tex.image.height) return;
-      if (tex.userData.cycleIdx !== cubeCycleIdx){
-        tex.userData.cycleIdx = cubeCycleIdx;
-        tex.userData.baseX = tex.offset.x; tex.userData.baseY = tex.offset.y;
-        const dirPick = Math.floor(tileHash(cubeCycleIdx, i * 97 + 1) * 4);
-        const dx = 200 / tex.image.width, dy = 200 / tex.image.height;
-        tex.userData.dirX = dirPick === 2 ? -dx : dirPick === 3 ? dx : 0;
-        tex.userData.dirY = dirPick === 0 ? dy : dirPick === 1 ? -dy : 0;
-      }
-      tex.offset.set(tex.userData.baseX + tex.userData.dirX * cubeEased, tex.userData.baseY + tex.userData.dirY * cubeEased);
-    });
     const scroll = flightDist * CUBEW_SPEED;
     donutGroup.position.z = wrapScroll(scroll, CUBEW_CHUNK_LENGTH);
     const here = cubePathAt(scroll - 8);
