@@ -3314,6 +3314,10 @@ function donutRetint(tr){
   const tint = new THREE.Color(0xffffff).lerp(dominant, 0.18);
   donutMats.forEach(m => m.color.copy(tint));
   donutCubeMats.forEach(m => m.color.copy(tint));
+  // the far haze/backdrop is the artist color (10% darker) instead of
+  // fading to black - the renderer's clear color reads straight off this
+  // same THREE.Color so the two never visibly seam
+  donutFog.color.copy(dominant).multiplyScalar(0.9);
 }
 let tilesLastPalette = null;
 function tilesRetint(tr){
@@ -4783,8 +4787,10 @@ function updateArtistBackground(tr){
     scene.fog = checkFog;
   } else if (wantCube){
     // fully enclosed donut tunnel - its own walls are the backdrop, and
-    // now fog softly hazes the far walls for a depth-of-field feel
-    renderer.setClearColor(0x050505, 1);
+    // fog softly hazes the far walls for a depth-of-field feel. Clear
+    // color matches the fog's own (artist-tinted) color exactly, so the
+    // haze fades into the backdrop instead of fading to black
+    renderer.setClearColor(donutFog.color, 1);
     scene.fog = donutFog;
   } else if (wantPortal){
     portalRetint(tr);
