@@ -547,7 +547,7 @@ function startActiveLineFade(dl, li){
     const wordStart = words[i].t - start;
     const wordEnd = (i < words.length - 1 ? words[i + 1].t : end) - start;
     const fadeDuration = Math.max(0.15, wordEnd - wordStart);
-    spans[i].style.animation = `wordFadeBlueGreenWhite ${fadeDuration}s linear ${wordStart}s forwards`;
+    spans[i].style.animation = `wordActiveWhite ${fadeDuration}s linear ${wordStart}s forwards`;
   }
 }
 
@@ -1430,7 +1430,7 @@ function waveCurveAt(arr, u){
   const a3 = p1;
   return a0 * f * f * f + a1 * f * f + a2 * f + a3;
 }
-const WAVE_SEGMENTS = 160;
+const WAVE_SEGMENTS = 320;
 let WAVE_COLOR = "#7CFF9E"; // updated per-track to the artist's color in renderMeta()
 // mixes a hex color toward white by `frac` (0 = unchanged, 1 = white) -
 // same math as the CSS color-mix(..., white) used for the logo/pill cycle
@@ -1596,11 +1596,12 @@ function positionWaveCanvas(){
   positionArtistPhoto();
   const lyricsTop = lyrics.getBoundingClientRect().top;
   const baseHeight = Math.max(40, Math.min(80, lyricsTop * 0.5)) + 40;
-  // sphere screen: the visualizer runs at 600% vertical size - the canvas
-  // grows 6x but keeps its resting baseline (at 65% of its height, see
-  // drawWaveCanvas) pinned to the exact same on-screen spot, so all the
-  // extra swing extends upward
-  const height = document.body.classList.contains("scene-sphere") ? baseHeight * 6 : baseHeight;
+  // the visualizer runs at 600% vertical size on every scene, but 800% on
+  // the sphere screen specifically - the canvas grows but keeps its
+  // resting baseline (at 65% of its height, see drawWaveCanvas) pinned to
+  // the exact same on-screen spot, so all the extra swing extends upward
+  const heightMul = document.body.classList.contains("scene-sphere") ? 8 : 6;
+  const height = baseHeight * heightMul;
   const photoRect = photo.getBoundingClientRect();
   const centerY = photoRect.top + photoRect.height / 2;
   const canvasCenterY = centerY + 40 - 15 + 5 + 10 - 22 + 20; // visualiser (only) net 20px down from that
@@ -1794,7 +1795,7 @@ const TUNNEL_REPEATS = 3;         // how many times that chunk is tiled
 const TUNNEL_RING_SPACING = 5;    // world units between rings
 const TUNNEL_RADIUS_BASE = 4.5;
 const TUNNEL_CHUNK_LENGTH = TUNNEL_CHUNK_RINGS * TUNNEL_RING_SPACING;
-const TUNNEL_SPEED = 5.5; // world units/sec scrolled toward the camera ("flying backwards" through it)
+const TUNNEL_SPEED = -5.5; // world units/sec scrolled toward the camera ("flying backwards" through it) - reversed
 // view-distance of the traveling light pulse that occasionally sweeps the
 // tunnel from the far end toward the camera (driven in animate(); parked
 // far negative = no pulse visible)
@@ -1814,11 +1815,12 @@ function tunnelColorForRing(ring, out){
   const i0 = Math.floor(scaled), i1 = Math.min(i0 + 1, TUNNEL_PALETTE.length - 1);
   return out.copy(TUNNEL_PALETTE[i0]).lerp(TUNNEL_PALETTE[i1], scaled - i0);
 }
-// same palette, dimmed way down - the tunnel walls read as near-black with
-// just a tint of the artist color, so the point light (see tunnelLight)
-// standing in for the AQAI logo has something to visibly glint off of
+// same palette, dimmed down (was 0.14 - near-black; now a genuinely
+// intense tinted surface) so the walls read as saturated color instead of
+// almost-black, while the point light (see tunnelLight) standing in for
+// the AQAI logo still has plenty of contrast to glint off of
 function tunnelSurfaceColorForRing(ring, out){
-  return tunnelColorForRing(ring, out).multiplyScalar(0.14);
+  return tunnelColorForRing(ring, out).multiplyScalar(0.34);
 }
 // (re)colors any tunnel-derived geometry purely from each vertex's own z -
 // every ring sits at an exact, recoverable z = -ring * TUNNEL_RING_SPACING,
@@ -2367,7 +2369,7 @@ roadScenery.add(roadStars);
 roadScenery.visible = false;
 scene.add(roadScenery);
 // gentle purple haze melting the far terrain into the night
-const roadFog = new THREE.FogExp2(0x101334, 0.0052);
+const roadFog = new THREE.FogExp2(0x101334, 0.00416); // 20% less dense (less dark)
 const roadClearColor = new THREE.Color();
 // trailing-follow state for the drone camera - everything lerps toward
 // freshly-sampled road targets, so the flight reads as elegant sweeps
@@ -2570,14 +2572,21 @@ const downtownGroup = new THREE.Group();
   const dtEdgeGeo = new THREE.EdgesGeometry(boxGeo);
   // one shared vertical-line geometry: a thin line shooting far up and far
   // down through every box, in that box's own color (the line material
-  // SHARES the box material's Color instance, so artist retints follow)
-  const dtLineGeo = new THREE.BufferGeometry();
-  dtLineGeo.setAttribute("position", new THREE.Float32BufferAttribute([0, -900, 0, 0, 900, 0], 3));
-  const addBoxLine = (box, mat) => {
-    const lm = new THREE.LineBasicMaterial({ transparent: true, opacity: 0.55 });
+  // SHARES the box material's Color instance, so artist retints follow).
+  // this is a unit-radius cylinder, not a THREE.Line - WebGL line width is
+  // capped at 1px on almost every platform/driver, so a real mesh (scaled
+  // per box below) is the only reliable way to get an actual 1-4px range
+  const dtLineGeo = new THREE.CylinderGeometry(1, 1, 1800, 6, 1, true);
+  const addBoxLine = (box, mat, i) => {
+    const lm = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.55 });
     lm.color = mat.color; // shared reference, not a copy
     dtLineMats.push(lm);  // opacity pulses with the music in animate()
-    const line = new THREE.Line(dtLineGeo, lm);
+    const line = new THREE.Mesh(dtLineGeo, lm);
+    // radius varies 1-4px-equivalent per box, seeded off its own index so
+    // it's stable across frames/retints
+    const px = 1 + h(i, 23) * 3;
+    const r = px * 0.018;
+    line.scale.set(r, 1, r);
     line.position.set(box.position.x, 0, box.position.z);
     line.frustumCulled = false;
     downtownGroup.add(line);
@@ -2622,7 +2631,7 @@ const downtownGroup = new THREE.Group();
       slab.add(new THREE.LineSegments(dtEdgeGeo, dtEdgeMat));
       registerBob(slab, i + rep * 1000, 1.5 + h(i, 22) * 2);
       downtownGroup.add(slab);
-      addBoxLine(slab, mat);
+      addBoxLine(slab, mat, i);
     }
   }
   // bigger boxes drifting in the open space OUTSIDE the corridor walls,
@@ -2652,7 +2661,7 @@ const downtownGroup = new THREE.Group();
       box.add(new THREE.LineSegments(dtEdgeGeo, dtEdgeMat));
       registerBob(box, k + rep * 1000, 4 + h(k, 11) * 5);
       downtownGroup.add(box);
-      addBoxLine(box, mat);
+      addBoxLine(box, mat, k);
     }
   }
 }
@@ -2668,16 +2677,19 @@ function applyDowntownTint(artistColor){
   const dtContrast = new THREE.Color(1 - dtTintColor.r, 1 - dtTintColor.g, 1 - dtTintColor.b);
   dtMats.forEach((mat, i) => {
     if (i < 2){
-      // two slots: warm base pulled toward the artist color, punched up
-      mat.color.copy(DT_BASE_COLORS[i]).lerp(dtTintColor, 0.5).multiplyScalar(1.15);
+      // two slots: warm base pulled toward the artist color, punched up -
+      // less lerp toward the tint (was muddying the hue) and a stronger
+      // saturation boost for a more intense color overall
+      mat.color.copy(DT_BASE_COLORS[i]).lerp(dtTintColor, 0.35).multiplyScalar(1.3);
     } else if (i === 2){
       // one slot: the artist color's complement, the hardest contrast
       mat.color.copy(dtContrast);
     } else {
       // three slots: matched-intensity red / blue / yellow accents, barely
       // artist-tinted so they read as their own hues, punched up
-      mat.color.copy(DT_RGB_VARIANTS[i - 3]).lerp(dtTintColor, 0.1).multiplyScalar(1.15);
+      mat.color.copy(DT_RGB_VARIANTS[i - 3]).lerp(dtTintColor, 0.06).multiplyScalar(1.3);
     }
+    mat.color.offsetHSL(0, 0.15, 0);
   });
   dtReactiveSlabs.forEach(slab => {
     slab.material.color.copy(DT_BASE_COLORS[0]).lerp(dtTintColor, 0.6).multiplyScalar(1.1);
@@ -2692,14 +2704,14 @@ scene.add(downtownGroup);
 // warm light near the camera - the corridor darkens with distance, like
 // the reference's vanishing point; plus a dim warm ambient fill
 // parked BELOW the corridor, shining upward - undersides glow, tops fall dark
-const downtownLight = new THREE.PointLight(0xffd9a0, 0.84, 70 * DT_SCALE, 1.8); // 30% darker scene
+const downtownLight = new THREE.PointLight(0xffd9a0, 1.0, 70 * DT_SCALE, 1.8); // 20% brighter (was 30% darker)
 downtownLight.position.set(0, -DT_HALF_H - 20, 2);
 downtownLight.visible = false;
 scene.add(downtownLight);
-const downtownAmbient = new THREE.AmbientLight(0x2a180c, 0.48); // 30% darker scene
+const downtownAmbient = new THREE.AmbientLight(0x2a180c, 0.58); // 20% brighter (was 30% darker)
 downtownAmbient.visible = false;
 scene.add(downtownAmbient);
-const downtownFog = new THREE.FogExp2(0x120a05, 0.02 / DT_SCALE);
+const downtownFog = new THREE.FogExp2(0x120a05, (0.02 / DT_SCALE) * 0.8); // 20% less dense (less dark)
 // starfield rushing through the maze at 3x the blocks' speed, in four
 // pixel-size classes from 1px pinpricks up to 4px flares, fogged like the
 // blocks so far stars sit darker and brighten as they rush closer
@@ -2771,9 +2783,11 @@ const tilesBlocks = []; // floating animated cubes, driven in animate()
     // repeat-wrapped: whole surfaces run one continuous self-tileable
     // pattern, every tile matching its neighbours exactly
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    // unlit: the walls show their patterns flat, with no reaction to the
-    // traveling light (only the cubes stay lit/shaded)
-    tilesMats.push(new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
+    // lit: walls/floor/ceiling now react to the key light too (soft
+    // specular sheen) and receive the floating blocks' cast shadows,
+    // instead of showing their patterns flat/unlit
+    tilesMats.push(new THREE.MeshPhongMaterial({ map: tex, side: THREE.DoubleSide,
+      specular: 0x555555, shininess: 22 }));
   }
   for (let i = 0; i < 4; i++){
     const cv = document.createElement("canvas");
@@ -2783,7 +2797,7 @@ const tilesBlocks = []; // floating animated cubes, driven in animate()
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     // Phong: the striped cubes catch a specular sheen from the key light
     // (they already cast and receive the scene's soft shadows)
-    tilesStripeMats.push(new THREE.MeshPhongMaterial({ map: tex, specular: 0x666666, shininess: 32 }));
+    tilesStripeMats.push(new THREE.MeshPhongMaterial({ map: tex, specular: 0x999999, shininess: 48 }));
   }
   // merged geometry per material: one draw call each instead of ~600 meshes.
   // Every vertex is offset by the flight path at its own depth, so the
@@ -2802,6 +2816,26 @@ const tilesBlocks = []; // floating animated cubes, driven in animate()
     });
     b.uv.push(u0, v0, u0 + uw, v0, u0 + uw, v0 + vh, u0, v0 + vh);
     b.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  };
+  // second structural layer: on top of a tile's outer (connecting) quad,
+  // add a smaller inset panel pushed along the surface's own normal - a
+  // real stepped-in/out relief instead of one flat sheet per surface. The
+  // outer quad's corners are untouched so every tile still shares an exact
+  // edge with its neighbours (nothing fragments), the inset is purely an
+  // extra layer riding on top of that connected shell.
+  const pushPanel = (mi, corners, normalAxis, sign, u0, v0, jitterSeed) => {
+    pushQuad(mi, corners, u0, v0);
+    if (h(jitterSeed, 33) > 0.35) return; // only a portion of tiles get the raised layer
+    const cx = (corners[0][0] + corners[1][0] + corners[2][0] + corners[3][0]) / 4;
+    const cy = (corners[0][1] + corners[1][1] + corners[2][1] + corners[3][1]) / 4;
+    const cz = (corners[0][2] + corners[1][2] + corners[2][2] + corners[3][2]) / 4;
+    const depth = 0.3 + h(jitterSeed, 34) * 0.35;
+    const inset = corners.map(c => {
+      const nc = [c[0] * 0.62 + cx * 0.38, c[1] * 0.62 + cy * 0.38, c[2] * 0.62 + cz * 0.38];
+      nc[normalAxis] += sign * depth;
+      return nc;
+    });
+    pushQuad(mi, inset, u0 + 0.18, v0 + 0.18, 0.64, 0.64);
   };
   // vertical color zoning: LOW materials (bottom wall rows, floor, low
   // gate bar) always carry the artist color; HIGH materials (upper rows,
@@ -2823,22 +2857,29 @@ const tilesBlocks = []; // floating animated cubes, driven in animate()
       const rn = TILES_HALF_W + edgeR(zi), rf = TILES_HALF_W + edgeR(zi + 1);
       for (let yi = 0; yi < 12; yi++){
         const y = (yi - 5.5) * TILES_TILE;
-        pushQuad(yi < 4 ? MAT_WALL_L_LOW : MAT_WALL_L_HIGH,
+        pushPanel(yi < 4 ? MAT_WALL_L_LOW : MAT_WALL_L_HIGH,
           [[ln, y - s, z + s], [lf, y - s, z - s], [lf, y + s, z - s], [ln, y + s, z + s]],
-          zi, yi);
-        pushQuad(yi < 4 ? MAT_WALL_R_LOW : MAT_WALL_R_HIGH,
+          0, 1, zi, yi, zi * 12 + yi);
+        pushPanel(yi < 4 ? MAT_WALL_R_LOW : MAT_WALL_R_HIGH,
           [[rn, y - s, z + s], [rf, y - s, z - s], [rf, y + s, z - s], [rn, y + s, z + s]],
-          zi, yi);
+          0, -1, zi, yi, zi * 12 + yi + 500);
       }
+      // floor/ceiling now bow to match the walls' own left/right relief at
+      // every z-slab (trapezoidal tiles instead of a fixed-width flat
+      // strip) - their outer edges land exactly on the wall's inner edge,
+      // so the box reads as one connected shell instead of four
+      // independently-fragmented surfaces meeting at a gap
       for (let xi = 0; xi < 7; xi++){
-        const x = (xi - 3) * TILES_TILE;
-        pushQuad(MAT_FLOOR,
-          [[x - s, -TILES_HALF_H, z + s], [x + s, -TILES_HALF_H, z + s], [x + s, -TILES_HALF_H, z - s], [x - s, -TILES_HALF_H, z - s]],
-          xi, zi);
+        const t0 = xi / 7, t1 = (xi + 1) / 7;
+        const xn0 = ln + t0 * (rn - ln), xn1 = ln + t1 * (rn - ln);
+        const xf0 = lf + t0 * (rf - lf), xf1 = lf + t1 * (rf - lf);
+        pushPanel(MAT_FLOOR,
+          [[xn0, -TILES_HALF_H, z + s], [xn1, -TILES_HALF_H, z + s], [xf1, -TILES_HALF_H, z - s], [xf0, -TILES_HALF_H, z - s]],
+          1, 1, xi, zi, zi * 7 + xi + 1000);
         // matching tiled ceiling closes the corridor into a full box
-        pushQuad(MAT_CEIL,
-          [[x - s, TILES_HALF_H, z - s], [x + s, TILES_HALF_H, z - s], [x + s, TILES_HALF_H, z + s], [x - s, TILES_HALF_H, z + s]],
-          xi, zi);
+        pushPanel(MAT_CEIL,
+          [[xf0, TILES_HALF_H, z - s], [xf1, TILES_HALF_H, z - s], [xn1, TILES_HALF_H, z + s], [xn0, TILES_HALF_H, z + s]],
+          1, -1, xi, zi, zi * 7 + xi + 1500);
       }
       // stage gates: every 4th step a tiled frame crosses the corridor -
       // top and bottom bars, plus an occasional side panel that narrows
@@ -2868,6 +2909,7 @@ const tilesBlocks = []; // floating animated cubes, driven in animate()
     geo.computeVertexNormals();
     const mesh = new THREE.Mesh(geo, tilesMats[mi]);
     mesh.frustumCulled = false;
+    mesh.receiveShadow = true;
     tilesGroup.add(mesh);
   });
   // floating tile blocks drifting through the corridor - spinning, bobbing
@@ -2875,7 +2917,7 @@ const tilesBlocks = []; // floating animated cubes, driven in animate()
   // animate()); they cast real shadows onto the tiled walls
   const blockGeo = new THREE.BoxGeometry(2.8, 2.8, 2.8);
   for (let rep = 0; rep < TILES_REPEATS; rep++){
-    for (let i = 0; i < 9; i++){
+    for (let i = 0; i < 18; i++){
       const block = new THREE.Mesh(blockGeo, tilesStripeMats[Math.floor(h(i * 41, 10) * 4)]);
       const sideSign = i % 2 === 0 ? -1 : 1;
       const bz = -h(i, 13) * TILES_CHUNK_LENGTH - rep * TILES_CHUNK_LENGTH;
@@ -2897,10 +2939,10 @@ const tilesBlocks = []; // floating animated cubes, driven in animate()
 // the key is split: a shadow-casting 70% part and a shadowless 30% fill
 // on the same axis, so cast shadows land at 70% of full depth - and a
 // wide PCF radius blurs their edges soft
-const tilesDirLight = new THREE.DirectionalLight(0xfff4e8, 0.42);
+const tilesDirLight = new THREE.DirectionalLight(0xfff4e8, 0.084); // shadow depth cut to 20% (rest moved to the fill)
 tilesDirLight.position.set(30, 55, 20);
 tilesDirLight.castShadow = true;
-tilesDirLight.shadow.radius = 27; // 3x fuzzier shadow edges
+tilesDirLight.shadow.radius = 32.4; // 20% blurrier still on top of the existing 3x fuzz
 tilesDirLight.shadow.mapSize.set(512, 512); // lower-res map softens them further
 tilesDirLight.shadow.camera.left = -120;
 tilesDirLight.shadow.camera.right = 120;
@@ -2912,7 +2954,7 @@ tilesDirLight.target.position.set(0, 0, -60);
 tilesDirLight.visible = false;
 scene.add(tilesDirLight);
 scene.add(tilesDirLight.target);
-const tilesDirFill = new THREE.DirectionalLight(0xfff4e8, 0.18); // the shadowless 30%
+const tilesDirFill = new THREE.DirectionalLight(0xfff4e8, 0.516); // absorbs the intensity moved off the key light, so overall brightness is unchanged
 tilesDirFill.position.copy(tilesDirLight.position);
 tilesDirFill.target = tilesDirLight.target;
 tilesDirFill.visible = false;
@@ -3044,22 +3086,57 @@ function drawMotifCell(g, s, idx, rot){
   }
   g.restore();
 }
-// the surfaces' op-art motifs - one motif from the shared sheet above,
-// wrap-drawn at all nine offsets with a small jitter so every face is
-// perfectly tileable and neighbouring tiles read as one continuous poster
+// the surfaces' op-art motifs - COMBINED compositions from the shared
+// sheet (a quad of four different motifs, a big motif with small ones
+// tucked in, or a loose scatter at mixed scales and opacities), wrap-
+// drawn at all nine offsets with a small jitter so every face stays
+// perfectly tileable. All randomness is rolled BEFORE the wrap pass so
+// each of the nine copies is identical - that's what keeps the seams
+// invisible.
 function drawTileMotif(g, fg, bg){
   g.fillStyle = bg; g.fillRect(0, 0, 256, 256);
   g.fillStyle = fg;
-  const idx = Math.floor(Math.random() * MOTIF_COUNT);
-  const rot = Math.floor(Math.random() * 4);
   const jx = (Math.random() - 0.5) * 44;
   const jy = (Math.random() - 0.5) * 44;
-  for (let ox = -256; ox <= 256; ox += 256){
-    for (let oy = -256; oy <= 256; oy += 256){
-      g.save(); g.translate(ox + jx, oy + jy);
-      drawMotifCell(g, 256, idx, rot);
-      g.restore();
+  const wrapDraw = draw => {
+    for (let ox = -256; ox <= 256; ox += 256){
+      for (let oy = -256; oy <= 256; oy += 256){
+        g.save(); g.translate(ox + jx, oy + jy); draw(); g.restore();
+      }
     }
+  };
+  const pick = () => ({ idx: Math.floor(Math.random() * MOTIF_COUNT), rot: Math.floor(Math.random() * 4) });
+  const layout = Math.floor(Math.random() * 3);
+  if (layout === 0){
+    // quad: four different motifs side by side
+    const cells = [pick(), pick(), pick(), pick()];
+    wrapDraw(() => cells.forEach((c, q) => {
+      g.save();
+      g.translate((q % 2) * 128, Math.floor(q / 2) * 128);
+      drawMotifCell(g, 128, c.idx, c.rot);
+      g.restore();
+    }));
+  } else if (layout === 1){
+    // one big motif with two half-tone small ones tucked into corners
+    const big = pick();
+    const small = [0, 1].map(k => ({ ...pick(),
+      x: k === 0 ? 8 : 168, y: k === 0 ? 8 : 168, s: 80 }));
+    wrapDraw(() => {
+      drawMotifCell(g, 256, big.idx, big.rot);
+      small.forEach(s => {
+        g.save(); g.globalAlpha = 0.55; g.translate(s.x, s.y);
+        drawMotifCell(g, s.s, s.idx, s.rot); g.restore();
+      });
+    });
+  } else {
+    // loose scatter: three motifs at mixed scales and opacities
+    const items = [0, 1, 2].map(() => ({ ...pick(),
+      x: Math.random() * 176, y: Math.random() * 176,
+      s: 72 + Math.random() * 100, a: 0.5 + Math.random() * 0.5 }));
+    wrapDraw(() => items.forEach(s => {
+      g.save(); g.globalAlpha = s.a; g.translate(s.x, s.y);
+      drawMotifCell(g, s.s, s.idx, s.rot); g.restore();
+    }));
   }
 }
 // the cubes' animated stripe coat: stripes in four orientations and
@@ -3086,52 +3163,157 @@ function drawTileStripes(g, fg, bg){
     }
   }
 }
-/* ---------- the sphere screen's pattern cube: a huge box seen from the
-   inside, every face papered with a 4x4 grid of cells - ~100 different
-   motif/rotation combinations from the shared sheet across the six faces,
-   slowly turning around the whole scene. Sized beyond the video patch
-   (radius 400) so it forms the room's walls without covering the video,
-   yet inside the camera's 900 far plane ---------- */
-const patternCubeCanvases = [];
-const patternCubeMats = [];
-const patternCubeGroup = new THREE.Group();
-{
-  for (let f = 0; f < 6; f++){
-    const cv = document.createElement("canvas");
-    cv.width = 1024; cv.height = 1024;
-    patternCubeCanvases.push(cv);
-    const tex = new THREE.CanvasTexture(cv);
-    tex.anisotropy = 8;
-    patternCubeMats.push(new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide }));
-  }
-  patternCubeGroup.add(new THREE.Mesh(new THREE.BoxGeometry(880, 880, 880), patternCubeMats));
+/* ---------- CUBE, replaced: a winding tunnel of the same op-art block
+   motifs as TILES, but bending left/right AND up/down on a tall curve
+   (not just side to side) - built as a square tube extruded along a
+   winding spine, chunk-tiled and scrolled like every other flythrough.
+   Chrome-mirror balls float inside, reflecting the tunnel around them
+   live via a shared cube-camera probe. ---------- */
+const CUBEW_CHUNK_LENGTH = 200, CUBEW_REPEATS = 3, CUBEW_SPEED = 4, CUBEW_STEP = 8;
+const CUBEW_HALF_W = 15, CUBEW_HALF_H = 15;
+function cubePathAt(distZ){
+  const a = (distZ / CUBEW_CHUNK_LENGTH) * Math.PI * 2;
+  return {
+    x: Math.sin(a) * 26 + Math.sin(a * 3 + 1) * 9,
+    y: Math.sin(a * 2 + 2) * 20 + Math.sin(a * 5) * 7,
+  };
 }
-patternCubeGroup.visible = false;
-scene.add(patternCubeGroup);
-function patternCubeRetint(tr){
-  const { dominant, others } = artistScenePalette(tr);
-  patternCubeCanvases.forEach((cv, f) => {
-    const g = cv.getContext("2d");
-    g.setTransform(1, 0, 0, 1, 0, 0);
-    g.fillStyle = "#0c0c0c"; g.fillRect(0, 0, 1024, 1024);
-    const cells = 4, cs = 1024 / cells, pad = cs * 0.14;
-    for (let i = 0; i < cells; i++){
-      for (let j = 0; j < cells; j++){
-        // every cell gets its own motif/rotation combo, cycling through
-        // the whole sheet so no two neighbouring cells repeat
-        const n = f * cells * cells + i * cells + j;
-        // palette rule: roughly half the motifs in the artist's own
-        // color, the rest in the other artists' colors
-        const c = (n * 7) % 16 < 8 ? dominant : others[n % others.length];
-        g.fillStyle = "#" + c.getHexString();
-        g.save();
-        g.translate(j * cs + pad, i * cs + pad);
-        drawMotifCell(g, cs - pad * 2, n % MOTIF_COUNT, Math.floor(n / MOTIF_COUNT) % 4);
-        g.restore();
-      }
+let cubeCamX = 0, cubeCamY = 0, cubeCamYaw = 0, cubeCamPitch = 0, cubeCamBank = 0;
+const donutGroup = new THREE.Group();
+// the referenced op-art photo sheet - loaded once, tiled, and spread
+// across the tunnel in multi-station "areas" so different stretches of
+// wall show different patterns instead of one texture end to end
+const TILE_IMAGE_FILES = [
+  "25d73e3fee645d181aef898f84bdb11f.jpg", "3e4212a870ab324c0e6e0a37f95ec471.jpg",
+  "541734a5d30bca16f2538329da91e09f.jpg", "5fe2945063fef90830a92ac8d2c470da.jpg",
+  "8ad805ea9d0253123e94e4a5e510d0ac.jpg", "a3cafd679965810ebdc39238767b6c62.jpg",
+  "b9530e2e2b36aafea2285b5a456031bd.jpg", "cb7d8e39abce16c03920426af5cda7e6.jpg",
+  "d947ba314bded280265fa656d34615ac.jpg", "f75986841978c5dea0b3c198a420f51b.jpg",
+];
+const tileImageLoader = new THREE.TextureLoader();
+const tileImageTextures = TILE_IMAGE_FILES.map(f => {
+  const tex = tileImageLoader.load("assets/tiles/" + f);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 8;
+  return tex;
+});
+// lit like TILES' walls: same soft specular sheen, and the tunnel
+// receives the floating cubes' cast shadows - one material per image
+const donutMats = tileImageTextures.map(tex => new THREE.MeshPhongMaterial({ map: tex, side: THREE.DoubleSide,
+  specular: 0x555555, shininess: 22 }));
+{
+  const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+  const AREA_LEN = 4; // stations per texture "area" before it switches
+  const buffers = donutMats.map(() => ({ pos: [], uv: [], idx: [] }));
+  const push = (mi, corners, u0, v0) => {
+    const b = buffers[mi];
+    const base = b.pos.length / 3;
+    corners.forEach(c => b.pos.push(c[0], c[1], c[2]));
+    // each wall spans exactly one full repeat of the tile image so it
+    // reads as a proper seamless tiled surface, not one stretched photo
+    b.uv.push(u0, v0, u0 + 1, v0, u0 + 1, v0 + 1, u0, v0 + 1);
+    b.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  };
+  const stations = Math.round(CUBEW_CHUNK_LENGTH / CUBEW_STEP);
+  const W = CUBEW_HALF_W, H = CUBEW_HALF_H;
+  for (let rep = -1; rep < CUBEW_REPEATS; rep++){
+    for (let si = 0; si < stations; si++){
+      const areaIdx = Math.floor(si / AREA_LEN) + rep * Math.ceil(stations / AREA_LEN);
+      const mi = Math.floor(h(areaIdx, 61) * donutMats.length) % donutMats.length;
+      const zN = -(si * CUBEW_STEP + rep * CUBEW_CHUNK_LENGTH);
+      const zF = -((si + 1) * CUBEW_STEP + rep * CUBEW_CHUNK_LENGTH);
+      const pN = cubePathAt(-zN), pF = cubePathAt(-zF);
+      push(mi, [[pN.x - W, pN.y - H, zN], [pF.x - W, pF.y - H, zF], [pF.x - W, pF.y + H, zF], [pN.x - W, pN.y + H, zN]], si, 0);
+      push(mi, [[pN.x + W, pN.y + H, zN], [pF.x + W, pF.y + H, zF], [pF.x + W, pF.y - H, zF], [pN.x + W, pN.y - H, zN]], si, 1);
+      push(mi, [[pN.x - W, pN.y - H, zN], [pN.x + W, pN.y - H, zN], [pF.x + W, pF.y - H, zF], [pF.x - W, pF.y - H, zF]], si, 2);
+      push(mi, [[pF.x - W, pF.y + H, zF], [pF.x + W, pF.y + H, zF], [pN.x + W, pN.y + H, zN], [pN.x - W, pN.y + H, zN]], si, 3);
     }
-    patternCubeMats[f].map.needsUpdate = true;
+  }
+  buffers.forEach((b, mi) => {
+    if (!b.pos.length) return;
+    const donutGeo = new THREE.BufferGeometry();
+    donutGeo.setAttribute("position", new THREE.Float32BufferAttribute(b.pos, 3));
+    donutGeo.setAttribute("uv", new THREE.Float32BufferAttribute(b.uv, 2));
+    donutGeo.setIndex(b.idx);
+    donutGeo.computeVertexNormals();
+    const tunnelMesh = new THREE.Mesh(donutGeo, donutMats[mi]);
+    tunnelMesh.frustumCulled = false;
+    tunnelMesh.receiveShadow = true;
+    donutGroup.add(tunnelMesh);
   });
+}
+scene.add(donutGroup);
+// floating spinning cubes - same photo sheet as the tunnel walls (a
+// different image per cube), a brighter specular coat (matching TILES'
+// floating blocks), casting/receiving real shadows
+const donutCubeMats = tileImageTextures.map(tex => new THREE.MeshPhongMaterial({ map: tex, specular: 0x999999, shininess: 48 }));
+const donutCubes = [];
+{
+  const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+  const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
+  const stations = Math.round(CUBEW_CHUNK_LENGTH / CUBEW_STEP);
+  for (let rep = -1; rep < CUBEW_REPEATS; rep++){
+    for (let si = 0; si < stations; si += 2){
+      const i = si + rep * stations;
+      const cube = new THREE.Mesh(cubeGeo, donutCubeMats[Math.floor(h(i, 61) * donutCubeMats.length) % donutCubeMats.length]);
+      const r = 1.6 + h(i, 51) * 2.4;
+      cube.scale.setScalar(r);
+      const bz = -(si * CUBEW_STEP + rep * CUBEW_CHUNK_LENGTH + h(i, 57) * CUBEW_STEP);
+      const bp = cubePathAt(-bz);
+      cube.position.set(
+        bp.x + (h(i, 53) - 0.5) * (CUBEW_HALF_W * 2 - r * 2 - 3),
+        bp.y + (h(i, 54) - 0.5) * (CUBEW_HALF_H * 2 - r * 2 - 3),
+        bz);
+      cube.userData.baseX = cube.position.x;
+      cube.userData.baseY = cube.position.y;
+      cube.userData.driftPhase = h(i, 55) * Math.PI * 2;
+      cube.userData.driftRate = 0.2 + h(i, 56) * 0.3;
+      cube.userData.spin = new THREE.Vector3(h(i, 58) - 0.5, h(i, 59) - 0.5, h(i, 60) - 0.5).multiplyScalar(1.4);
+      cube.castShadow = true;
+      cube.receiveShadow = true;
+      cube.frustumCulled = false;
+      donutCubes.push(cube);
+      donutGroup.add(cube);
+    }
+  }
+}
+donutGroup.visible = false;
+// the light rig - same "travels with the camera" pattern as TILES: a
+// shadow-casting key plus a shadowless fill on the same axis, and a base
+// ambient so the far side of the tunnel never goes fully black
+const donutDirLight = new THREE.DirectionalLight(0xfff4e8, 0.084); // shadow depth cut to 20% (rest moved to the fill)
+donutDirLight.castShadow = true;
+donutDirLight.shadow.radius = 32.4; // 20% blurrier
+donutDirLight.shadow.mapSize.set(512, 512);
+donutDirLight.shadow.camera.left = -60;
+donutDirLight.shadow.camera.right = 60;
+donutDirLight.shadow.camera.top = 60;
+donutDirLight.shadow.camera.bottom = -60;
+donutDirLight.shadow.camera.near = 1;
+donutDirLight.shadow.camera.far = 120;
+donutDirLight.visible = false;
+scene.add(donutDirLight);
+scene.add(donutDirLight.target);
+const donutDirFill = new THREE.DirectionalLight(0xfff4e8, 0.516); // absorbs the intensity moved off the key light
+donutDirFill.target = donutDirLight.target;
+donutDirFill.visible = false;
+scene.add(donutDirFill);
+const donutAmbient = new THREE.AmbientLight(0xffffff, 0.38);
+donutAmbient.visible = false;
+scene.add(donutAmbient);
+// a soft haze standing in for real depth-of-field blur (no post-process
+// pipeline in this renderer) - the tunnel reads sharp close around the
+// camera, then softens/fades further back instead of staying crisp the
+// whole way down
+const donutFog = new THREE.FogExp2(0x050505, 0.028);
+function donutRetint(tr){
+  // the photo tiles carry their own rich color already - just a light
+  // per-track wash so the scene still ties into the artist's color
+  // without washing out the pattern itself
+  const { dominant } = artistScenePalette(tr);
+  const tint = new THREE.Color(0xffffff).lerp(dominant, 0.18);
+  donutMats.forEach(m => m.color.copy(tint));
+  donutCubeMats.forEach(m => m.color.copy(tint));
 }
 let tilesLastPalette = null;
 function tilesRetint(tr){
@@ -3193,9 +3375,10 @@ const beamsStripMats = [];
 const beamsCubeMats = [];
 const beamsMirrorMats = [];
 const beamsCubes = [];
-const BEAMS_CUBE_COUNT = 21; // halved pool
+const BEAMS_CUBE_COUNT = 36; // bumped up for whole-screen coverage now that cubes are smaller
 const beamsCubeBase = []; // per-cube base colors, darkened by depth in animate()
 const beamsRipples = []; // floor impact rings (water-drip pulses)
+const beamsStreaks = []; // fading front-to-back floor light streaks on impact
 let beamsLastSpawn = -10; // global gate: cubes launch one by one, never together
 let beamsFloorCanvas = null;
 let beamsFloorTex = null;
@@ -3207,9 +3390,9 @@ let beamsFloorTex = null;
   beamsFloorCanvas = document.createElement("canvas");
   beamsFloorCanvas.width = 4; beamsFloorCanvas.height = 256;
   beamsFloorTex = new THREE.CanvasTexture(beamsFloorCanvas);
-  // strongly reflective glossy floor, brightened ~30%
+  // strongly reflective glossy floor, mostly invisible now
   const floorMat = new THREE.MeshPhongMaterial({ map: beamsFloorTex, color: 0xffffff, specular: 0xffffff,
-    shininess: 130, transparent: true, opacity: 0.74, side: THREE.DoubleSide });
+    shininess: 130, transparent: true, opacity: 0.1, side: THREE.DoubleSide });
   // flat ground again - the hills are gone
   const floorGeo = new THREE.PlaneGeometry(240, 460);
   floorGeo.rotateX(-Math.PI / 2);
@@ -3264,6 +3447,30 @@ let beamsFloorTex = null;
     mesh.frustumCulled = false;
     beamsScenery.add(mesh);
     beamsRipples.push({ mesh, mat, life: 1, strength: 0 });
+  }
+  // impact light-streaks: a thin line running the full front-to-back
+  // length of the floor through the landing spot, brightest at the
+  // impact point and fading out toward both the near and far ends
+  const streakCv = document.createElement("canvas");
+  streakCv.width = 32; streakCv.height = 256;
+  const sg = streakCv.getContext("2d");
+  const sgrad = sg.createLinearGradient(0, 0, 0, 256);
+  sgrad.addColorStop(0, "rgba(255,255,255,0)");
+  sgrad.addColorStop(0.5, "rgba(255,255,255,0.9)");
+  sgrad.addColorStop(1, "rgba(255,255,255,0)");
+  sg.fillStyle = sgrad; sg.fillRect(0, 0, 32, 256);
+  const streakTex = new THREE.CanvasTexture(streakCv);
+  const streakGeo = new THREE.PlaneGeometry(0.4, 440);
+  streakGeo.rotateX(-Math.PI / 2);
+  for (let i = 0; i < 8; i++){
+    const mat = new THREE.MeshBasicMaterial({ map: streakTex, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false });
+    const mesh = new THREE.Mesh(streakGeo, mat);
+    mesh.position.y = 0.07;
+    mesh.visible = false;
+    mesh.frustumCulled = false;
+    beamsScenery.add(mesh);
+    beamsStreaks.push({ mesh, mat, life: 1, strength: 0 });
   }
   // solid specular cubes + their mirror clones (the floor reflections) -
   // every cube gets its OWN material, so each carries one unique color
@@ -3325,10 +3532,10 @@ scene.add(beamsScenery);
 // lighting for the specular cubes and glossy floor
 // key from the RIGHT side, very diffuse: modest directional strength with
 // a strong ambient fill below, and extra-soft shadows
-const beamsLight = new THREE.DirectionalLight(0xffffff, 0.5);
-beamsLight.position.set(70, 30, 5);
+const beamsLight = new THREE.DirectionalLight(0xffffff, 0.42);
+beamsLight.position.set(90, 30, 5);
 beamsLight.castShadow = true; // cubes throw soft shadows onto the floor
-beamsLight.shadow.radius = 14;
+beamsLight.shadow.radius = 20;
 beamsLight.shadow.mapSize.set(512, 512);
 beamsLight.shadow.camera.left = -130;
 beamsLight.shadow.camera.right = 130;
@@ -3340,20 +3547,33 @@ beamsLight.target.position.set(0, 0, -80);
 beamsLight.visible = false;
 scene.add(beamsLight);
 scene.add(beamsLight.target);
-const beamsAmbient = new THREE.AmbientLight(0xffffff, 0.45);
+const beamsAmbient = new THREE.AmbientLight(0xffffff, 0.55);
 beamsAmbient.visible = false;
 scene.add(beamsAmbient);
 let beamsPrevFlight = 0;
 let beamsLastBigDrop = 0; // clock of the once-per-~5s giant cube
 const beamsRotMat = new THREE.Matrix4(); // scratch for cube support-height math
+// local cube axes, reused each landing to find which one ends up closest
+// to vertical (see the settleQuat snap in animate())
+const beamsAxisX = new THREE.Vector3(1, 0, 0);
+const beamsAxisY = new THREE.Vector3(0, 1, 0);
+const beamsAxisZ = new THREE.Vector3(0, 0, 1);
 // flat landing ground (kept as a function so the floor mesh and the
 // physics stay in sync if terrain ever comes back)
 function beamsGroundY(x, z){
   return 0;
 }
-const beamsFog = new THREE.FogExp2(0x05050a, 0.007);
+const beamsFog = new THREE.FogExp2(0x05050a, 0.0056); // 20% less dense (less dark)
 function beamsRetint(tr){
-  const { dominant, others } = artistScenePalette(tr);
+  // fixed blue-tone palette for this scene - no longer tied to the
+  // current artist's color, always a spread of blues instead
+  const dominant = new THREE.Color(0x2e6de0);
+  const others = [new THREE.Color(0x0d2a5e), new THREE.Color(0x4fc3f7),
+    new THREE.Color(0x1e3c72), new THREE.Color(0x00c6ff)];
+  // punched up more intense across the board - every downstream color
+  // (ribbons, cubes, ripples, streaks) derives from these two
+  dominant.offsetHSL(0, 0.18, 0.04);
+  others.forEach(c => c.offsetHSL(0, 0.18, 0.04));
   // ribbons: dominant on the center and outer lanes, others between
   // (all pulled down 30% for the darker look)
   beamsStripMats.forEach((mat, i) => {
@@ -3374,16 +3594,19 @@ function beamsRetint(tr){
   });
   // impact ripples glow in a bright artist tint
   beamsRipples.forEach(r => { r.mat.color.copy(dominant).lerp(new THREE.Color(0xffffff), 0.5); });
+  beamsStreaks.forEach(s => { s.mat.color.copy(dominant).lerp(new THREE.Color(0xffffff), 0.6); });
   // floor gradient: the artist color at 50% brightness right in front of
-  // the camera, falling away into darkness at the far end
+  // the camera, running away into a deep blue at the far end
   if (beamsFloorCanvas){
     const g = beamsFloorCanvas.getContext("2d");
+    const blue = new THREE.Color(0x0d2a5e);
     const nearCss = "#" + dominant.clone().multiplyScalar(0.5).getHexString();
-    const midCss = "#" + dominant.clone().multiplyScalar(0.18).getHexString();
+    const midCss = "#" + dominant.clone().multiplyScalar(0.18).lerp(blue, 0.5).getHexString();
+    const farCss = "#" + blue.clone().multiplyScalar(0.55).getHexString();
     const grad = g.createLinearGradient(0, 256, 0, 0);
     grad.addColorStop(0, nearCss);
     grad.addColorStop(0.5, midCss);
-    grad.addColorStop(1, "#020204");
+    grad.addColorStop(1, farCss);
     g.fillStyle = grad;
     g.fillRect(0, 0, 4, 256);
     beamsFloorTex.needsUpdate = true;
@@ -3536,12 +3759,16 @@ const prismBloomMats = [];
   const bloomGeo = new THREE.PlaneGeometry(1, 1);
   for (let rep = 0; rep < PRISM_REPEATS; rep++){
     for (let i = 0; i < 4; i++){
-      const mat = new THREE.MeshBasicMaterial({ map: bloomTex, transparent: true, opacity: 0.5,
-        blending: THREE.AdditiveBlending, depthWrite: false });
+      // normal blending, not additive - additive made overlapping blooms
+      // brighten/dim as the camera drifted past and through them, reading
+      // as a pulse even with fixed scale/opacity/color; this way each
+      // bloom's own brightness truly never changes, full stop
+      const mat = new THREE.MeshBasicMaterial({ map: bloomTex, transparent: true, opacity: 0.3,
+        depthWrite: false });
       mat.fog = false;
       if (rep === 0) prismBloomMats.push(mat);
       const bloom = new THREE.Mesh(bloomGeo, rep === 0 ? mat : prismBloomMats[i]);
-      const size = 26 + h(i, 5) * 34;
+      const size = (26 + h(i, 5) * 34) * 1.5;
       bloom.scale.set(size, size, 1);
       bloom.position.set((h(i, 6) - 0.5) * 44, (h(i, 7) - 0.5) * 24,
         -h(i, 8) * PRISM_CHUNK_LENGTH - rep * PRISM_CHUNK_LENGTH);
@@ -3600,15 +3827,22 @@ const prismAmbient = new THREE.AmbientLight(0xffffff, 0.58); // steady, lights-f
 prismAmbient.visible = false;
 scene.add(prismAmbient);
 const prismFog = new THREE.FogExp2(0x000000, 0.006);
+let prismBloomColored = false; // the blooms are colored once and then frozen - see below
 function prismRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
   // whole scene pulled 40% down
   prismMats.forEach((mat, i) => {
     mat.color.copy(i < 3 ? dominant : others[i % others.length]).multiplyScalar(0.6);
   });
-  prismBloomMats.forEach((mat, i) => {
-    mat.color.copy(i % 2 === 0 ? dominant : others[i % others.length]).multiplyScalar(0.6);
-  });
+  // the soft background blooms used to re-blend on every track change,
+  // which read as the background flickering/shifting - now they're
+  // colored the first time this runs and never touched again
+  if (!prismBloomColored){
+    prismBloomMats.forEach((mat, i) => {
+      mat.color.copy(i % 2 === 0 ? dominant : others[i % others.length]).multiplyScalar(0.6);
+    });
+    prismBloomColored = true;
+  }
   // the three star lights: artist color plus two other artists' hues
   prismStarLights.forEach((light, i) => {
     const c = i === 0 ? dominant.clone() : others[i % others.length].clone();
@@ -3621,9 +3855,15 @@ function prismRetint(tr){
    references) - the flight passes straight through their dark centers,
    with thin halo outlines orbiting the larger gates. Band colors use 8
    slots: four shades of the artist color, four cycling the others. ---------- */
-const RINGS_CHUNK_LENGTH = 180; // stretched: much more z-space between gates
+const RINGS_CHUNK_LENGTH = 260; // stretched: much more z-space between gates
 const RINGS_REPEATS = 3;
 const RINGS_SPEED = 6; // 1.5x forward pace
+const RINGS_GATES_PER_CHUNK = 6;
+// the light-up wave's gate-index range - rep runs -1..RINGS_REPEATS-1,
+// gi runs 0..RINGS_GATES_PER_CHUNK-1, so gate = gi + rep*GATES_PER_CHUNK
+// spans exactly this range (see the build loop below)
+const RINGS_GATE_MIN = -RINGS_GATES_PER_CHUNK;
+const RINGS_GATE_MAX = RINGS_GATES_PER_CHUNK * RINGS_REPEATS - 1;
 // the serpentine spine the ring tunnel bends along - left/right, up/down,
 // periodic over the chunk so the endless wrap stays seamless
 function ringsPathAt(dist){
@@ -3642,7 +3882,7 @@ let ringsGlowMat = null;
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
   // gate spacing varies 10-30 units along z (normalized so the gaps sum
   // exactly to the chunk length, keeping the endless wrap seamless)
-  const gatesPerChunk = 6;
+  const gatesPerChunk = RINGS_GATES_PER_CHUNK;
   const rawGaps = [];
   let gapSum = 0;
   for (let gi = 0; gi < gatesPerChunk; gi++){ const g = 10 + h(gi, 13) * 20; rawGaps.push(g); gapSum += g; }
@@ -3677,19 +3917,23 @@ let ringsGlowMat = null;
         slot: Math.floor(h(gi * 13 + bi, 8) * 8) });
     }
     bands.forEach(band => {
-      band.canvas = document.createElement("canvas");
-      band.canvas.width = band.canvas.height = 512; // high-res: no pixelated edges up close
-      band.tex = new THREE.CanvasTexture(band.canvas);
-      band.tex.anisotropy = 8;
       // smaller rings recede further behind the gate plane
       band.zOff = (outerR - band.r1) * 0.6;
       // position along the gate's radial sweep, 0 innermost .. 1 outermost -
       // drives the one continuous color gradient in ringsRetint
       band.t = Math.max(0, Math.min(1, (band.r0 - holeR) / Math.max(1, outerR - holeR)));
+      // real 3D torus now, not a flat image-textured plane - so every ring
+      // reads correctly (round, with actual depth) from any angle instead
+      // of looking like a flat cutout off-axis. Built at outer-radius==1
+      // so the same baseScale-driven pulse animation below still works
+      // exactly as it did for the plane version.
+      // tube pumped up 2.2x thicker than the band's own width so every
+      // ring unmistakably reads as a real 3D torus, not a thin flat rim
+      const midR = (band.r0 + band.r1) / 2, tubeR = (band.r1 - band.r0) / 2 * 2.2;
+      band.geo = new THREE.TorusGeometry(midR / band.r1, tubeR / band.r1, 10, 48);
     });
     ringsGates.push({ bands, outerR });
   }
-  const planeGeo = new THREE.PlaneGeometry(1, 1);
   // rep -1 keeps a full chunk of gates BEHIND the camera too, so the ring
   // stream continues seamlessly in every direction - nothing visibly
   // pops or resets as the wrap comes around
@@ -3700,10 +3944,15 @@ let ringsGlowMat = null;
       // the gate sits on the serpentine spine at its own depth
       const bend = ringsPathAt(-gz);
       gate.bands.forEach((band, bi) => {
-        const mesh = new THREE.Mesh(planeGeo, new THREE.MeshBasicMaterial({ map: band.tex,
-          transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+        // the band's own base color is shared (set once in ringsRetint),
+        // but each mesh instance gets its OWN material so the light-up
+        // wave can brighten individual rings independently without
+        // affecting every repeated copy of that band at once
+        if (!band.baseColor) band.baseColor = new THREE.Color(0xffffff);
+        const mesh = new THREE.Mesh(band.geo, new THREE.MeshBasicMaterial({ color: band.baseColor }));
+        mesh.userData.band = band;
         mesh.position.set(bend.x, bend.y, gz - band.zOff);
-        const baseScale = band.r1 * 2;
+        const baseScale = band.r1;
         mesh.scale.set(baseScale, baseScale, 1);
         mesh.userData.baseX = bend.x; mesh.userData.baseY = bend.y;
         mesh.userData.baseScale = baseScale;
@@ -3726,7 +3975,7 @@ let ringsGlowMat = null;
   grad.addColorStop(1, "rgba(255,244,225,0)");
   gg.fillStyle = grad; gg.fillRect(0, 0, 128, 128);
   ringsGlowMat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(glowCv), transparent: true,
-    blending: THREE.AdditiveBlending, depthWrite: false });
+    opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false });
   ringsGlowMat.fog = false;
   const glow = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), ringsGlowMat); // 2x bigger
   const glowBend = ringsPathAt(280);
@@ -3776,7 +4025,7 @@ function ringsRetint(tr){
   // artist shades interleaved with four other-artist hues and a bright tint
   const stops = [
     dominant.clone().multiplyScalar(0.63),
-    dominant.clone().multiplyScalar(1.25),
+    dominant.clone().multiplyScalar(1.6), // the 2nd stop - brighter still, this is the one that reads deepest into the tunnel
     others[0].clone().multiplyScalar(1.25),
     dominant.clone().lerp(new THREE.Color(0xffffff), 0.35),
     others[1 % others.length].clone().multiplyScalar(1.25),
@@ -3784,41 +4033,22 @@ function ringsRetint(tr){
     others[2 % others.length].clone().multiplyScalar(1.25),
     others[3 % others.length].clone().multiplyScalar(1.25),
   ];
+  // more intense across the board - a straight saturation/brightness
+  // punch on top of the ramp above
+  stops.forEach(c => c.offsetHSL(0, 0.16, 0.03));
   const gradientAt = t => {
     const f = t * (stops.length - 1);
     const i0 = Math.min(stops.length - 2, Math.floor(f));
     return stops[i0].clone().lerp(stops[i0 + 1], f - i0);
   };
-  // redraw every band's own canvas: a hard-edged but UNEVEN ring - the
-  // inner and outer edges wobble on their own phases, so the band's
-  // thickness swells and thins around its circumference (hand-drawn feel)
+  // solid color per band, straight onto the real torus mesh material - same
+  // brightness-jitter ramp as before, no canvas/texture step needed now
+  // that each ring is real geometry instead of a flat painted image
   ringsGates.forEach(gate => {
     gate.bands.forEach(band => {
-      const g = band.canvas.getContext("2d");
-      g.clearRect(0, 0, 512, 512);
       const seed = band.r0 * 7.13 + band.t * 11;
-      // per-band brightness jitter (+/-15%) on top of the ramp adds even
-      // more ring-to-ring variety
       const jitter = 0.85 + ((Math.sin(seed * 91.7) * 43758.5453) % 1 + 1) % 1 * 0.3;
-      const c = gradientAt(band.t).multiplyScalar(jitter);
-      g.fillStyle = `rgb(${Math.round(Math.min(255, c.r * 255))},${Math.round(Math.min(255, c.g * 255))},${Math.round(Math.min(255, c.b * 255))})`;
-      const rInner = (band.r0 / band.r1) * 256;
-      const PTS = 180; // dense sampling keeps the wobble curve silky
-      g.beginPath();
-      for (let i = 0; i <= PTS; i++){
-        const th = (i / PTS) * Math.PI * 2;
-        const rr = 244 * (1 + Math.sin(th * 3 + seed) * 0.03 + Math.sin(th * 5 + seed * 2) * 0.018);
-        const x = 256 + Math.cos(th) * rr, y = 256 + Math.sin(th) * rr;
-        if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
-      }
-      for (let i = PTS; i >= 0; i--){
-        const th = (i / PTS) * Math.PI * 2;
-        const rr = Math.max(4, rInner * (1 + Math.sin(th * 4 + seed * 3) * 0.06 + Math.sin(th * 7 + seed) * 0.035));
-        g.lineTo(256 + Math.cos(th) * rr, 256 + Math.sin(th) * rr);
-      }
-      g.closePath();
-      g.fill();
-      band.tex.needsUpdate = true;
+      if (band.baseColor) band.baseColor.copy(gradientAt(band.t)).multiplyScalar(jitter);
     });
   });
   // the end-of-tunnel glow: the artist color at half brightness
@@ -3905,8 +4135,9 @@ const checkDiscTexture = (() => {
     checkGroup.add(points);
     return m;
   };
-  // the dense spray: white pulled down (30%, then another 20%)
-  mkPoints(smallPos, 1.1, 0x8f8f8f);
+  // the dense spray: tinted per-artist now too (was flat grey, which made
+  // most of the scene colorless) - tracked in checkDotMats[0]
+  checkDotMats.push(mkPoints(smallPos, 1.1, 0xffffff));
   // the big circles: artist color + two other hues (retinted per artist)
   bigPos.forEach((positions, i) => {
     checkDotMats.push(mkPoints(positions, 4.2 + i * 1.3, 0xffffff));
@@ -3919,11 +4150,16 @@ scene.add(checkGroup);
 const checkFog = new THREE.FogExp2(0x000000, 0.01);
 function checkRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
-  // big circles: artist color first, then two other artists' hues, lifted
-  // toward white then pulled 30% down with the rest of the scene
+  // index 0 is now the dense small-bubble spray (used to be flat grey),
+  // 1-3 are the big circles - artist color first, then two other hues.
+  // Punched up more intense overall: much less lerp toward white (was
+  // washing everything out) and a higher brightness floor
   checkDotMats.forEach((mat, i) => {
-    const c = i === 0 ? dominant.clone() : others[i % others.length].clone();
-    mat.color.copy(c.lerp(new THREE.Color(0xffffff), 0.45).multiplyScalar(0.56));
+    const c = i === 0 ? dominant.clone().lerp(new THREE.Color(0xffffff), 0.3) // spray - a light tint, stays in the background
+      : i === 1 ? dominant.clone()
+      : others[(i - 2) % others.length].clone();
+    mat.color.copy(c.lerp(new THREE.Color(0xffffff), 0.15).multiplyScalar(0.85));
+    mat.color.offsetHSL(0, 0.15, 0);
   });
 }
 
@@ -3942,45 +4178,37 @@ function checkRetint(tr){
 const PORTAL_CHUNK_LENGTH = 216, PORTAL_SPEED = 9;
 const portalGroup = new THREE.Group();
 const portalFrames = [];
+// a real rounded-rect ring with true depth (extruded, not a flat
+// canvas-cutout image) - built once and reused by every frame instance
+function roundedRectShape(w, hh, r){
+  const s = new THREE.Shape();
+  const x = -w / 2, y = -hh / 2;
+  s.moveTo(x + r, y);
+  s.lineTo(x + w - r, y);
+  s.quadraticCurveTo(x + w, y, x + w, y + r);
+  s.lineTo(x + w, y + hh - r);
+  s.quadraticCurveTo(x + w, y + hh, x + w - r, y + hh);
+  s.lineTo(x + r, y + hh);
+  s.quadraticCurveTo(x, y + hh, x, y + hh - r);
+  s.lineTo(x, y + r);
+  s.quadraticCurveTo(x, y, x + r, y);
+  return s;
+}
 {
-  const cv = document.createElement("canvas");
-  cv.width = 2048; cv.height = 1536;
-  const g = cv.getContext("2d");
-  // plane is 960x720 units -> 2.133 px per unit; the opening matches the
-  // old 96x72 frame's bore while the wall now runs 10x further out
-  const rr = (x, y, w, hh, r) => {
-    g.beginPath();
-    g.moveTo(x + r, y);
-    g.arcTo(x + w, y, x + w, y + hh, r);
-    g.arcTo(x + w, y + hh, x, y + hh, r);
-    g.arcTo(x, y + hh, x, y, r);
-    g.arcTo(x, y, x + w, y, r);
-    g.closePath();
-  };
-  g.fillStyle = "#ffffff";
-  g.fillRect(0, 0, 2048, 1536);
-  const hw = 92 * 2.133, hh2 = 68 * 2.133, hr = 22 * 2.133;
-  const hx = (2048 - hw) / 2, hy = (1536 - hh2) / 2;
-  // the soft "shadow" ring hugging the opening (ambient-occlusion style)
-  g.save();
-  g.filter = "blur(26px)";
-  g.strokeStyle = "rgba(0,0,0,0.5)";
-  g.lineWidth = 60;
-  rr(hx - 18, hy - 18, hw + 36, hh2 + 36, hr + 14); g.stroke();
-  g.restore();
-  // punch the portal hole itself
-  g.globalCompositeOperation = "destination-out";
-  rr(hx, hy, hw, hh2, hr); g.fill();
-  g.globalCompositeOperation = "source-over";
-  const tex = new THREE.CanvasTexture(cv);
-  tex.anisotropy = 8;
+  const portalOuter = roundedRectShape(960, 720, 24);
+  portalOuter.holes.push(roundedRectShape(92, 68, 22));
+  const portalGeo = new THREE.ExtrudeGeometry(portalOuter, {
+    depth: 6, bevelEnabled: true, bevelThickness: 1.6, bevelSize: 1.6, bevelSegments: 2, curveSegments: 14,
+  });
+  portalGeo.translate(0, 0, -3); // centered on its own z, thickness split evenly front/back
   const FRAME_STEP = 27; // 3x the old spacing between layers
   for (let rep = -1; rep <= 2; rep++){
     for (let i = 0; i < PORTAL_CHUNK_LENGTH / FRAME_STEP; i++){
-      const mat = new THREE.MeshPhongMaterial({ map: tex, alphaTest: 0.5, side: THREE.DoubleSide,
-        specular: 0xffffff, shininess: 60 });
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(960, 720), mat);
+      const mat = new THREE.MeshPhongMaterial({ specular: 0xffffff, shininess: 60 });
+      const mesh = new THREE.Mesh(portalGeo, mat);
       mesh.position.z = -(rep * PORTAL_CHUNK_LENGTH + i * FRAME_STEP);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
       mesh.userData.ci = i; // color index - stable per ring so the rainbow order holds
       portalFrames.push(mesh);
       portalGroup.add(mesh);
@@ -4010,45 +4238,71 @@ function portalRetint(tr){
   portalFrames.forEach(m => m.material.color.copy(cols[m.userData.ci % cols.length]));
 }
 
-// -- BURST: radial teardrop/spike explosions we fly straight through --
-const BURST_CHUNK_LENGTH = 120, BURST_SPEED = 10;
+// -- BURST, replaced a third time: FOUR winding lines grow forward
+// together through the dark, each tipped with its own glowing head. The
+// camera rides first-person right behind the lead line's head, looking
+// forward along its own direction of travel (not orbiting from outside
+// anymore) - the other three grow alongside, visible as we pass them.
+// A full growth cycle now takes ~5 minutes before it resets and regrows,
+// via a long total path length while the visual winding "wavelength"
+// stays short (BURST_WAVELEN), so it still reads as a richly curling
+// line rather than one giant slow arc. ---------- */
+const BURST_WAVELEN = 170; // spatial period of the winding - unrelated to total length
+const BURST_SPEED = 9;
+const BURST_CHUNK_LENGTH = BURST_SPEED * 300; // ~5 minutes to fully grow once, at the usual 1 flightDist-unit/sec cruise
+const BURST_TUBE_SEG = 900, BURST_RADIAL_SEG = 7;
+const BURST_LINES = 4;
 const burstGroup = new THREE.Group();
-const burstMats = [];
+function burstPathAt(distZ, li){
+  const a = (distZ / BURST_WAVELEN) * Math.PI * 2 + li * 1.7;
+  const s = 1 + li * 0.23; // each line winds at a slightly different scale
+  return {
+    x: (Math.sin(a) * 22 + Math.sin(a * 3 + 1 + li) * 8) * s + (li - 1.5) * 14,
+    y: (Math.sin(a * 2 + 2 + li) * 17 + Math.sin(a * 5) * 6) * s,
+  };
+}
+const burstCurves = [], burstLineGeos = [], burstLineMats = [], burstHeads = [], burstHeadMats = [], burstHalos = [], burstHaloMats = [];
+const burstHaloCv = document.createElement("canvas");
+burstHaloCv.width = burstHaloCv.height = 128;
 {
-  const cv = document.createElement("canvas");
-  cv.width = 128; cv.height = 512;
-  const g = cv.getContext("2d");
-  g.fillStyle = "#ffffff";
-  // teardrop: round head up top, tapering to a point at the bottom (the
-  // point aims at the burst's center once rotated into place)
-  g.beginPath();
-  g.arc(64, 80, 56, Math.PI, 0);
-  g.quadraticCurveTo(120, 300, 64, 500);
-  g.quadraticCurveTo(8, 300, 8, 80);
-  g.closePath(); g.fill();
-  const tex = new THREE.CanvasTexture(cv);
-  for (let i = 0; i < 6; i++) burstMats.push(new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
-  const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
-  const STATIONS = 2;
-  for (let rep = -1; rep <= 1; rep++){
-    for (let s = 0; s < STATIONS; s++){
-      const station = new THREE.Group();
-      station.position.z = -(rep * BURST_CHUNK_LENGTH + s * (BURST_CHUNK_LENGTH / STATIONS));
-      station.userData.spin = (h(rep * 7 + s, 3) - 0.5) * 0.06;
-      const N = 44;
-      for (let k = 0; k < N; k++){
-        const a = (k / N) * Math.PI * 2 + h(s * 31 + k, 1) * 0.1;
-        const len = 9 + h(s * 31 + k, 2) * 26;
-        const wdt = len * (0.16 + h(s * 31 + k, 4) * 0.1);
-        const rad = 7 + h(s * 31 + k, 5) * 30;
-        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(wdt, len), burstMats[k % burstMats.length]);
-        mesh.position.set(Math.cos(a) * (rad + len / 2), Math.sin(a) * (rad + len / 2), 0);
-        mesh.rotation.z = a - Math.PI / 2;
-        station.add(mesh);
-      }
-      burstGroup.add(station);
-    }
+  const g = burstHaloCv.getContext("2d");
+  const rad = g.createRadialGradient(64, 64, 0, 64, 64, 62);
+  rad.addColorStop(0, "rgba(255,255,255,0.9)");
+  rad.addColorStop(0.5, "rgba(255,255,255,0.3)");
+  rad.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = rad; g.fillRect(0, 0, 128, 128);
+}
+const burstHaloTex = new THREE.CanvasTexture(burstHaloCv);
+for (let li = 0; li < BURST_LINES; li++){
+  const pts = [];
+  for (let s = 0; s <= BURST_TUBE_SEG; s++){
+    const t = s / BURST_TUBE_SEG;
+    const z = -t * BURST_CHUNK_LENGTH;
+    const p = burstPathAt(-z, li);
+    pts.push(new THREE.Vector3(p.x, p.y, z));
   }
+  const curve = new THREE.CatmullRomCurve3(pts);
+  burstCurves.push(curve);
+  const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const lineGeo = new THREE.TubeGeometry(curve, BURST_TUBE_SEG, 0.55, BURST_RADIAL_SEG, false);
+  lineGeo.setDrawRange(0, 0); // nothing drawn until the head has somewhere to grow to
+  const lineMesh = new THREE.Mesh(lineGeo, lineMat);
+  lineMesh.frustumCulled = false;
+  burstGroup.add(lineMesh);
+  burstLineGeos.push(lineGeo);
+  burstLineMats.push(lineMat);
+  const headMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const head = new THREE.Mesh(new THREE.SphereGeometry(1.4, 20, 14), headMat);
+  burstGroup.add(head);
+  burstHeads.push(head);
+  burstHeadMats.push(headMat);
+  const haloMat = new THREE.MeshBasicMaterial({ map: burstHaloTex, transparent: true, depthWrite: false,
+    blending: THREE.AdditiveBlending, color: 0xffffff, side: THREE.DoubleSide });
+  const halo = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), haloMat);
+  halo.scale.setScalar(9);
+  burstGroup.add(halo);
+  burstHalos.push(halo);
+  burstHaloMats.push(haloMat);
 }
 burstGroup.visible = false;
 scene.add(burstGroup);
@@ -4056,27 +4310,35 @@ const burstFog = new THREE.FogExp2(0x050505, 0.006);
 function burstRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
   const w = new THREE.Color(0xffffff);
-  // mostly near-white like the reference, half of them pulled toward the
-  // artist's color, the rest hinting at the other artists
-  const cols = [
-    w, dominant.clone().lerp(w, 0.55), dominant.clone().lerp(w, 0.3),
-    others[0].clone().lerp(w, 0.4), w, others[2 % others.length].clone().lerp(w, 0.4),
-  ];
-  burstMats.forEach((m, i) => m.color.copy(cols[i % cols.length]));
+  const cols = [dominant, others[0], others[1 % others.length], others[2 % others.length]];
+  cols.forEach((c, li) => {
+    burstLineMats[li].color.copy(c).lerp(w, 0.35);
+    burstHeadMats[li].color.copy(c).lerp(w, 0.75);
+    burstHaloMats[li].color.copy(c).lerp(w, 0.6);
+  });
 }
 
-// -- DOMINO: rows of dominoes toppling in a travelling wave as we pass --
+// -- DOMINO: a single toppling row travelling in a wave as we pass --
 const DOMINO_CHUNK_LENGTH = 150, DOMINO_SPEED = 8;
 const dominoGroup = new THREE.Group();
 const dominoPivots = [];
-const dominoDarkMat = new THREE.MeshBasicMaterial({ color: 0x101010 });
-const dominoAltMats = [0, 1, 2, 3].map(() => new THREE.MeshBasicMaterial({ color: 0x101010 }));
-const dominoFloorMat = new THREE.MeshBasicMaterial({ color: 0x992222 });
+const dominoDarkMat = new THREE.MeshPhongMaterial({ color: 0x101010, specular: 0xcccccc, shininess: 80 });
+const dominoAltMats = [0, 1, 2, 3].map(() => new THREE.MeshPhongMaterial({ color: 0x101010, specular: 0xcccccc, shininess: 80 }));
+const dominoFloorMat = new THREE.MeshPhongMaterial({ color: 0x992222, specular: 0xffffff, shininess: 110,
+  transparent: true, opacity: 0.72, side: THREE.DoubleSide });
+const dominoFloorOverlayMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.15,
+  blending: THREE.MultiplyBlending, depthWrite: false });
+// mirror counterparts - the same shared-material trick ROADS uses for its
+// floor reflections, just kept separate so they can sit darker/translucent
+// beneath the real floor
+const dominoMirrorDarkMat = new THREE.MeshBasicMaterial({ color: 0x101010, transparent: true, opacity: 0.4 });
+const dominoMirrorAltMats = [0, 1, 2, 3].map(() => new THREE.MeshBasicMaterial({ color: 0x101010, transparent: true, opacity: 0.4 }));
 // the run's curved centerline - periodic over the chunk so the endless
-// wrap lands on itself; also drives the camera follow in animate()
+// wrap lands on itself; also drives the camera follow in animate(). Bends
+// much harder now (more degrees of turn) than the original gentle S-curve
 function dominoPathX(z){
   const a = (z / DOMINO_CHUNK_LENGTH) * Math.PI * 2;
-  return Math.sin(a) * 14 + Math.sin(a * 2 + 1) * 5;
+  return Math.sin(a) * 30 + Math.sin(a * 2 + 1) * 12;
 }
 {
   const boxGeo = new THREE.BoxGeometry(2.6, 5.4, 0.9);
@@ -4093,6 +4355,8 @@ function dominoPathX(z){
     const tip = new THREE.Group();
     const mesh = new THREE.Mesh(boxGeo, useAlt ? dominoAltMats[mi % 4] : dominoDarkMat);
     mesh.position.y = 2.7;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
     tip.add(mesh);
     pv.add(tip);
     pv.userData.stagger = stagger;
@@ -4100,51 +4364,73 @@ function dominoPathX(z){
     dominoPivots.push(pv);
     dominoGroup.add(pv);
   };
-  const STEP = 3.2; // single file with a bit of air between the stones
+  const STEP = 3.2; // single file with a bit of air between the stones - one row only, no side paths
   for (let rep = -1; rep <= 1; rep++){
     for (let i = 0; i < DOMINO_CHUNK_LENGTH / STEP; i++){
       const z = i * STEP;
       const x = dominoPathX(z);
       const yaw = -Math.atan2(dominoPathX(z + STEP) - x, STEP);
-      // fan zones: twice per chunk the single file swells shoulder-to-
-      // shoulder, up to 10 stones wide, then narrows back down
-      let n = 1;
-      [0.3, 0.72].forEach((c, zi) => {
-        const d = Math.abs(z / DOMINO_CHUNK_LENGTH - c);
-        if (d < 0.07) n = Math.max(n, Math.round((1 - d / 0.07) * (6 + Math.round(h(zi, 27) * 4))));
-      });
-      n = Math.min(10, Math.max(1, n));
-      for (let k = 0; k < n; k++){
-        const off = (k - (n - 1) / 2) * 3.4;
-        addStone(rep, x + Math.cos(yaw) * off, z - Math.sin(yaw) * off, yaw,
-          h(i * 17 + k, 8) * 0.4, i * 13 + k);
-      }
-    }
-    // floral spurs: petal-shaped branches curling away from the main
-    // run in smooth arcs, rolling out stone by stone once the main wave
-    // passes their junction
-    for (let s = 0; s < 4; s++){
-      const z0 = (0.1 + s * 0.22) * DOMINO_CHUNK_LENGTH + h(s, 31) * 10;
-      const dir = s % 2 === 0 ? 1 : -1;
-      let phi = dir * Math.PI / 2;                 // start straight out the side
-      const curl = dir * (0.18 + h(s, 33) * 0.14); // per-stone curvature = the petal bend
-      let px = dominoPathX(z0), pz = z0;
-      const len = 8 + Math.round(h(s, 34) * 4);
-      for (let k = 1; k <= len; k++){
-        phi += curl * Math.min(1, k / 3); // ease into the curve
-        px += Math.sin(phi) * 3.2;
-        pz += Math.cos(phi) * 3.2;
-        addStone(rep, px, pz, -phi, -k * 0.6, s * 91 + k);
-      }
+      // a small per-stone timing jitter for a natural, not-perfectly-
+      // robotic wave - but bounded well under STEP so it can NEVER flip
+      // two neighbours' fall order (that inversion was why a later stone
+      // could topple before the one ahead of it and appear to fall
+      // straight through it)
+      addStone(rep, x, z, yaw, (h(i, 8) - 0.5) * 0.6, i);
     }
   }
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 700), dominoFloorMat);
   floor.rotation.x = -Math.PI / 2;
   floor.position.z = -200;
+  floor.receiveShadow = true;
   dominoGroup.add(floor);
+  // the op-art photo sheet, tiled across the ground as a 30%-opacity
+  // overlay riding just above the floor - its own texture instance (not
+  // one shared with CUBE) so its own repeat/tiling never touches theirs
+  const dominoFloorOverlayTex = new THREE.TextureLoader().load("assets/tiles/" + TILE_IMAGE_FILES[3]);
+  dominoFloorOverlayTex.wrapS = dominoFloorOverlayTex.wrapT = THREE.RepeatWrapping;
+  dominoFloorOverlayTex.repeat.set(8, 14);
+  dominoFloorOverlayMat.map = dominoFloorOverlayTex;
+  const floorOverlay = new THREE.Mesh(new THREE.PlaneGeometry(400, 700), dominoFloorOverlayMat);
+  floorOverlay.rotation.x = -Math.PI / 2;
+  floorOverlay.position.set(0, 0.03, -200); // a hair above the real floor - no z-fighting
+  dominoGroup.add(floorOverlay);
 }
 dominoGroup.visible = false;
 scene.add(dominoGroup);
+// a full mirrored clone beneath the floor (scale.y=-1) - same technique
+// as ROADS' cube reflections, just applied to the whole toppling row at
+// once so the now-translucent floor genuinely reflects the dominoes
+const dominoMirrorGroup = dominoGroup.clone(true);
+dominoMirrorGroup.scale.y = -1;
+dominoMirrorGroup.traverse(obj => {
+  if (!obj.isMesh) return;
+  if (obj.material === dominoFloorMat || obj.material === dominoFloorOverlayMat){ obj.visible = false; return; }
+  const altIdx = dominoAltMats.indexOf(obj.material);
+  obj.material = altIdx >= 0 ? dominoMirrorAltMats[altIdx] : dominoMirrorDarkMat;
+  obj.castShadow = false;
+  obj.receiveShadow = false;
+});
+const dominoMirrorTips = dominoPivots.map((pv, i) => dominoMirrorGroup.children[i].children[0]);
+dominoMirrorGroup.visible = false;
+scene.add(dominoMirrorGroup);
+// the light rig - dominoes were unlit before; now specular needs an
+// actual light source, same "travels with the camera" pattern as TILES
+const dominoDirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+dominoDirLight.castShadow = true;
+dominoDirLight.shadow.radius = 12;
+dominoDirLight.shadow.mapSize.set(512, 512);
+dominoDirLight.shadow.camera.left = -50;
+dominoDirLight.shadow.camera.right = 50;
+dominoDirLight.shadow.camera.top = 50;
+dominoDirLight.shadow.camera.bottom = -50;
+dominoDirLight.shadow.camera.near = 1;
+dominoDirLight.shadow.camera.far = 100;
+dominoDirLight.visible = false;
+scene.add(dominoDirLight);
+scene.add(dominoDirLight.target);
+const dominoAmbient = new THREE.AmbientLight(0xffffff, 0.4);
+dominoAmbient.visible = false;
+scene.add(dominoAmbient);
 const dominoBgColor = new THREE.Color(0x220808);
 const dominoFog = new THREE.FogExp2(0x220808, 0.01);
 function dominoRetint(tr){
@@ -4154,6 +4440,9 @@ function dominoRetint(tr){
   dominoDarkMat.color.copy(dominant.clone().multiplyScalar(0.28));
   const shades = [0.2, 0.3, 0.38, 0.46];
   dominoAltMats.forEach((m, i) => m.color.copy(dominant.clone().multiplyScalar(shades[i % shades.length])));
+  // mirror stones darker still - a reflection, not a duplicate
+  dominoMirrorDarkMat.color.copy(dominant.clone().multiplyScalar(0.28)).multiplyScalar(0.5);
+  dominoMirrorAltMats.forEach((m, i) => m.color.copy(dominant.clone().multiplyScalar(shades[i % shades.length])).multiplyScalar(0.5));
   dominoBgColor.copy(dominant.clone().multiplyScalar(0.5));
   dominoFog.color.copy(dominoBgColor);
 }
@@ -4234,41 +4523,43 @@ function eyesRetint(tr){
   eyesFog.color.copy(eyesBgColor);
 }
 
-// -- HANDS: stylized fanned-finger hands waving as they drift past --
-const HANDS_CHUNK_LENGTH = 220, HANDS_SPEED = 5;
+// -- HANDS: a real 3D flythrough of the referenced clip - a hexagonal
+// tunnel of big screens all playing the same video, so flying down the
+// tunnel reads as flying THROUGH the footage rather than past a flat
+// picture of it --
+const HANDS_CHUNK_LENGTH = 216, HANDS_SPEED = 5;
 const handsGroup = new THREE.Group();
 const handsList = [];
-const handsMats = [];
+const handsVideoEl = document.createElement("video");
+handsVideoEl.muted = true; handsVideoEl.loop = true; handsVideoEl.playsInline = true;
+handsVideoEl.crossOrigin = "anonymous";
+handsVideoEl.src = "/panorama2/" + encodeURIComponent("From Klickpin.com- 712624341076768821-pin-id-712624341076768821.mp4");
+handsVideoEl.load();
+const handsVideoTex = new THREE.VideoTexture(handsVideoEl);
+// one shared material - the video only ever decodes once, no matter how
+// many tunnel panels are showing it at once
+const handsVideoMat = new THREE.MeshBasicMaterial({ map: handsVideoTex, side: THREE.DoubleSide });
 {
-  const cv = document.createElement("canvas"); cv.width = 512; cv.height = 512;
-  const g = cv.getContext("2d");
-  g.fillStyle = "#ffffff";
-  g.beginPath(); g.ellipse(256, 370, 118, 105, 0, 0, Math.PI * 2); g.fill();
-  // five fanned fingers, varying lengths, round tips
-  for (let f = 0; f < 5; f++){
-    const a = (-64 + f * 32) * Math.PI / 180;
-    const len = 170 + Math.sin(f * 1.7) * 30;
-    g.save();
-    g.translate(256, 340);
-    g.rotate(a);
-    g.fillRect(-26, -len, 52, len);
-    g.beginPath(); g.arc(0, -len, 26, 0, Math.PI * 2); g.fill();
-    g.restore();
-  }
-  const tex = new THREE.CanvasTexture(cv);
-  for (let i = 0; i < 5; i++) handsMats.push(new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+  const RING_R = 20, PANEL_W = 30, PANEL_H = 18, SIDES = 6, STEP = 24;
+  const stations = Math.round(HANDS_CHUNK_LENGTH / STEP);
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
-  const N = 12;
+  const panelGeo = new THREE.PlaneGeometry(PANEL_W, PANEL_H);
   for (let rep = -1; rep <= 1; rep++){
-    for (let i = 0; i < N; i++){
-      const size = 14 + h(i, 21) * 22;
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), handsMats[i % handsMats.length]);
-      mesh.position.set((h(i, 22) - 0.5) * 80, (h(i, 23) - 0.5) * 55,
-        -(rep * HANDS_CHUNK_LENGTH + (i / N) * HANDS_CHUNK_LENGTH + h(i, 24) * 10));
-      mesh.userData.wavePhase = h(i, 25) * Math.PI * 2;
-      mesh.userData.waveSpeed = 0.8 + h(i, 26) * 1.2;
-      handsList.push(mesh);
-      handsGroup.add(mesh);
+    for (let si = 0; si < stations; si++){
+      const z = -(rep * HANDS_CHUNK_LENGTH + si * STEP);
+      // alternating stations rotate half a slot, and a couple faces per
+      // station are skipped, so the tunnel isn't a rigid repeating drum -
+      // open sightlines and real gaps to fly past as well as through
+      const rot = (si % 2) * (Math.PI / SIDES);
+      for (let k = 0; k < SIDES; k++){
+        if (h(si * 7 + k, 40) < 0.16) continue;
+        const a = (k / SIDES) * Math.PI * 2 + rot;
+        const mesh = new THREE.Mesh(panelGeo, handsVideoMat);
+        mesh.position.set(Math.cos(a) * RING_R, Math.sin(a) * RING_R * 0.72, z);
+        mesh.lookAt(0, mesh.position.y, z);
+        handsList.push(mesh);
+        handsGroup.add(mesh);
+      }
     }
   }
 }
@@ -4277,14 +4568,12 @@ scene.add(handsGroup);
 const handsBgColor = new THREE.Color(0x401008);
 const handsFog = new THREE.FogExp2(0x401008, 0.008);
 function handsRetint(tr){
-  const { dominant, others } = artistScenePalette(tr);
-  // hands: half in bright artist color (some pulled toward white), the
-  // rest in the other artists' colors
-  const w = new THREE.Color(0xffffff);
-  const cols = [dominant, dominant.clone().lerp(w, 0.35), others[0], dominant.clone().multiplyScalar(0.75), others[2 % others.length]];
-  handsMats.forEach((m, i) => m.color.copy(cols[i % cols.length]));
+  const { dominant } = artistScenePalette(tr);
+  // the video itself stays untinted (raw footage) - only the fog/backdrop
+  // beyond the tunnel picks up the artist color, same as every other scene
   handsBgColor.copy(dominant.clone().multiplyScalar(0.45));
   handsFog.color.copy(handsBgColor);
+  if (handsVideoEl.paused) handsVideoEl.play().catch(() => {});
 }
 
 const SCENE_LIST = [
@@ -4316,6 +4605,27 @@ function setSceneByIndex(idx){
 }
 if ($("#scene-prev")) $("#scene-prev").onclick = () => setSceneByIndex(sceneNavIdx - 1);
 if ($("#scene-next")) $("#scene-next").onclick = () => setSceneByIndex(sceneNavIdx + 1);
+// captures the live camera's current position/rotation/zoom for whichever
+// scene is active right now - copied to the clipboard and stacked into
+// localStorage ("savedCameraViews", newest first) so a good angle found
+// while tuning a scene isn't lost; read it back later with
+// JSON.parse(localStorage.savedCameraViews)
+if ($("#cam-save")) $("#cam-save").onclick = () => {
+  const view = {
+    scene: SCENE_LIST[sceneNavIdx] ? SCENE_LIST[sceneNavIdx].id : sceneOverride,
+    position: camera.position.toArray().map(n => Math.round(n * 1000) / 1000),
+    rotation: [camera.rotation.x, camera.rotation.y, camera.rotation.z].map(n => Math.round(n * 1000) / 1000),
+    zoom: camera.zoom,
+    savedAt: new Date().toISOString(),
+  };
+  let saved = [];
+  try { saved = JSON.parse(localStorage.getItem("savedCameraViews") || "[]"); } catch { saved = []; }
+  saved.unshift(view);
+  localStorage.setItem("savedCameraViews", JSON.stringify(saved.slice(0, 50)));
+  const json = JSON.stringify(view);
+  if (navigator.clipboard) navigator.clipboard.writeText(json).catch(() => {});
+  toast(`Camera saved (${view.scene})`);
+};
 
 // swaps the sphere for a per-artist 3D scene: Polaroid gets the synthwave
 // road, Aveluna gets the mist world. Called on every track load (see
@@ -4368,7 +4678,7 @@ function updateArtistBackground(tr){
   // star lights retired - their moving washes read as artifacts
   prismAmbient.visible = wantPrism;
   ringsGroup.visible = wantRings;
-  ringsScenery.visible = false; // end-of-tunnel glow retired - solid backdrop only
+  ringsScenery.visible = wantRings; // end-of-tunnel glow re-enabled, toned down (see ringsGlowMat)
   ringsStars.visible = wantRings;
   checkGroup.visible = wantCheck;
   portalGroup.visible = wantPortal;
@@ -4376,6 +4686,9 @@ function updateArtistBackground(tr){
   portalAmbient.visible = wantPortal;
   burstGroup.visible = wantBurst;
   dominoGroup.visible = wantDomino;
+  dominoMirrorGroup.visible = wantDomino;
+  dominoDirLight.visible = wantDomino;
+  dominoAmbient.visible = wantDomino;
   eyesGroup.visible = wantEyes;
   handsGroup.visible = wantHands;
   const wantSphere = !gateActive && !want3d;
@@ -4383,8 +4696,21 @@ function updateArtistBackground(tr){
   if (panoMirrorMesh) panoMirrorMesh.visible = wantSphere;
   sphereFloor.visible = wantSphere;
   sphereFloorLight.visible = wantSphere;
-  patternCubeGroup.visible = wantCube;
-  if (wantCube && tr) patternCubeRetint(tr);
+  // snap the lerp-follow camera state straight to the tunnel's centerline
+  // the instant this scene turns on - otherwise the camera starts at
+  // wherever it was left (often (0,0), outside the bent tube's actual
+  // wall radius) and visibly drifts from outside the tunnel to inside it
+  // over the first couple of seconds
+  if (wantCube && !donutGroup.visible){
+    const here0 = cubePathAt(flightDist * CUBEW_SPEED - 8);
+    cubeCamX = here0.x; cubeCamY = here0.y;
+    cubeCamYaw = 0; cubeCamPitch = 0; cubeCamBank = 0;
+  }
+  donutGroup.visible = wantCube;
+  donutDirLight.visible = wantCube;
+  donutDirFill.visible = wantCube;
+  donutAmbient.visible = wantCube;
+  if (wantCube && tr) donutRetint(tr);
   // the wave visualizer runs 6x taller on the sphere screen (see
   // positionWaveCanvas), so re-measure whenever the scene flips
   document.body.classList.toggle("scene-sphere", wantSphere);
@@ -4398,6 +4724,7 @@ function updateArtistBackground(tr){
   document.body.classList.toggle("scene-mist", wantMist);
   document.body.classList.toggle("scene-beams", wantBeams);
   document.body.classList.toggle("scene-check", wantCheck);
+  document.body.classList.toggle("scene-rings", wantRings);
   // tighter lens in every constructed environment (incl. the intro
   // tunnel) = a more zoomed, cinematic framing; only the plain video
   // sphere keeps the natural 1x lens
@@ -4443,12 +4770,10 @@ function updateArtistBackground(tr){
     scene.fog = prismFog;
   } else if (wantRings){
     ringsRetint(tr);
-    // the whole background sits in a DARK variant of the artist color,
-    // with the fog matched so far rings melt into it seamlessly
-    // one SOLID artist-color backdrop, no gradients
-    const ringsBgColor = new THREE.Color((tr && tr.artistColor) || "#7CFF9E").multiplyScalar(0.35);
-    renderer.setClearColor(ringsBgColor, 1);
-    ringsFog.color.copy(ringsBgColor);
+    // transparent clear - the sky is a CSS gradient behind the canvas
+    // (body.scene-rings #stage), same pattern as NATURE's horizon
+    renderer.setClearColor(0x000000, 0);
+    ringsFog.color.set(0x000000);
     scene.fog = ringsFog;
   } else if (wantCheck){
     checkRetint(tr);
@@ -4457,9 +4782,10 @@ function updateArtistBackground(tr){
     renderer.setClearColor(0x000000, 0);
     scene.fog = checkFog;
   } else if (wantCube){
-    // fully enclosed room - the cube's own faces are the backdrop
+    // fully enclosed donut tunnel - its own walls are the backdrop, and
+    // now fog softly hazes the far walls for a depth-of-field feel
     renderer.setClearColor(0x050505, 1);
-    scene.fog = null;
+    scene.fog = donutFog;
   } else if (wantPortal){
     portalRetint(tr);
     renderer.setClearColor(0x070707, 1);
@@ -4944,17 +5270,22 @@ function animate(t){
     // how far the ground moved this frame - landed cubes ride along
     const beamsScrollDz = (flightDist - beamsPrevFlight) * BEAMS_SPEED;
     beamsPrevFlight = flightDist;
-    // wide sweeps left/right and up/down, plus a roll swinging up to
-    // ~25 degrees each way
-    camera.position.x = Math.sin(swayT * 0.045) * 10 + Math.sin(swayT * 0.019 + 3) * 4;
-    camera.position.y = 5.5 + Math.sin(swayT * 0.038 + 1) * 4 + Math.sin(swayT * 0.016) * 1.5;
+    // drifting slowly in every direction: sweeps left/right, up/down, and
+    // a slow push-pull along the flight line - sign flipped on every term
+    // so the whole drift runs the opposite way from before; frequencies
+    // slowed further and amplitudes opened up a little for a more
+    // noticeable, unhurried all-direction wander
+    camera.position.x = -(Math.sin(swayT * 0.031) * 12 + Math.sin(swayT * 0.013 + 3) * 5);
+    camera.position.y = 5.5 - (Math.sin(swayT * 0.026 + 1) * 5 + Math.sin(swayT * 0.011) * 2);
+    camera.position.z = 8 - Math.sin(swayT * 0.010 + 5) * 4;
     // down-tilt tuned so the horizon sits at the profile picture's
     // vertical midpoint (~60% down the frame)
     camera.rotation.x = -0.09 + Math.sin(swayT * 0.03 + 2) * 0.04;
     // continuous slight left/right gaze on two overlapping slow beats -
     // never still, never abrupt
     camera.rotation.y = Math.sin(swayT * 0.026) * 0.14 + Math.sin(swayT * 0.011 + 2) * 0.08;
-    camera.rotation.z = Math.sin(swayT * 0.021 + 4) * 0.436 + cameraRollOffset;
+    // roll kept slight - a gentle lean left and right
+    camera.rotation.z = Math.sin(swayT * 0.021 + 4) * 0.13 + cameraRollOffset;
     beamsCubes.forEach(c => {
       if (c.state === "wait"){
         c.timer -= dtSec;
@@ -4962,20 +5293,19 @@ function animate(t){
         // the last ~0.8s - they fall one by one, never in a batch
         if (c.timer <= 0 && nowSec - beamsLastSpawn > 0.8){
           beamsLastSpawn = nowSec;
-          // 2x bigger base cubes, a fifth doubled again, a few 4x, spread
-          // deep and kept OUT of the camera's sweep lane; every ~5s a true
-          // giant drops.
-          c.size = 0.75 + Math.random() * 1.6; // slightly smaller again
-          if (Math.random() < 0.2) c.size *= 2;
-          if (Math.random() < 0.08) c.size *= 4; // the extra-big tier
+          // capped smaller now (max ~150px on screen) so cubes never
+          // dominate the frame; a modest "big" tier still exists, and the
+          // once-per-~5s giant drop is capped down to the same ceiling
+          c.size = 0.6 + Math.random() * 1.1;
+          if (Math.random() < 0.2) c.size *= 1.6;
           if (nowSec - beamsLastBigDrop > 5){
-            c.size = 3.6 + Math.random() * 1.8;
+            c.size = 2.2 + Math.random() * 0.8;
             beamsLastBigDrop = nowSec;
           }
           c.mesh.scale.setScalar(c.size);
-          // kept well clear of the camera's sweep lane
-          const dropSide = Math.random() < 0.5 ? -1 : 1;
-          c.mesh.position.set(dropSide * (16 + Math.random() * 14), 30 + Math.random() * 12, -(50 + Math.random() * 120));
+          // spread across the FULL screen width now (was two side clusters
+          // with a gap down the middle) for denser, whole-screen coverage
+          c.mesh.position.set((Math.random() - 0.5) * 60, 30 + Math.random() * 12, -(50 + Math.random() * 120));
           c.mesh.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
           c.vy = 0;
           c.vx = 0;
@@ -5011,11 +5341,24 @@ function animate(t){
             c.av.multiplyScalar(0.7);   // impacts bleed off spin too
             if (c.vy < 1.4){
               c.vy = 0; c.state = "rest";
-              // pick the nearest flat-face orientation - the rest phase
-              // below eases onto it so the cube realistically tips over
-              // its edge and settles with one surface flat on the ground
-              c.setRx = Math.round(c.mesh.rotation.x / (Math.PI / 2)) * (Math.PI / 2);
-              c.setRz = Math.round(c.mesh.rotation.z / (Math.PI / 2)) * (Math.PI / 2);
+              // find whichever local face-axis is closest to vertical right
+              // now, then build the exact quaternion that snaps ONLY that
+              // tilt away (rotating around that axis is left untouched, so
+              // it doesn't visually "un-spin") - unlike rounding the x/z
+              // Euler angles separately, this guarantees a true axis-aligned
+              // rest pose: one whole face, all four corners, flush with gY
+              const q = c.mesh.quaternion.clone();
+              const localAxes = [beamsAxisX, beamsAxisY, beamsAxisZ];
+              let bestWorldAxis = null, bestAbsDot = -1, bestSign = 1;
+              localAxes.forEach(axis => {
+                const world = axis.clone().applyQuaternion(q);
+                if (Math.abs(world.y) > bestAbsDot){
+                  bestAbsDot = Math.abs(world.y); bestWorldAxis = world; bestSign = world.y >= 0 ? 1 : -1;
+                }
+              });
+              const targetUp = new THREE.Vector3(0, bestSign, 0);
+              const correction = new THREE.Quaternion().setFromUnitVectors(bestWorldAxis.normalize(), targetUp);
+              c.settleQuat = correction.multiply(q);
             }
             // light up a soft round glow where it hit
             if (impact > 3){
@@ -5027,23 +5370,38 @@ function animate(t){
                 r.mesh.position.set(c.mesh.position.x, gY + 0.12, c.mesh.position.z);
                 r.mesh.visible = true;
               }
+              // and a thin line streaking the full length of the floor
+              // through the impact point, brightest there and fading out
+              // toward both the near and far ends - fades in, then HOLDS
+              // at full brightness (see the update loop below) and only
+              // fades out once this cube itself scrolls off-screen
+              const s = beamsStreaks.find(x => x.life >= 1);
+              if (s){
+                s.life = 0;
+                s.strength = Math.min(1, impact / 22);
+                s.cube = c;
+                s.mesh.position.set(c.mesh.position.x, gY + 0.1, 0);
+                s.mesh.visible = true;
+                s.mat.opacity = 0;
+              }
             }
           }
         } else {
-          // resting: spin dies out while the cube slowly tips over its
-          // contact edge onto the nearest flat face, the support height
-          // keeping every corner above the floor all the way down
+          // resting: spin dies out while the cube slerps onto the exact
+          // flat-face orientation computed at landing - a real rotation
+          // snap rather than an approximate per-axis ease, so it always
+          // settles with one full face level on the ground
           c.av.multiplyScalar(Math.max(0, 1 - 3 * dtSec));
-          if (c.setRx !== undefined){
-            const k = Math.min(1, 3.2 * dtSec);
-            c.mesh.rotation.x += (c.setRx - c.mesh.rotation.x) * k;
-            c.mesh.rotation.z += (c.setRz - c.mesh.rotation.z) * k;
+          if (c.settleQuat){
+            c.mesh.quaternion.slerp(c.settleQuat, Math.min(1, 3.2 * dtSec));
           }
           c.mesh.position.y = support;
         }
-        c.mesh.rotation.x += c.av.x * dtSec;
-        c.mesh.rotation.y += c.av.y * dtSec;
-        c.mesh.rotation.z += c.av.z * dtSec;
+        if (c.state === "fall"){
+          c.mesh.rotation.x += c.av.x * dtSec;
+          c.mesh.rotation.y += c.av.y * dtSec;
+          c.mesh.rotation.z += c.av.z * dtSec;
+        }
         c.mesh.scale.setScalar(c.size);
         if (c.mesh.position.z > 30){
           c.state = "wait";
@@ -5093,6 +5451,19 @@ function animate(t){
       r.mat.opacity = (1 - r.life) * 0.55 * r.strength;
       if (r.life >= 1) r.mesh.visible = false;
     });
+    // impact streaks: fade in, hold at full brightness for as long as the
+    // cube that caused it is still on screen, then fade out once it's gone
+    beamsStreaks.forEach(s => {
+      if (s.life >= 1) return;
+      const targetOpacity = 0.5 * s.strength;
+      const cubeGone = !s.cube || !s.cube.mesh.visible;
+      if (cubeGone){
+        s.mat.opacity = Math.max(0, s.mat.opacity - dtSec / 0.9 * targetOpacity);
+        if (s.mat.opacity <= 0){ s.life = 1; s.mesh.visible = false; }
+      } else if (s.mat.opacity < targetOpacity){
+        s.mat.opacity = Math.min(targetOpacity, s.mat.opacity + dtSec / 0.25 * targetOpacity);
+      }
+    });
     // mirror clones follow after all position corrections, and every cube
     // darkens with depth - dim far back like the floor, full color as it
     // reaches the camera
@@ -5134,6 +5505,9 @@ function animate(t){
       const s01 = 0.5 + 0.5 * Math.sin(nowSec * m.userData.speed + m.userData.phase);
       m.position.x = m.userData.baseX - Math.sign(m.userData.baseX) * m.userData.amp * s01;
     });
+    // the background blooms are set to their base size once at build time
+    // (see prismBlooms) and never touched again - no per-frame scale or
+    // opacity animation, so nothing about them ever pulses
     // star layers ride their own clocks - half speed behind, 1.7x in front
     prismStarLayers.forEach(g => {
       g.position.z = wrapScroll(flightDist * PRISM_SPEED * g.userData.speedMul, PRISM_CHUNK_LENGTH);
@@ -5165,11 +5539,19 @@ function animate(t){
     // the snake pulse: a swell travels gate by gate down the spine, and
     // every gate still wanders its own little orbit on top - the wander
     // now runs 5x slower, long continuous arcs that never jump
+    // the light-up wave: every 4s, a bright band sweeps once through the
+    // whole gate sequence (one ring at a time), each ring gaining 20%
+    // brightness as the band passes it, then the cycle repeats
+    const ringsCycleT = (nowSec % 4) / 4;
     ringsGroup.children.forEach(m => {
       const pulse = m.userData.baseScale * (1 + Math.sin(nowSec * 0.9 - m.userData.gate * 0.7) * 0.12);
       m.scale.set(pulse, pulse, 1);
       m.position.x = m.userData.baseX + Math.sin(nowSec * m.userData.rate * 0.5 + m.userData.phase) * m.userData.drift;
       m.position.y = m.userData.baseY + Math.sin(nowSec * m.userData.rate * 0.4 + m.userData.phase * 2) * m.userData.drift * 0.8;
+      const gateT = (m.userData.gate - RINGS_GATE_MIN) / (RINGS_GATE_MAX - RINGS_GATE_MIN);
+      const d = Math.min(Math.abs(gateT - ringsCycleT), Math.abs(gateT - ringsCycleT + 1), Math.abs(gateT - ringsCycleT - 1));
+      const wave = Math.exp(-((d / 0.05) ** 2));
+      m.material.color.copy(m.userData.band.baseColor).multiplyScalar(1 + wave * 0.2);
     });
   } else if (checkGroup.visible){
     // bubble streams: a slow drifting flight winding through the sprays,
@@ -5193,6 +5575,7 @@ function animate(t){
   } else if (portalGroup.visible){
     // endless concentric rounded-rect frames; a drifting off-center path
     // so the nested rings slide around each other
+    const nowSec = (t || 0) * 0.001;
     portalGroup.position.z = wrapScroll(flightDist * PORTAL_SPEED, PORTAL_CHUNK_LENGTH);
     // the roaming light keeps the specular sheen alive on the walls
     portalLight.position.x = Math.sin(swayT * 0.045) * 34;
@@ -5201,23 +5584,42 @@ function animate(t){
     camera.position.y = Math.sin(swayT * 0.016 + 1) * 5;
     camera.rotation.x = Math.sin(swayT * 0.012 + 2) * 0.05;
     camera.rotation.y = Math.sin(swayT * 0.014) * 0.06;
-    camera.rotation.z = Math.sin(swayT * 0.01 + 3) * 0.1 + cameraRollOffset;
+    // continuous clockwise roll - a full turn every 40s - layered under
+    // the small existing sway so it never feels perfectly mechanical
+    camera.rotation.z = Math.sin(swayT * 0.01 + 3) * 0.1 + nowSec * (Math.PI * 2 / 40) + cameraRollOffset;
   } else if (burstGroup.visible){
-    // teardrop explosions: each station slowly spins its own way while
-    // the flight carries us through the middle of every burst
-    burstGroup.position.z = wrapScroll(flightDist * BURST_SPEED, BURST_CHUNK_LENGTH);
-    burstGroup.children.forEach(st => { st.rotation.z += (st.userData.spin || 0) * dtSec; });
-    camera.position.x = Math.sin(swayT * 0.018) * 2.5;
-    camera.position.y = Math.sin(swayT * 0.015 + 1) * 2;
-    camera.rotation.x = Math.sin(swayT * 0.011 + 2) * 0.04;
-    camera.rotation.y = Math.sin(swayT * 0.013) * 0.05;
-    camera.rotation.z = Math.sin(swayT * 0.009 + 3) * 0.08 + cameraRollOffset;
+    // all four lines grow forward together, one lap at a time - headT
+    // sweeps 0->1 over ~5 minutes of travel, revealing each tube up to
+    // that point, then every one wraps back to 0 and regrows together
+    const headT = (flightDist * BURST_SPEED / BURST_CHUNK_LENGTH) % 1;
+    const revealSegs = Math.max(1, Math.floor(headT * BURST_TUBE_SEG));
+    let leadHeadPos = null, leadTangent = null;
+    for (let li = 0; li < BURST_LINES; li++){
+      burstLineGeos[li].setDrawRange(0, revealSegs * BURST_RADIAL_SEG * 6);
+      const headPos = burstCurves[li].getPointAt(headT);
+      burstHeads[li].position.copy(headPos);
+      burstHalos[li].position.copy(headPos);
+      if (li === 0){ leadHeadPos = headPos; leadTangent = burstCurves[li].getTangentAt(headT); }
+    }
+    // first-person: riding just behind the lead line's glowing head,
+    // looking forward along its own direction of travel - not orbiting
+    // from outside anymore
+    const behind = leadTangent.clone().multiplyScalar(-5);
+    camera.position.copy(leadHeadPos).add(behind);
+    camera.position.y += 1.1;
+    camera.up.set(0, 1, 0);
+    const lookTarget = leadHeadPos.clone().add(leadTangent.clone().multiplyScalar(14));
+    camera.lookAt(lookTarget);
+    camera.rotation.z += Math.sin(swayT * 0.012 + 3) * 0.05 + cameraRollOffset;
+    // halos billboard to the NOW-current camera orientation
+    for (let li = 0; li < BURST_LINES; li++) burstHalos[li].quaternion.copy(camera.quaternion);
   } else if (dominoGroup.visible){
     // the topple wave: every domino stands until the flight brings it
     // near, then it eases over around its ground edge and stays down
     // until the wrap resets it far ahead
     dominoGroup.position.z = wrapScroll(flightDist * DOMINO_SPEED, DOMINO_CHUNK_LENGTH);
-    dominoPivots.forEach(pv => {
+    dominoMirrorGroup.position.z = dominoGroup.position.z;
+    dominoPivots.forEach((pv, i) => {
       const wz = pv.position.z + dominoGroup.position.z;
       // realistic topple: a fast accelerating fall (smoothstep over a
       // short window) followed by a small rebound off the ground
@@ -5225,13 +5627,19 @@ function animate(t){
       const p = Math.min(1, Math.max(0, a / 5));
       const e = p * p * (3 - 2 * p);
       const q = Math.min(1, Math.max(0, (a - 5) / 3));
-      pv.userData.tip.rotation.x = -e * 1.45 + Math.sin(q * Math.PI) * 0.07;
+      const rot = -e * 1.45 + Math.sin(q * Math.PI) * 0.07;
+      pv.userData.tip.rotation.x = rot;
+      dominoMirrorTips[i].rotation.x = rot; // the reflection topples in lockstep
     });
     // the camera tracks the run's curve, banking into the bends, and
     // periodically dives down low, right up next to the toppling stones
     const dScroll = dominoGroup.position.z;
     const hereX = dominoPathX(dScroll - 8);
     const aheadX = dominoPathX(dScroll + 24);
+    // the invisible light travels with the camera so the specular sheen
+    // and cast shadows sweep along the bends, same as TILES
+    dominoDirLight.position.set(hereX + 8, 22, 8 + 14);
+    dominoDirLight.target.position.set(hereX, 0, 8 - 30);
     const dive = Math.pow((Math.sin(swayT * 0.028) + 1) / 2, 2);
     camera.position.x = hereX + Math.sin(swayT * 0.018) * (4 - dive * 2.5);
     camera.position.y = 7 - dive * 4.6 + Math.sin(swayT * 0.014 + 1) * 1.5 * (1 - dive * 0.6);
@@ -5269,30 +5677,53 @@ function animate(t){
     camera.rotation.y = Math.sin(swayT * 0.012) * 0.06;
     camera.rotation.z = Math.sin(swayT * 0.008 + 3) * 0.07 + cameraRollOffset;
   } else if (handsGroup.visible){
-    // waving hands: each rocks around its wrist on its own beat
+    // flying straight down the video tunnel's own centerline, with a slow
+    // wander side to side and a gentle look-around so it never feels like
+    // a rigid rail
     handsGroup.position.z = wrapScroll(flightDist * HANDS_SPEED, HANDS_CHUNK_LENGTH);
-    const nowSec = (t || 0) * 0.001;
-    handsList.forEach(m => {
-      m.rotation.z = Math.sin(nowSec * m.userData.waveSpeed + m.userData.wavePhase) * 0.22;
-    });
     camera.position.x = Math.sin(swayT * 0.017) * 6;
     camera.position.y = Math.sin(swayT * 0.013 + 1) * 4;
     camera.rotation.x = Math.sin(swayT * 0.01 + 2) * 0.05;
     camera.rotation.y = Math.sin(swayT * 0.012) * 0.06;
     camera.rotation.z = Math.sin(swayT * 0.008 + 3) * 0.07 + cameraRollOffset;
-  } else if (patternCubeGroup.visible){
-    // inside the giant pattern cube: the room itself turns off the shared
-    // flight clock (arrow keys speed/reverse it) while the camera slowly
-    // pans all the way around, drifting off-center so the walls approach
-    // and recede
-    camera.position.x = Math.sin(swayT * 0.014) * 90;
-    camera.position.y = Math.sin(swayT * 0.011 + 2) * 70;
-    camera.rotation.y = swayT * 0.012;
-    camera.rotation.x = Math.sin(swayT * 0.009) * 0.25;
-    camera.rotation.z = Math.sin(swayT * 0.008 + 1) * 0.06 + cameraRollOffset;
-    patternCubeGroup.rotation.y = flightDist * 0.01;
-    patternCubeGroup.rotation.x = Math.sin(swayT * 0.007) * 0.2;
-    patternCubeGroup.rotation.z = Math.sin(swayT * 0.005 + 1) * 0.15;
+  } else if (donutGroup.visible){
+    // winding tunnel: the camera follows the same bending spine the walls
+    // were built along, banking into the curves - exactly the RINGS/TILES
+    // flythrough pattern (lerp-follow + look-ahead yaw/pitch/bank), just
+    // with a taller, wilder bend
+    const nowSec = (t || 0) * 0.001;
+    const scroll = flightDist * CUBEW_SPEED;
+    donutGroup.position.z = wrapScroll(scroll, CUBEW_CHUNK_LENGTH);
+    const here = cubePathAt(scroll - 8);
+    const ahead = cubePathAt(scroll - 8 + 16);
+    const follow = 0.02;
+    cubeCamX += (here.x - cubeCamX) * follow;
+    cubeCamY += (here.y - cubeCamY) * follow;
+    cubeCamYaw += (-Math.atan2(ahead.x - here.x, 16) * 0.7 + Math.sin(swayT * 0.013) * 0.05 - cubeCamYaw) * follow;
+    cubeCamPitch += (Math.atan2(ahead.y - here.y, 16) * 0.6 + Math.sin(swayT * 0.015 + 2) * 0.04 - cubeCamPitch) * follow;
+    cubeCamBank += (-Math.atan2(ahead.x - here.x, 16) * 0.5 - cubeCamBank) * follow;
+    camera.position.x = cubeCamX;
+    camera.position.y = cubeCamY;
+    camera.rotation.x = cubeCamPitch;
+    camera.rotation.y = cubeCamYaw;
+    camera.rotation.z = cubeCamBank + cameraRollOffset;
+    // the cubes drift a little within their own slot as the tunnel scrolls
+    // them past (riding the shared group transform automatically), and
+    // tumble continuously on their own axis
+    donutCubes.forEach(b => {
+      const wobble = Math.sin(nowSec * b.userData.driftRate + b.userData.driftPhase);
+      b.position.x = b.userData.baseX + wobble * 1.3;
+      b.position.y = b.userData.baseY + Math.sin(nowSec * b.userData.driftRate * 0.7 + b.userData.driftPhase) * 1.3;
+      b.rotation.x += b.userData.spin.x * dtSec;
+      b.rotation.y += b.userData.spin.y * dtSec;
+      b.rotation.z += b.userData.spin.z * dtSec;
+    });
+    // the invisible light travels WITH the camera, same as TILES - a soft
+    // diffuse key riding above and ahead so light and shadows sweep along
+    // the bends (the shadowless fill shares its axis and target)
+    donutDirLight.position.set(cubeCamX + 12, cubeCamY + 26, 8 + 18);
+    donutDirLight.target.position.set(cubeCamX, cubeCamY, 8 - 40);
+    donutDirFill.position.copy(donutDirLight.position);
   } else if (!tunnelGroup.visible){
     // the sphere (auto) screen: a drone-style glide in the Polaroid
     // spirit - slow translational sweeps and a gentle bank layered over

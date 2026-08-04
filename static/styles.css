@@ -182,6 +182,12 @@ body.gate-active::after{display:none}
   80%{color:var(--lyric-yellow)}
   100%{color:var(--fg)}
 }
+/* karaoke word activation: no fade - the word snaps straight to white the
+   instant it becomes active (still scheduled via animation-delay, same
+   as the fade above, just a constant color instead of a gradient) */
+@keyframes wordActiveWhite{
+  0%,100%{color:var(--fg)}
+}
 /* password gate: hidden by default, shown/hidden via JS based on the
    GATE_PASSWORD_ENABLED flag near the top of app.js - flip that one flag
    off to remove the whole feature (reveals #gate-actions-main instead) */
@@ -244,15 +250,23 @@ body.gate-active #dim-overlay{display:block}
 #prism-fade{display:none}
 /* Polaroid road sky: the WebGL canvas clears transparent there, revealing
    this gradient - a little brighter near the horizon, darker up top */
-body.scene-road #stage{background:linear-gradient(to top, #282153 0%, #131034 55%, #0a0618 100%)}
+body.scene-road #stage{background:linear-gradient(to top, #302864 0%, #17133e 55%, #0c071d 100%)}
 /* Aveluna sky: dark blue low, fading to black at the top */
 body.scene-mist #stage{background:linear-gradient(to top, #101a3e 0%, #060a1c 55%, #000000 100%)}
 /* ROADS sky: a slight vertical gradient in the back - faintly lighter
    near the horizon, near-black up top */
-body.scene-beams #stage{background:linear-gradient(to top, #16162c 0%, #08080f 45%, #030308 100%)}
+/* ROADS runs its own fixed blue palette regardless of artist, so its
+   horizon gradient stays fixed blue too instead of following
+   --artist-color (which would clash with the scene's own blue tones) */
+body.scene-beams #stage{background:linear-gradient(to top,
+  #123064 0%, #000000 60%)}
 /* NATURE horizon: black up top sinking into 15% of the artist color */
 body.scene-check #stage{background:linear-gradient(to top,
   color-mix(in srgb, var(--artist-color, #7CFF9E) 15%, black) 0%, #000000 60%)}
+/* RINGS: dark background, black up top sinking into 20% of the artist
+   color at the bottom */
+body.scene-rings #stage{background:linear-gradient(to top,
+  color-mix(in srgb, var(--artist-color, #7CFF9E) 20%, black) 0%, #000000 60%)}
 /* full-screen tint in the current track's artist color, sitting right on
    top of the 3D sphere/background video (z-index:0) but below every
    other overlay/UI layer (z-index:1+) - color set per-track in
@@ -387,7 +401,7 @@ body.scene-check #stage{background:linear-gradient(to top,
   text-align:center;
   height:calc(clamp(18px,calc(14vw - 10px),70px) * 4.6);overflow:hidden;
   /* very soft, light drop shadow lifting the karaoke text off the 3D scenes */
-  filter:drop-shadow(0 6px 28px rgba(0,0,0,.35));
+  filter:drop-shadow(0 6px 36.4px rgba(0,0,0,.42));
 }
 #lyric-rows{position:relative;width:100%;height:100%}
 .lyric-row{
@@ -399,10 +413,12 @@ body.scene-check #stage{background:linear-gradient(to top,
 }
 .lyric-row .w{
   display:inline-block;margin:0 .12em;
-  color:color-mix(in srgb, var(--artist-color, var(--active-green)) 70%, black);opacity:.19;
+  /* inactive rows read as solid, muted color instead of see-through text -
+     darker/duller mixes instead of low opacity */
+  color:color-mix(in srgb, var(--artist-color, var(--active-green)) 32%, black);opacity:1;
   transition:transform .3s ease;
 }
-.lyric-row.near .w{opacity:.285}
+.lyric-row.near .w{color:color-mix(in srgb, var(--artist-color, var(--active-green)) 48%, black)}
 .lyric-row.active-row .w{color:color-mix(in srgb, var(--artist-color, var(--active-green)) 70%, black);opacity:1}
 @media (max-width:640px){
   #lyrics{transform:translateY(calc(-50% - 110px)) scale(1.5)}
