@@ -4382,10 +4382,10 @@ const dominoAmbient = new THREE.AmbientLight(0xffffff, 0.4);
 dominoAmbient.visible = false;
 scene.add(dominoAmbient);
 const dominoBgColor = new THREE.Color(0x220808);
-// denser than before (was 0.01) - the ground plane needs a stronger fog
-// pull to actually read as fading into the background within the chunk's
-// visible range, not just a faint haze at the far edge
-const dominoFog = new THREE.FogExp2(0x220808, 0.022);
+// denser still (was 0.01, then 0.022) - pulls the ground into the
+// background much closer to the camera instead of only fading out near
+// the far edge of the visible run
+const dominoFog = new THREE.FogExp2(0x220808, 0.045);
 function dominoRetint(tr){
   const { dominant } = artistScenePalette(tr);
   dominoFloorMat.color.copy(dominant.clone().multiplyScalar(0.8));
