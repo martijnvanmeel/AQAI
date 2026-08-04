@@ -6121,12 +6121,18 @@ function renderLogoFace(fillColor, strokeColor){
   return canvas.toDataURL("image/png");
 }
 // only the extruded SIDE layers (the depth between front and back) fade
-// through colors - the front and back end caps stay a fixed solid black
+// through colors - the front and back end caps stay fixed (never
+// animated), but at the 10%-darkest version of the same artist colors
+// the sides cycle through, instead of pure black
 const logo3dSideImgs = [];
 if (logo3dEl){
   (async () => {
     try { await document.fonts.load(`900 ${450 * 0.85}px Brice`); } catch (e) {}
-    const blackSrc = renderLogoFace("#000000", "#ffffff"); // front/back: fixed, never animated - keeps its white rim
+    const capArtistColors = [...new Set(TRACKS.map(t => t.artistColor).filter(Boolean))].map(c => new THREE.Color(c));
+    const capColors = capArtistColors.length ? capArtistColors : [new THREE.Color(0x7CFF9E)];
+    const capColor = capColors.reduce((acc, c) => acc.add(c), new THREE.Color(0, 0, 0))
+      .multiplyScalar(1 / capColors.length).multiplyScalar(0.1);
+    const blackSrc = renderLogoFace("#" + capColor.getHexString(), "#ffffff"); // front/back: fixed, never animated - keeps its white rim
     const sideSrc = renderLogoFace("#ffffff"); // sides: start white, then cycle
     for (let i = LOGO3D_DEPTH; i >= 0; i--){
       const isEndCap = i === 0 || i === LOGO3D_DEPTH;
