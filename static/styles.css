@@ -163,6 +163,12 @@ body.gate-active::after{display:none}
 }
 .gate-btn:hover{background:var(--object-deep)}
 .gate-btn:active{background:var(--active-green)}
+/* shown while the library manifest is still loading - disabled, dimmer,
+   no color-cycle (that would read as "ready", which it isn't yet) */
+.gate-btn.loading{
+  opacity:.55;cursor:default;pointer-events:none;
+  animation:pulse 1.1s ease-in-out infinite;
+}
 @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
 /* white -> yellow -> green -> blue -> green -> yellow -> white, then a
    short pause (still white) before looping */

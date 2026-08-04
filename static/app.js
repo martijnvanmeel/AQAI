@@ -5854,7 +5854,14 @@ fetch("/api/tracks").then(r => r.json()).then(data => {
     renderSyncTracks();
     fillLyrics();
   }
-}).catch(() => toast("Could not load the library"));
+  tracksReady = true;
+  updateGateLoadingState();
+}).catch(() => {
+  toast("Could not load the library");
+  const btn = $("#gate-btn");
+  if (btn){ btn.textContent = "COULD NOT LOAD - TAP TO RETRY"; btn.disabled = false; btn.classList.remove("loading"); }
+  if (btn) btn.onclick = () => location.reload();
+});
 
 // builds the extruded-logo illusion: stacked copies of the same "AQAI"
 // text (set via Brice, the same font the home screen's wordmark uses)
@@ -5973,6 +5980,7 @@ if (!GATE_PASSWORD_ENABLED){
       applyAccessMode(val === GATE_PASSWORD_RESTRICTED);
       $("#gate-password-form").style.display = "none";
       $("#gate-actions-main").style.display = "flex";
+      updateGateLoadingState();
     } else {
       $("#gate-password-error").classList.add("show");
       input.value = "";
@@ -5981,7 +5989,24 @@ if (!GATE_PASSWORD_ENABLED){
   });
 }
 
+// the library manifest fetch (see BOOT below) can take a real, visible
+// moment - scanning the whole folder tree on first load, especially on
+// the live server. Without this, tapping through before it resolves left
+// an empty-looking home screen with no track, no lyrics, no audio and no
+// explanation why. The button now stays disabled and says so until the
+// manifest actually lands.
+let tracksReady = false;
+function updateGateLoadingState(){
+  const btn = $("#gate-btn");
+  if (!btn) return;
+  btn.disabled = !tracksReady;
+  btn.textContent = tracksReady ? "TAP TO LISTEN" : "LOADING…";
+  btn.classList.toggle("loading", !tracksReady);
+}
+updateGateLoadingState();
+
 $("#gate-btn").onclick = () => {
+  if (!tracksReady) return;
   $("#gate").classList.add("hidden");
   document.body.classList.remove("gate-active");
   // the (now hidden) password input may still hold keyboard focus, which
