@@ -4943,6 +4943,90 @@ function handsRetint(tr){
   if (handsVideoEl.paused) handsVideoEl.play().catch(() => {});
 }
 
+/* ---------- Scene "CITY": a flythrough down a winding street between
+   tall photo-textured towers, styled like TILES - same op-art photo
+   walls + specular sheen + a light that travels with the camera, same
+   winding lerp-follow flythrough camera. First of the four new
+   TILES-styled scenes. ---------- */
+const CITY_CHUNK_LENGTH = 200, CITY_REPEATS = 3, CITY_SPEED = 9;
+const CITY_HALF_W = 18; // half-width of the open street the camera flies down
+const cityGroup = new THREE.Group();
+const cityMats = [];
+const cityEdgeMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
+const cityEdgeBaseColor = new THREE.Color(0xffffff);
+function cityPathX(z){
+  const a = (z / CITY_CHUNK_LENGTH) * Math.PI * 2;
+  return Math.sin(a) * 20 + Math.sin(a * 2 + 1) * 8;
+}
+{
+  const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+  const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+  const edgeGeo = new THREE.EdgesGeometry(boxGeo);
+  const TOWERS_PER_SIDE = 11;
+  for (let i = 0; i < TOWERS_PER_SIDE * 2; i++) cityMats.push(new THREE.MeshPhongMaterial({
+    map: tileImageTextures[i % tileImageTextures.length], specular: 0xffffff, shininess: 70 }));
+  for (let rep = 0; rep < CITY_REPEATS; rep++){
+    for (let side = 0; side < 2; side++){
+      for (let i = 0; i < TOWERS_PER_SIDE; i++){
+        const k = side * TOWERS_PER_SIDE + i;
+        const z = -h(k, 1) * CITY_CHUNK_LENGTH - rep * CITY_CHUNK_LENGTH;
+        const w = 8 + h(k, 2) * 8, d = 8 + h(k, 3) * 8, height = 30 + h(k, 4) * 110;
+        // set back from the street edge by a varying amount, so towers
+        // don't all form one flat wall
+        const setback = h(k, 5) * 40;
+        const streetX = cityPathX(z);
+        const x = streetX + (side === 0 ? -1 : 1) * (CITY_HALF_W + w / 2 + setback);
+        const mat = cityMats[k % cityMats.length];
+        const tower = new THREE.Mesh(boxGeo, mat);
+        tower.scale.set(w, height, d);
+        tower.position.set(x, height / 2, z);
+        tower.castShadow = true;
+        tower.receiveShadow = true;
+        tower.add(new THREE.LineSegments(edgeGeo, cityEdgeMat));
+        cityGroup.add(tower);
+      }
+    }
+  }
+  // a flat dark street, specular like TILES/BLOCKS' floors
+  const streetMat = new THREE.MeshPhongMaterial({ color: 0x0c0c10, specular: 0x888888, shininess: 90 });
+  const street = new THREE.Mesh(new THREE.PlaneGeometry(CITY_HALF_W * 2, CITY_CHUNK_LENGTH * CITY_REPEATS), streetMat);
+  street.rotation.x = -Math.PI / 2;
+  street.position.set(0, 0, -CITY_CHUNK_LENGTH * CITY_REPEATS / 2 + CITY_CHUNK_LENGTH / 2);
+  street.receiveShadow = true;
+  cityGroup.add(street);
+  // small starfield high above the towers, for scale
+  const cityStarPos = [];
+  for (let i = 0; i < 260; i++){
+    cityStarPos.push((h(i, 41) - 0.5) * 400, 120 + h(i, 42) * 220, -h(i, 43) * CITY_CHUNK_LENGTH * CITY_REPEATS);
+  }
+  const cityStarsGeo = new THREE.BufferGeometry();
+  cityStarsGeo.setAttribute("position", new THREE.Float32BufferAttribute(cityStarPos, 3));
+  const cityStarsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 1.4, sizeAttenuation: true,
+    map: roadDotTexture, transparent: true, opacity: 0.8, depthWrite: false });
+  const cityStars = new THREE.Points(cityStarsGeo, cityStarsMat);
+  cityStars.frustumCulled = false;
+  cityGroup.add(cityStars);
+}
+cityGroup.visible = false;
+scene.add(cityGroup);
+// the light travels with the camera, same pattern as TILES/DOMINO
+const cityDirLight = new THREE.DirectionalLight(0xfff4e8, 0.6);
+cityDirLight.visible = false;
+scene.add(cityDirLight);
+scene.add(cityDirLight.target);
+const cityAmbient = new THREE.AmbientLight(0xffffff, 0.4);
+cityAmbient.visible = false;
+scene.add(cityAmbient);
+const cityFog = new THREE.FogExp2(0x000000, 0.01);
+function cityRetint(tr){
+  const { dominant } = artistScenePalette(tr);
+  cityEdgeBaseColor.copy(dominant).lerp(new THREE.Color(0xffffff), 0.4);
+  cityEdgeMat.color.copy(cityEdgeBaseColor);
+  // fades into the artist color at 60% darker, same convention as TILES
+  cityFog.color.copy(dominant).multiplyScalar(0.4);
+}
+let cityCamX = 0, cityCamY = 0, cityCamYaw = 0, cityCamPitch = 0, cityCamBank = 0;
+
 const SCENE_LIST = [
   { id: "auto",   label: "AUTO" },
   { id: "sphere", label: "SPHERE" },
@@ -4959,6 +5043,7 @@ const SCENE_LIST = [
   { id: "domino", label: "DOMINO" },
   { id: "eyes",   label: "EYES" },
   { id: "hands",  label: "HANDS" },
+  { id: "city",   label: "CITY" },
 ];
 let sceneOverride = "auto";
 let sceneNavIdx = 0;
@@ -5021,8 +5106,9 @@ function updateArtistBackground(tr){
   const wantDomino = !gateActive && sceneId === "domino";
   const wantEyes = !gateActive && sceneId === "eyes";
   const wantHands = !gateActive && sceneId === "hands";
+  const wantCity = !gateActive && sceneId === "city";
   const want3d = wantRoad || wantMist || wantMaze || wantTiles || wantBeams || wantPrism || wantRings || wantCheck
-    || wantCube || wantPortal || wantDomino || wantEyes || wantHands;
+    || wantCube || wantPortal || wantDomino || wantEyes || wantHands || wantCity;
   // same lerp-follow camera snap as the other flythrough scenes
   if (wantRoad && !roadGroup.visible){
     const here0 = roadCenterAt(flightDist * ROAD_SPEED - 8);
@@ -5096,6 +5182,15 @@ function updateArtistBackground(tr){
   eyesCubeAmbient.visible = wantEyes;
   handsGroup.visible = wantHands;
   document.body.classList.toggle("scene-hands", wantHands);
+  // same lerp-follow camera snap as TILES/RINGS/NATURE
+  if (wantCity && !cityGroup.visible){
+    cityCamX = cityPathX(flightDist * CITY_SPEED - 8);
+    cityCamY = 6;
+    cityCamYaw = 0; cityCamPitch = 0; cityCamBank = 0;
+  }
+  cityGroup.visible = wantCity;
+  cityDirLight.visible = wantCity;
+  cityAmbient.visible = wantCity;
   const wantSphere = !gateActive && !want3d;
   if (panoMesh) panoMesh.visible = wantSphere;
   if (panoMirrorMesh) panoMirrorMesh.visible = wantSphere;
@@ -5217,6 +5312,10 @@ function updateArtistBackground(tr){
     // (body.scene-hands #stage), same pattern as ROADS/RINGS/NATURE
     renderer.setClearColor(0x000000, 0);
     scene.fog = handsFog;
+  } else if (wantCity){
+    cityRetint(tr);
+    renderer.setClearColor(cityFog.color, 1);
+    scene.fog = cityFog;
   } else {
     renderer.setClearColor(0x000000, 0);
     scene.fog = null;
@@ -6179,6 +6278,28 @@ function animate(t){
     camera.rotation.x = Math.sin(swayT * 0.01 + 2) * 0.0625;
     camera.rotation.y = Math.sin(swayT * 0.012) * 0.075;
     camera.rotation.z = Math.sin(swayT * 0.008 + 3) * 0.0875 + cameraRollOffset;
+  } else if (cityGroup.visible){
+    // winding street flythrough between the towers - same lerp-follow
+    // banking camera as TILES, just following the street's horizontal
+    // wind only (cityPathX) at a fixed low altitude
+    const scroll = flightDist * CITY_SPEED;
+    cityGroup.position.z = wrapScroll(scroll, CITY_CHUNK_LENGTH);
+    const hereX = cityPathX(scroll - 8);
+    const aheadX = cityPathX(scroll - 8 + 18);
+    const follow = 0.02;
+    cityCamX += (hereX + Math.sin(swayT * 0.03) * 0.7 - cityCamX) * follow;
+    cityCamY += (6 + Math.sin(swayT * 0.02 + 1) * 0.8 - cityCamY) * follow;
+    cityCamYaw += (-Math.atan2(aheadX - hereX, 18) * 0.65 + Math.sin(swayT * 0.012) * 0.1 - cityCamYaw) * follow;
+    cityCamPitch += (0.08 + Math.sin(swayT * 0.017) * 0.03 - cityCamPitch) * follow; // gazes slightly upward, at the towers
+    cityCamBank += (-Math.atan2(aheadX - hereX, 18) * 0.5 - cityCamBank) * follow;
+    camera.position.x = cityCamX;
+    camera.position.y = cityCamY;
+    camera.rotation.x = cityCamPitch;
+    camera.rotation.y = cityCamYaw;
+    camera.rotation.z = cityCamBank + cameraRollOffset;
+    // the light travels with the camera, same pattern as TILES/DOMINO
+    cityDirLight.position.set(cityCamX + 15, cityCamY + 60, -30);
+    cityDirLight.target.position.set(cityCamX, cityCamY, -80);
   } else if (donutGroup.visible){
     // winding tunnel: the camera follows the same bending spine the walls
     // were built along, banking into the curves - exactly the RINGS/TILES
