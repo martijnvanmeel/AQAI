@@ -506,9 +506,9 @@ function renderLyricRows(li, dl){
 function fadeOutForGap(dl, dli){
   const row = lyricRowEls[dlActiveIdx];
   if (!row) return;
-  // fades the whole sentence out to fully invisible (opacity 0) over a
-  // fixed 1s, instead of tracking the gap's own (often much longer)
-  // duration and only fading each word's color down to a dark blue
+  // fades the whole sentence down to 50% opacity over a fixed 2s, instead
+  // of tracking the gap's own (often much longer) duration and only
+  // fading each word's color down to a dark blue
   const spans = row.querySelectorAll(".w");
   spans.forEach(w => {
     w.style.animation = "none";
@@ -518,8 +518,8 @@ function fadeOutForGap(dl, dli){
   row.style.transition = "none";
   row.style.opacity = "1";
   row.getBoundingClientRect();
-  row.style.transition = "opacity 1s linear";
-  row.style.opacity = "0";
+  row.style.transition = "opacity 2s linear";
+  row.style.opacity = "0.5";
 }
 /* whole sentence starts blue and fades to white over the exact time it
    stays active, instead of highlighting word-by-word */
