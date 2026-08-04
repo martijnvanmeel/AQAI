@@ -2740,7 +2740,9 @@ const dtStars = (() => {
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
   const pal = [0xffffff, 0xffd9a0, 0xff8a73].map(c => new THREE.Color(c));
   const group = new THREE.Group();
-  [[100, 1], [70, 2], [40, 3], [20, 4]].forEach(([count, size], si) => {
+  // sizes now perspective-scaled (was a fixed pixel size) so stars grow
+  // as they near the camera, tuned so the closest read at ~5px
+  [[100, 0.5], [70, 0.9], [40, 1.3], [20, 1.8]].forEach(([count, size], si) => {
     const positions = [], colors = [];
     for (let rep = -1; rep < DT_REPEATS; rep++){
       for (let i = 0; i < count; i++){
@@ -2753,7 +2755,7 @@ const dtStars = (() => {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
     geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-    const mat = new THREE.PointsMaterial({ size, vertexColors: true, sizeAttenuation: false,
+    const mat = new THREE.PointsMaterial({ size, vertexColors: true, sizeAttenuation: true,
       map: roadDotTexture, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
     const points = new THREE.Points(geo, mat);
     points.frustumCulled = false;
@@ -3796,6 +3798,16 @@ scene.add(prismGroup);
 // lines' speed, one rushing past at 1.7x - so the slat curtain sits
 // between two parallax depths
 const prismStarLayers = [];
+// a hard-edged solid disc (not the soft feathered roadDotTexture) so the
+// stars read as solid circles rather than soft glow dots
+const prismStarSolidTexture = (() => {
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = 64;
+  const g = cv.getContext("2d");
+  g.fillStyle = "#fff";
+  g.beginPath(); g.arc(32, 32, 28, 0, Math.PI * 2); g.fill();
+  return new THREE.CanvasTexture(cv);
+})();
 // perspective-scaled now (was a fixed pixel size) so a star visibly grows
 // as it nears the camera instead of staying one constant screen size -
 // world sizes tuned so the closest stars read at roughly 5px
@@ -3815,8 +3827,10 @@ const prismStarLayers = [];
   geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
   const mat = new THREE.PointsMaterial({ size, vertexColors: true, sizeAttenuation: true,
-    map: roadDotTexture, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
+    map: prismStarSolidTexture, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
   mat.fog = false;
+  mat.userData.baseOpacity = 0.9;
+  mat.userData.pulsePhase = li * Math.PI;
   const points = new THREE.Points(geo, mat);
   points.frustumCulled = false;
   const group = new THREE.Group();
@@ -3846,9 +3860,14 @@ const prismFog = new THREE.FogExp2(0x000000, 0.006);
 let prismBloomColored = false; // the blooms are colored once and then frozen - see below
 function prismRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
-  // whole scene pulled 40% down
+  // whole scene pulled 40% down. Half the slots stay pure artist palette,
+  // the other half now mix in a fixed yellow/green/red accent for more
+  // color variety in the glowing edges instead of everything reading as
+  // one tint family
+  const prismAccents = [0xffd400, 0x3ddc73, 0xff4d4d];
   prismMats.forEach((mat, i) => {
-    mat.color.copy(i < 3 ? dominant : others[i % others.length]).multiplyScalar(0.6);
+    if (i < 3) mat.color.copy(dominant).multiplyScalar(0.6);
+    else mat.color.copy(new THREE.Color(prismAccents[i - 3])).lerp(others[i % others.length], 0.35).multiplyScalar(0.6);
   });
   // the soft background blooms used to re-blend on every track change,
   // which read as the background flickering/shifting - now they're
@@ -4257,6 +4276,9 @@ function portalRetint(tr){
     others[2 % others.length], others[3 % others.length],
   ];
   portalFrames.forEach(m => m.material.color.copy(cols[m.userData.ci % cols.length]));
+  // the far distance now fades to a dark version of the artist color
+  // instead of a flat near-black
+  portalFog.color.copy(dominant).multiplyScalar(0.18);
 }
 
 // -- DOMINO: a single toppling row travelling in a wave as we pass --
@@ -4995,7 +5017,7 @@ function updateArtistBackground(tr){
     scene.fog = donutFog;
   } else if (wantPortal){
     portalRetint(tr);
-    renderer.setClearColor(0x070707, 1);
+    renderer.setClearColor(portalFog.color, 1);
     scene.fog = portalFog;
   } else if (wantDomino){
     dominoRetint(tr);
@@ -5743,6 +5765,9 @@ function animate(t){
     // star layers ride their own clocks - half speed behind, 1.7x in front
     prismStarLayers.forEach(g => {
       g.position.z = wrapScroll(flightDist * PRISM_SPEED * g.userData.speedMul, PRISM_CHUNK_LENGTH);
+      // solid circles, gently pulsing brighter and dimmer
+      const m = g.children[0].material;
+      m.opacity = m.userData.baseOpacity * (0.7 + 0.3 * (0.5 + 0.5 * Math.sin(nowSec * 0.6 + m.userData.pulsePhase)));
     });
   } else if (ringsGroup.visible){
     // ring snake: the tunnel of gates bends in every direction and the
