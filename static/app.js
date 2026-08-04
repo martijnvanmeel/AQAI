@@ -4782,25 +4782,7 @@ const eyesIrisMats = [];
     }
   }
 }
-// a reflective ground (was a wireframe tunnel) - the eyes mirror in it,
-// same technique as ROADS/DOMINO's floor reflections
-const EYES_FLOOR_Y = -38;
-const eyesFloorMat = new THREE.MeshPhongMaterial({ color: 0x102040, specular: 0xffffff, shininess: 100,
-  transparent: true, opacity: 0.6, side: THREE.DoubleSide });
-const eyesFloor = new THREE.Mesh(new THREE.PlaneGeometry(300, EYES_CHUNK_LENGTH * 3.5), eyesFloorMat);
-eyesFloor.rotation.x = -Math.PI / 2;
-eyesFloor.position.set(0, EYES_FLOOR_Y, -EYES_CHUNK_LENGTH);
-eyesGroup.add(eyesFloor);
 eyesGroup.visible = false;
-// the mirror clone: same eye field flipped under the floor - kept as its
-// own top-level group (not nested in eyesGroup) so its scale.y=-1 flip
-// doesn't also mirror eyesGroup's own scroll transform
-const eyesMirrorGroup = eyesGroup.clone(true);
-eyesMirrorGroup.traverse(obj => { if (obj.isMesh && obj.material === eyesFloorMat) obj.visible = false; });
-eyesMirrorGroup.position.y = EYES_FLOOR_Y * 2;
-eyesMirrorGroup.scale.y = -1;
-eyesMirrorGroup.visible = false;
-scene.add(eyesMirrorGroup);
 // little cubes in the eyes' own iris colors, flying through a little
 // faster than the eyes themselves
 const EYES_CUBE_SPEED_MULT = 2.1; // 1.5x faster still (was 1.4)
@@ -4864,7 +4846,6 @@ function eyesRetint(tr){
   eyesIrisMats.forEach((m, i) => m.color.copy(i % 2 === 0 ? dominant : others[i % others.length]));
   // little flying cubes: same palette split as the irises
   eyesCubeMats.forEach((m, i) => m.color.copy(i % 2 === 0 ? dominant : others[i % others.length]));
-  eyesFloorMat.color.copy(dominant.clone().multiplyScalar(0.5));
   eyesBgColor.copy(dominant.clone().multiplyScalar(0.55));
   eyesFog.color.copy(eyesBgColor);
 }
@@ -5200,7 +5181,6 @@ function updateArtistBackground(tr){
   dominoDirLight.visible = wantDomino;
   dominoAmbient.visible = wantDomino;
   eyesGroup.visible = wantEyes;
-  eyesMirrorGroup.visible = wantEyes;
   eyesCubesGroup.visible = wantEyes;
   eyesCubeLight.visible = wantEyes;
   eyesCubeAmbient.visible = wantEyes;
@@ -5250,6 +5230,7 @@ function updateArtistBackground(tr){
   document.body.classList.toggle("scene-check", wantCheck);
   document.body.classList.toggle("scene-rings", wantRings);
   document.body.classList.toggle("scene-maze", wantMaze);
+  document.body.classList.toggle("scene-eyes", wantEyes);
   // tighter lens in every constructed environment (incl. the intro
   // tunnel) = a more zoomed, cinematic framing; only the plain video
   // sphere keeps the natural 1x lens
@@ -5325,10 +5306,11 @@ function updateArtistBackground(tr){
     renderer.setClearColor(dominoBgColor, 1);
     scene.fog = dominoFog;
   } else if (wantEyes){
-    // flat colored horizon background removed - plain black behind
-    // everything now, fog still does the depth fade
+    // transparent clear - a radial CSS gradient stands behind the scene
+    // (body.scene-eyes #stage), artist color at the middle fading to dark
+    // grey at the edges
     eyesRetint(tr);
-    renderer.setClearColor(0x000000, 1);
+    renderer.setClearColor(0x000000, 0);
     scene.fog = eyesFog;
   } else if (wantHands){
     handsRetint(tr);
@@ -6252,7 +6234,6 @@ function animate(t){
       const lookYaw = Math.atan2(camera.position.x - e.position.x, camera.position.z - worldZ);
       e.rotation.y = lookYaw * near * 0.5;
     });
-    eyesMirrorGroup.position.z = eyesGroup.position.z;
     eyesCubesGroup.position.z = wrapScroll(flightDist * EYES_SPEED * EYES_CUBE_SPEED_MULT, EYES_CHUNK_LENGTH);
     // each cube spins on its own axis while it bobs up/down around its base
     // y, and pushes off the camera's path the same way (and direction) the

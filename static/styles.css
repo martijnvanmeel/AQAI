@@ -289,6 +289,10 @@ body.scene-maze #stage{
   0%, 100%{background-position:0% 0%}
   50%{background-position:0% 100%}
 }
+/* EYES: radial gradient from the middle - artist color (20% dark) at the
+   center, fading out to dark grey at the edges */
+body.scene-eyes #stage{background:radial-gradient(circle at center,
+  color-mix(in srgb, var(--artist-color, #7CFF9E) 80%, black) 0%, #101010 100%)}
 /* RINGS: dark background, black up top sinking into the artist color as
    the primary color at the bottom (55% mix - still dark, not full bright) */
 body.scene-rings #stage{background:linear-gradient(to top,
