@@ -4020,6 +4020,22 @@ let ringsGlowMat = null;
   glow.position.set(glowBend.x, glowBend.y, -280);
   glow.frustumCulled = false;
   ringsScenery.add(glow);
+  // the same gradient.mp4 wash used as the screen-space overlay, also
+  // placed as a real plane far down the tunnel's spine - reuses the
+  // existing <video> element (already playing/looping) rather than
+  // loading the clip a second time
+  const gradientVideoEl = document.getElementById("gradient-overlay");
+  if (gradientVideoEl){
+    const gradientVideoTex = new THREE.VideoTexture(gradientVideoEl);
+    const gradientMat = new THREE.MeshBasicMaterial({ map: gradientVideoTex, transparent: true,
+      opacity: 0.15, depthWrite: false });
+    gradientMat.fog = false;
+    const gradientPlane = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), gradientMat);
+    const gradientBend = ringsPathAt(280);
+    gradientPlane.position.set(gradientBend.x, gradientBend.y, -282);
+    gradientPlane.frustumCulled = false;
+    ringsScenery.add(gradientPlane);
+  }
 }
 ringsGroup.visible = false;
 ringsScenery.visible = false;
