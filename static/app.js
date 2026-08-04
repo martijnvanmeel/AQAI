@@ -3470,16 +3470,19 @@ let beamsFloorTex = null;
     beamsMirrorMats.push(new THREE.MeshPhongMaterial({ specular: 0x888888, shininess: 90,
       transparent: true, opacity: 0.4 }));
   }
-  // little starfield above the horizon - round stars 1px to 5px - with a
-  // faint mirrored copy under the glossy floor as its reflection
+  // little starfield above the horizon - round stars 1px to 4px, flying
+  // toward the camera (see BEAMS_STAR_SPEED in animate()) - with a faint
+  // mirrored copy under the glossy floor as its reflection
+  const BEAMS_STAR_DEPTH = 280, BEAMS_STAR_SPEED = 26;
+  const beamsStarsGroup = new THREE.Group();
   {
     const hh = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
     const starPal = [0xffffff, 0xd9e8ff, 0xffe8d2].map(c => new THREE.Color(c));
-    [[90, 1], [60, 2], [40, 3], [18, 5]].forEach(([count, size], si) => {
+    [[90, 1], [60, 2], [40, 3], [18, 4]].forEach(([count, size], si) => {
       const positions = [], colors = [];
       for (let i = 0; i < count; i++){
         positions.push((hh(i * 3 + si * 97, 1) - 0.5) * 320, 8 + hh(i * 5 + si * 31, 2) * 85,
-          -40 - hh(i * 7 + si * 53, 3) * 280);
+          -40 - hh(i * 7 + si * 53, 3) * BEAMS_STAR_DEPTH);
         const c = starPal[i % starPal.length];
         colors.push(c.r, c.g, c.b);
       }
@@ -3494,14 +3497,15 @@ let beamsFloorTex = null;
       };
       const stars = new THREE.Points(geo, mkMat(0.9));
       stars.frustumCulled = false;
-      beamsScenery.add(stars);
+      beamsStarsGroup.add(stars);
       // the reflection: same field flipped under the floor, faint
       const mirrorStars = new THREE.Points(geo.clone(), mkMat(0.22));
       mirrorStars.scale.y = -1;
       mirrorStars.frustumCulled = false;
-      beamsScenery.add(mirrorStars);
+      beamsStarsGroup.add(mirrorStars);
     });
   }
+  beamsScenery.add(beamsStarsGroup);
   for (let i = 0; i < BEAMS_CUBE_COUNT; i++){
     const mi = i;
     const cube = new THREE.Mesh(cubeGeo, beamsCubeMats[mi]);
@@ -5319,6 +5323,8 @@ function animate(t){
     // scrolling ground
     const nowSec = (t || 0) * 0.001;
     beamsGroup.position.z = wrapScroll(flightDist * BEAMS_SPEED, BEAMS_CHUNK_LENGTH);
+    // stars stream toward the camera, independent of the ground scroll
+    beamsStarsGroup.position.z = wrapScroll(flightDist * BEAMS_STAR_SPEED, BEAMS_STAR_DEPTH);
     // how far the ground moved this frame - landed cubes ride along
     const beamsScrollDz = (flightDist - beamsPrevFlight) * BEAMS_SPEED;
     beamsPrevFlight = flightDist;
