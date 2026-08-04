@@ -4673,7 +4673,7 @@ const eyesIrisMats = [];
       const eye = new THREE.Group();
       const size = 10 + h(i, 11) * 18;
       const scl = new THREE.Mesh(eyeSclGeo, sclMat);
-      const sclBaseH = size / 2; // sclera height is half its own width, open-eye state
+      const sclBaseH = size / 2 * 1.25; // half its own width, +25% taller, open-eye state
       scl.scale.set(size, sclBaseH, 1);
       const irisRing = new THREE.Mesh(eyeIrisRingGeo, eyesIrisMats[i % eyesIrisMats.length]);
       const pupil = new THREE.Mesh(eyePupilGeo, eyePupilMat);
