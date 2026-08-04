@@ -4420,7 +4420,6 @@ const EYES_CHUNK_LENGTH = 220, EYES_SPEED = 5;
 const eyesGroup = new THREE.Group();
 const eyesList = [];
 const eyesIrisMats = [];
-const eyesWireMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45 });
 {
   // sclera (never tinted): a plain white almond - the wandering
   // iris+pupil disc below carries the "ball" of the eye
@@ -4454,41 +4453,69 @@ const eyesWireMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: 
       const iris = new THREE.Mesh(new THREE.PlaneGeometry(size * 0.375, size * 0.375), eyesIrisMats[i % eyesIrisMats.length]);
       iris.position.z = 0.3;
       eye.add(scl); eye.add(iris);
-      eye.position.set((h(i, 12) - 0.5) * 90, (h(i, 13) - 0.5) * 60,
+      const ex = (h(i, 12) - 0.5) * 90, ey = (h(i, 13) - 0.5) * 60;
+      eye.position.set(ex, ey,
         -(rep * EYES_CHUNK_LENGTH + (i / N) * EYES_CHUNK_LENGTH + h(i, 14) * 8));
       eye.userData.blinkPhase = h(i, 15) * Math.PI * 2;
       eye.userData.blinkSpeed = 0.7 + h(i, 16) * 0.8;
       eye.userData.doubleWink = h(i, 17) < 0.35; // these sometimes wink twice, fast
       eye.userData.size = size;
+      // base position + outward direction, used in animate() to gently
+      // shove an eye away from the camera's path as it nears it
+      eye.userData.baseX = ex;
+      eye.userData.baseY = ey;
+      const outLen = Math.hypot(ex, ey) || 1;
+      eye.userData.outX = ex / outLen;
+      eye.userData.outY = ey / outLen;
       eye.userData.scl = scl;
       eye.userData.iris = iris;
       eyesList.push(eye);
       eyesGroup.add(eye);
     }
   }
-  // huge circular wireframe tunnel (was a flat ground grid) - the camera
-  // flies straight through its middle, rings + longitudinal lines sized
-  // so the endless z-wrap lands on itself invisibly
-  const wirePos = [];
-  const SPAN = EYES_CHUNK_LENGTH * 3;
-  const TUNNEL_R = 100, TUNNEL_SEGS = 32, RING_STEP = 10;
-  for (let z = 0; z <= SPAN; z += RING_STEP){
-    for (let k = 0; k < TUNNEL_SEGS; k++){
-      const a0 = (k / TUNNEL_SEGS) * Math.PI * 2, a1 = ((k + 1) / TUNNEL_SEGS) * Math.PI * 2;
-      wirePos.push(Math.cos(a0) * TUNNEL_R, Math.sin(a0) * TUNNEL_R, 30 - z,
-        Math.cos(a1) * TUNNEL_R, Math.sin(a1) * TUNNEL_R, 30 - z);
+}
+// a reflective ground (was a wireframe tunnel) - the eyes mirror in it,
+// same technique as ROADS/DOMINO's floor reflections
+const EYES_FLOOR_Y = -38;
+const eyesFloorMat = new THREE.MeshPhongMaterial({ color: 0x102040, specular: 0xffffff, shininess: 100,
+  transparent: true, opacity: 0.6, side: THREE.DoubleSide });
+const eyesFloor = new THREE.Mesh(new THREE.PlaneGeometry(300, EYES_CHUNK_LENGTH * 3.5), eyesFloorMat);
+eyesFloor.rotation.x = -Math.PI / 2;
+eyesFloor.position.set(0, EYES_FLOOR_Y, -EYES_CHUNK_LENGTH);
+eyesGroup.add(eyesFloor);
+eyesGroup.visible = false;
+// the mirror clone: same eye field flipped under the floor - kept as its
+// own top-level group (not nested in eyesGroup) so its scale.y=-1 flip
+// doesn't also mirror eyesGroup's own scroll transform
+const eyesMirrorGroup = eyesGroup.clone(true);
+eyesMirrorGroup.traverse(obj => { if (obj.isMesh && obj.material === eyesFloorMat) obj.visible = false; });
+eyesMirrorGroup.position.y = EYES_FLOOR_Y * 2;
+eyesMirrorGroup.scale.y = -1;
+eyesMirrorGroup.visible = false;
+scene.add(eyesMirrorGroup);
+// little cubes in the eyes' own iris colors, flying through a little
+// faster than the eyes themselves
+const EYES_CUBE_SPEED_MULT = 1.4;
+const eyesCubeMats = [];
+const eyesCubesGroup = new THREE.Group();
+{
+  const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+  for (let i = 0; i < 5; i++) eyesCubeMats.push(new THREE.MeshPhongMaterial({ specular: 0xffffff, shininess: 70 }));
+  const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
+  const NC = 40;
+  for (let rep = -1; rep <= 1; rep++){
+    for (let i = 0; i < NC; i++){
+      const cube = new THREE.Mesh(cubeGeo, eyesCubeMats[i % eyesCubeMats.length]);
+      const r = 1.2 + h(i, 80) * 2.2;
+      cube.scale.setScalar(r);
+      cube.position.set((h(i, 81) - 0.5) * 100, (h(i, 82) - 0.5) * 70,
+        -(rep * EYES_CHUNK_LENGTH + (i / NC) * EYES_CHUNK_LENGTH + h(i, 83) * 8));
+      eyesCubesGroup.add(cube);
     }
   }
-  for (let k = 0; k < TUNNEL_SEGS; k++){
-    const a = (k / TUNNEL_SEGS) * Math.PI * 2;
-    wirePos.push(Math.cos(a) * TUNNEL_R, Math.sin(a) * TUNNEL_R, 30,
-      Math.cos(a) * TUNNEL_R, Math.sin(a) * TUNNEL_R, 30 - SPAN);
-  }
-  const wireGeo = new THREE.BufferGeometry();
-  wireGeo.setAttribute("position", new THREE.Float32BufferAttribute(wirePos, 3));
-  eyesGroup.add(new THREE.LineSegments(wireGeo, eyesWireMat));
 }
-eyesGroup.visible = false;
+eyesCubesGroup.visible = false;
+scene.add(eyesCubesGroup);
 scene.add(eyesGroup);
 const eyesBgColor = new THREE.Color(0x102040);
 const eyesFog = new THREE.FogExp2(0x102040, 0.008);
@@ -4496,7 +4523,9 @@ function eyesRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
   // irises: half in the artist's color, the rest in the other artists'
   eyesIrisMats.forEach((m, i) => m.color.copy(i % 2 === 0 ? dominant : others[i % others.length]));
-  eyesWireMat.color.copy(dominant.clone().lerp(new THREE.Color(0xffffff), 0.55));
+  // little flying cubes: same palette split as the irises
+  eyesCubeMats.forEach((m, i) => m.color.copy(i % 2 === 0 ? dominant : others[i % others.length]));
+  eyesFloorMat.color.copy(dominant.clone().multiplyScalar(0.5));
   eyesBgColor.copy(dominant.clone().multiplyScalar(0.55));
   eyesFog.color.copy(eyesBgColor);
 }
@@ -4745,6 +4774,8 @@ function updateArtistBackground(tr){
   dominoDirLight.visible = wantDomino;
   dominoAmbient.visible = wantDomino;
   eyesGroup.visible = wantEyes;
+  eyesMirrorGroup.visible = wantEyes;
+  eyesCubesGroup.visible = wantEyes;
   handsGroup.visible = wantHands;
   document.body.classList.toggle("scene-hands", wantHands);
   const wantSphere = !gateActive && !want3d;
@@ -5730,7 +5761,20 @@ function animate(t){
       const ease = 1 - Math.pow(1 - p, 3); // fast out, settles smoothly
       u.iris.position.x = u.irisFromX + (u.irisToX - u.irisFromX) * ease;
       u.iris.position.y = u.irisFromY + (u.irisToY - u.irisFromY) * ease;
+      // as an eye nears the camera's own z position: shove it outward off
+      // the camera's path (so it never sits right on top of the lens) and
+      // bend it a little to face the camera, like it's turning to look at
+      // you as you pass
+      const worldZ = e.position.z + eyesGroup.position.z;
+      const dz = worldZ - camera.position.z;
+      const near = Math.max(0, 1 - Math.abs(dz) / 22);
+      e.position.x = u.baseX + u.outX * near * 9;
+      e.position.y = u.baseY + u.outY * near * 9;
+      const lookYaw = Math.atan2(camera.position.x - e.position.x, camera.position.z - worldZ);
+      e.rotation.y = lookYaw * near * 0.5;
     });
+    eyesMirrorGroup.position.z = eyesGroup.position.z;
+    eyesCubesGroup.position.z = wrapScroll(flightDist * EYES_SPEED * EYES_CUBE_SPEED_MULT, EYES_CHUNK_LENGTH);
     camera.position.x = Math.sin(swayT * 0.017) * 6;
     camera.position.y = Math.sin(swayT * 0.013 + 1) * 4;
     camera.rotation.x = Math.sin(swayT * 0.01 + 2) * 0.05;
