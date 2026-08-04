@@ -1784,6 +1784,37 @@ function rebuildPanoMesh(){
   panoMirrorMesh.position.y = SPHERE_FLOOR_Y * 2;
   panoMirrorMesh.visible = panoMesh.visible;
   scene.add(panoMirrorMesh);
+  // vertical gradient tint baked as vertex colors on the shared geometry -
+  // only panoMirrorMat has vertexColors on, so panoMesh (the real video)
+  // is unaffected. Blue-ish near the horizon (top of the reflection),
+  // fading down into black - the mirror flip (scale.y=-1) means the
+  // geometry's own LOCAL bottom ends up nearest the horizon, so that's
+  // the end that gets the blue
+  {
+    const pos = panoMesh.geometry.attributes.position;
+    let minY = Infinity, maxY = -Infinity;
+    for (let i = 0; i < pos.count; i++){
+      const y = pos.getY(i);
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    const spanY = Math.max(1e-6, maxY - minY);
+    const blue = new THREE.Color(0x2a5a8a), black = new THREE.Color(0x000000);
+    const colors = new Float32Array(pos.count * 3);
+    const c = new THREE.Color();
+    for (let i = 0; i < pos.count; i++){
+      const t = (pos.getY(i) - minY) / spanY; // 0 = local bottom (near horizon), 1 = local top (deep)
+      c.copy(blue).lerp(black, t);
+      colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
+    }
+    panoMesh.geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  }
+  panoMirrorMat.vertexColors = true;
+  // opacity split the difference of the requested 25% (near horizon) to
+  // 45% (deep) range - vertexColors can't vary alpha per-vertex on a
+  // plain MeshBasicMaterial, so the darkening itself (toward black)
+  // carries most of the fade
+  panoMirrorMat.opacity = 0.35;
 }
 
 /* ---------- intro-only rock tunnel: replaces the sphere while the gate is
