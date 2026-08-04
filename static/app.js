@@ -2539,8 +2539,9 @@ const mistOrbitPoints = []; // Points objects whose circles orbit their flock's 
         bucket.r.push(Math.hypot(dx, dz));
         bucket.phase.push(Math.atan2(dz, dx));
         // slow, and varied per circle - different circles in the same
-        // flock drift around the center at different (still slow) speeds
-        bucket.speed.push(0.025 + h(fi * 41 + bi, 17) * 0.05);
+        // flock drift around the center at different (still slow) speeds -
+        // 3x slower again per request
+        bucket.speed.push((0.025 + h(fi * 41 + bi, 17) * 0.05) / 3);
         const c = flockPalette[(fi + bi) % flockPalette.length];
         bucket.colors.push(c.r, c.g, c.b);
       }
@@ -2612,6 +2613,7 @@ const DT_BASE_COLORS = [0x6e4420, 0x8a5a2c, 0x9c6428, 0x4a2f18, 0x7a3c1e, 0x5c3a
 // (dtEdgeMat, tinted with the artist color on activation)
 const dtMats = DT_BASE_COLORS.map(color => new THREE.MeshPhongMaterial({ color: color.clone(), specular: 0x2a1c10, shininess: 8 }));
 const dtEdgeMat = new THREE.LineBasicMaterial({ color: 0xd8b088, transparent: true, opacity: 0.55 });
+const dtEdgeBaseColor = new THREE.Color(0xd8b088); // the edges' own tint, before the music-reactive white flash lerps over it
 const dtReactiveSlabs = []; // slabs that light up with the music (see animate())
 const dtBobSlabs = [];      // every box, corridor and outer - all bob up/down in animate()
 const dtLineMats = [];      // every box's vertical-line material - lit by the music
@@ -2748,8 +2750,11 @@ function applyDowntownTint(artistColor){
     slab.material.emissive.copy(dtTintColor).multiplyScalar(0.5);
     slab.material.emissiveIntensity = 0;
   });
-  // the box wireframe outlines follow the artist color too, brightened
-  dtEdgeMat.color.copy(dtTintColor).lerp(new THREE.Color(0xffffff), 0.45);
+  // the box wireframe outlines follow the artist color too, brightened -
+  // base color stashed so the music-reactive white flash (see animate())
+  // has something to lerp from instead of drifting further white each beat
+  dtEdgeBaseColor.copy(dtTintColor).lerp(new THREE.Color(0xffffff), 0.45);
+  dtEdgeMat.color.copy(dtEdgeBaseColor);
 }
 downtownGroup.visible = false;
 scene.add(downtownGroup);
@@ -5478,6 +5483,8 @@ function animate(t){
     downtownGroup.position.z = wrapScroll(flightDist * DT_SPEED, DT_CHUNK_LENGTH);
     // the starfield streams past at 3x the blocks' speed
     dtStars.position.z = wrapScroll(flightDist * DT_SPEED * 3, DT_CHUNK_LENGTH);
+    // the block edge lines flash toward white with the music's intensity
+    dtEdgeMat.color.copy(dtEdgeBaseColor).lerp(new THREE.Color(0xffffff), panoUniforms.uIntensity.value);
     camera.position.x = Math.sin(swayT * 0.05) * 24 + Math.sin(swayT * 0.021 + 3) * 10;
     camera.position.y = Math.sin(swayT * 0.042 + 1) * 18 + Math.sin(swayT * 0.017) * 8;
     camera.rotation.x = Math.sin(swayT * 0.036 + 2) * 0.16;
@@ -6262,7 +6269,8 @@ if (logo3dEl){
     const capArtistColors = [...new Set(TRACKS.map(t => t.artistColor).filter(Boolean))].map(c => new THREE.Color(c));
     const capColors = capArtistColors.length ? capArtistColors : [new THREE.Color(0x7CFF9E)];
     const capColor = capColors.reduce((acc, c) => acc.add(c), new THREE.Color(0, 0, 0))
-      .multiplyScalar(1 / capColors.length).multiplyScalar(0.9).offsetHSL(0, 0, 0.15); // much brighter (was 0.1 - a near-black tint)
+      .multiplyScalar(1 / capColors.length).multiplyScalar(0.9).offsetHSL(0, 0, 0.15) // bright base
+      .multiplyScalar(0.5).offsetHSL(0, 0.2, 0); // 50% darker + more intense (saturated)
     const blackSrc = renderLogoFace("#" + capColor.getHexString(), "#ffffff", true); // front/back: fixed, never animated - bright + a glossy specular sheen
     const sideSrc = renderLogoFace("#ffffff"); // sides: start white, then cycle
     for (let i = LOGO3D_DEPTH; i >= 0; i--){
