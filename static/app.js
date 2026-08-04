@@ -6124,7 +6124,7 @@ const logo3dEl = $("#gate-logo3d");
 // fillColor now parameterized - the intro logo cycles through it (see
 // startLogoColorCycle below), so every face gets re-rendered with a new
 // fill on each color step instead of a fixed black
-function renderLogoFace(fillColor, strokeColor){
+function renderLogoFace(fillColor, strokeColor, specular){
   const W = 1200, H = 450;
   const canvas = document.createElement("canvas");
   canvas.width = W; canvas.height = H;
@@ -6145,6 +6145,21 @@ function renderLogoFace(fillColor, strokeColor){
   ctx.strokeStyle = strokeColor || fillColor; // 1px hairline outline (3px @1200 ≈ 1px on screen)
   ctx.lineWidth = 3;
   ctx.strokeText("AQAI", cx, cy);
+  if (specular){
+    // a bright diagonal glossy sheen, painted only over the already-lit
+    // text pixels (source-atop) so it reads as a specular highlight
+    // instead of a flat overlay outside the letterforms
+    ctx.globalCompositeOperation = "source-atop";
+    const grad = ctx.createLinearGradient(0, H * 0.15, W * 0.6, H * 0.85);
+    grad.addColorStop(0, "rgba(255,255,255,0)");
+    grad.addColorStop(0.42, "rgba(255,255,255,0)");
+    grad.addColorStop(0.5, "rgba(255,255,255,0.95)");
+    grad.addColorStop(0.58, "rgba(255,255,255,0)");
+    grad.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = "source-over";
+  }
   return canvas.toDataURL("image/png");
 }
 // only the extruded SIDE layers (the depth between front and back) fade
@@ -6158,8 +6173,8 @@ if (logo3dEl){
     const capArtistColors = [...new Set(TRACKS.map(t => t.artistColor).filter(Boolean))].map(c => new THREE.Color(c));
     const capColors = capArtistColors.length ? capArtistColors : [new THREE.Color(0x7CFF9E)];
     const capColor = capColors.reduce((acc, c) => acc.add(c), new THREE.Color(0, 0, 0))
-      .multiplyScalar(1 / capColors.length).multiplyScalar(0.1);
-    const blackSrc = renderLogoFace("#" + capColor.getHexString(), "#ffffff"); // front/back: fixed, never animated - keeps its white rim
+      .multiplyScalar(1 / capColors.length).multiplyScalar(0.9).offsetHSL(0, 0, 0.15); // much brighter (was 0.1 - a near-black tint)
+    const blackSrc = renderLogoFace("#" + capColor.getHexString(), "#ffffff", true); // front/back: fixed, never animated - bright + a glossy specular sheen
     const sideSrc = renderLogoFace("#ffffff"); // sides: start white, then cycle
     for (let i = LOGO3D_DEPTH; i >= 0; i--){
       const isEndCap = i === 0 || i === LOGO3D_DEPTH;
