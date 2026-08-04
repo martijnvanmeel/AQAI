@@ -4300,7 +4300,12 @@ function dominoPathX(z){
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
   // yaw group (pivot at the ground, faces along the run) wrapping a tip
   // hinge (the animated topple) wrapping the stone itself
-  const addStone = (rep, x, z, yaw, stagger, mi, sizeScale, nextGap) => {
+  // every stone now topples all the way down (flat is size-independent -
+  // 90 degrees is 90 degrees whatever the stone's height), so what makes
+  // the fall actually LOOK like a chain reaction is purely the spacing:
+  // see TOUCH_RATIO below
+  const DOMINO_MAX_TOPPLE = Math.PI / 2 * 0.98;
+  const addStone = (rep, x, z, yaw, stagger, mi, sizeScale) => {
     // palette rule: half the stones near-black like the reference, half
     // in dark variants of the other artists' colors
     const useAlt = h(mi, 7) < 0.5;
@@ -4317,27 +4322,23 @@ function dominoPathX(z){
     pv.add(tip);
     pv.userData.stagger = stagger;
     pv.userData.tip = tip;
-    // the real collision fix: a stone only topples far enough for its own
-    // tip to just reach the next stone's actual position (nextGap away,
-    // itself sized from both stones' real heights below), never past it
-    pv.userData.maxTopple = Math.asin(Math.min(0.97, nextGap / (HEX_H * sizeScale)));
+    pv.userData.maxTopple = DOMINO_MAX_TOPPLE;
     dominoPivots.push(pv);
     dominoGroup.add(pv);
   };
-  // realistic spacing: the gap to the next stone is proportional to both
-  // neighbours' own heights (not a fixed distance) - the classic ~80% of
-  // a stone's height ratio real dominoes use, so a stone's fallen tip
-  // just reaches the next one by construction, whatever size either is.
-  // A fixed STEP couldn't do this: a small stone spaced for a big
-  // neighbour reads as "too much gap" yet still gets forced to topple
-  // all the way down to register a hit, which is exactly the bug
-  const GAP_RATIO = 0.78;
+  // realistic spacing: the gap to the next stone is sized from the
+  // FALLING stone's own height (not a fixed distance), so when it topples
+  // all the way flat its tip lands right at - and visibly touches - the
+  // next stone, whatever size either one is. A fixed STEP couldn't do
+  // this: taller stones left a visible gap they never actually reached,
+  // shorter ones overshot into the next slot
+  const TOUCH_RATIO = 0.92;
   const STEP_AVG = 4.6; // only used to size the repeat count below
   const N = Math.ceil(DOMINO_CHUNK_LENGTH / STEP_AVG);
   const sizes = [];
   for (let i = 0; i <= N; i++) sizes.push(0.85 + h(i, 71) * 0.35);
   const gaps = [];
-  for (let i = 0; i < N; i++) gaps.push((sizes[i] + sizes[i + 1]) * 0.5 * HEX_H * GAP_RATIO);
+  for (let i = 0; i < N; i++) gaps.push(sizes[i] * HEX_H * TOUCH_RATIO);
   for (let rep = -1; rep <= 1; rep++){
     let z = 0;
     for (let i = 0; i < N; i++){
@@ -4349,7 +4350,7 @@ function dominoPathX(z){
       // two neighbours' fall order (that inversion was why a later stone
       // could topple before the one ahead of it and appear to fall
       // straight through it)
-      addStone(rep, x, z, yaw, (h(i, 8) - 0.5) * 0.6, i, sizes[i], gap);
+      addStone(rep, x, z, yaw, (h(i, 8) - 0.5) * 0.6, i, sizes[i]);
       z += gap;
     }
   }
@@ -4452,7 +4453,7 @@ const eyesWireMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: 
   for (let i = 0; i < 5; i++) eyesIrisMats.push(new THREE.MeshBasicMaterial({ map: texI, transparent: true, depthWrite: false }));
   const sclMat = new THREE.MeshBasicMaterial({ map: texS, transparent: true, depthWrite: false });
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
-  const N = 14;
+  const N = 26; // was 14 - a noticeably denser field of eyes
   for (let rep = -1; rep <= 1; rep++){
     for (let i = 0; i < N; i++){
       const eye = new THREE.Group();
@@ -4475,12 +4476,24 @@ const eyesWireMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: 
       eyesGroup.add(eye);
     }
   }
-  // wire-grid ground: line spacing divides the chunk length so the
-  // endless wrap lands on itself invisibly
+  // huge circular wireframe tunnel (was a flat ground grid) - the camera
+  // flies straight through its middle, rings + longitudinal lines sized
+  // so the endless z-wrap lands on itself invisibly
   const wirePos = [];
   const SPAN = EYES_CHUNK_LENGTH * 3;
-  for (let x = -110; x <= 110; x += 10) wirePos.push(x, -32, 30, x, -32, 30 - SPAN);
-  for (let z = 0; z <= SPAN; z += 10) wirePos.push(-110, -32, 30 - z, 110, -32, 30 - z);
+  const TUNNEL_R = 100, TUNNEL_SEGS = 32, RING_STEP = 10;
+  for (let z = 0; z <= SPAN; z += RING_STEP){
+    for (let k = 0; k < TUNNEL_SEGS; k++){
+      const a0 = (k / TUNNEL_SEGS) * Math.PI * 2, a1 = ((k + 1) / TUNNEL_SEGS) * Math.PI * 2;
+      wirePos.push(Math.cos(a0) * TUNNEL_R, Math.sin(a0) * TUNNEL_R, 30 - z,
+        Math.cos(a1) * TUNNEL_R, Math.sin(a1) * TUNNEL_R, 30 - z);
+    }
+  }
+  for (let k = 0; k < TUNNEL_SEGS; k++){
+    const a = (k / TUNNEL_SEGS) * Math.PI * 2;
+    wirePos.push(Math.cos(a) * TUNNEL_R, Math.sin(a) * TUNNEL_R, 30,
+      Math.cos(a) * TUNNEL_R, Math.sin(a) * TUNNEL_R, 30 - SPAN);
+  }
   const wireGeo = new THREE.BufferGeometry();
   wireGeo.setAttribute("position", new THREE.Float32BufferAttribute(wirePos, 3));
   eyesGroup.add(new THREE.LineSegments(wireGeo, eyesWireMat));
@@ -4533,10 +4546,18 @@ const handsVideoMat = new THREE.MeshBasicMaterial({ map: handsVideoTex, side: TH
         if (h(si * 7 + k, 40) < 0.16) continue;
         const a = (k / SIDES) * Math.PI * 2 + rot;
         const mesh = new THREE.Mesh(sphereGeo, handsVideoMat);
-        mesh.position.set(Math.cos(a) * RING_R, Math.sin(a) * RING_R * 0.72, z);
+        const bx = Math.cos(a) * RING_R, by = Math.sin(a) * RING_R * 0.72;
+        mesh.position.set(bx, by, z);
         // each sphere spins slowly around its own random axis
         mesh.userData.spinAxis = new THREE.Vector3(h(si * 13 + k, 41) - 0.5, h(si * 17 + k, 42) - 0.5, h(si * 19 + k, 43) - 0.5).normalize();
         mesh.userData.spinRate = 0.15 + h(si * 23 + k, 44) * 0.25;
+        // base ring position + outward direction, used in animate() to
+        // gently shove a sphere off the tunnel wall as the camera nears it
+        mesh.userData.baseX = bx;
+        mesh.userData.baseY = by;
+        const outLen = Math.hypot(bx, by) || 1;
+        mesh.userData.outX = bx / outLen;
+        mesh.userData.outY = by / outLen;
         handsList.push(mesh);
         handsGroup.add(mesh);
       }
@@ -5711,8 +5732,19 @@ function animate(t){
     // wander side to side and a gentle look-around so it never feels like
     // a rigid rail
     handsGroup.position.z = wrapScroll(flightDist * HANDS_SPEED, HANDS_CHUNK_LENGTH);
-    // each sphere spins slowly on its own axis
-    handsList.forEach(m => m.rotateOnAxis(m.userData.spinAxis, m.userData.spinRate * dtSec));
+    // each sphere spins slowly on its own axis, and gently shoves itself
+    // outward off the tunnel wall as the camera gets close, instead of
+    // sitting still and getting flown straight through
+    const HANDS_AVOID_RADIUS = 30, HANDS_AVOID_PUSH = 7;
+    handsList.forEach(m => {
+      m.rotateOnAxis(m.userData.spinAxis, m.userData.spinRate * dtSec);
+      const worldZ = m.position.z + handsGroup.position.z;
+      const d = Math.abs(worldZ - camera.position.z);
+      const t = Math.max(0, 1 - d / HANDS_AVOID_RADIUS);
+      const push = t * t * HANDS_AVOID_PUSH;
+      m.position.x = m.userData.baseX + m.userData.outX * push;
+      m.position.y = m.userData.baseY + m.userData.outY * push;
+    });
     // the star field flies past noticeably quicker than the tunnel itself -
     // its own faster scroll, layered on top of (and cancelling out) the
     // group's own slower scroll since it's a child of handsGroup
