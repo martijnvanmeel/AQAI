@@ -4482,11 +4482,13 @@ function roundedRectShape(w, hh, r){
   const FRAME_STEP = 27; // 3x the old spacing between layers
   for (let rep = -1; rep <= 2; rep++){
     for (let i = 0; i < PORTAL_CHUNK_LENGTH / FRAME_STEP; i++){
-      // softer, more diffuse sheen - dimmer specular color and lower
-      // shininess spread the highlight out instead of punching a hard
-      // bright hotspot across the big flat panel areas
-      const mat = new THREE.MeshPhongMaterial({ specular: 0x444444, shininess: 18 });
-      const mesh = new THREE.Mesh(portalGeo, mat);
+      // two materials, using ExtrudeGeometry's built-in face-group
+      // convention (index 0 = front/back caps, index 1 = the extruded
+      // side walls/bevel): the big flat cap areas stay diffuse, while the
+      // edges go back to the original hard, high specular sheen
+      const capMat = new THREE.MeshPhongMaterial({ specular: 0x444444, shininess: 18 });
+      const edgeMat = new THREE.MeshPhongMaterial({ specular: 0xffffff, shininess: 60 });
+      const mesh = new THREE.Mesh(portalGeo, [capMat, edgeMat]);
       mesh.position.z = -(rep * PORTAL_CHUNK_LENGTH + i * FRAME_STEP);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
@@ -4516,7 +4518,11 @@ function portalRetint(tr){
     others[1 % others.length], dominant,
     others[2 % others.length], others[3 % others.length],
   ];
-  portalFrames.forEach(m => m.material.color.copy(cols[m.userData.ci % cols.length]));
+  portalFrames.forEach(m => {
+    const c = cols[m.userData.ci % cols.length];
+    m.material[0].color.copy(c);
+    m.material[1].color.copy(c);
+  });
   // the far distance now fades to a dark version of the artist color
   // instead of a flat near-black
   portalFog.color.copy(dominant).multiplyScalar(0.18);
