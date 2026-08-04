@@ -3137,7 +3137,7 @@ tilesGroup.visible = false;
 scene.add(tilesGroup);
 // black-tinted haze: the corridor's far end reads ~30% darker than the
 // area around the camera
-const tilesFog = new THREE.FogExp2(0x000000, 0.0045);
+const tilesFog = new THREE.FogExp2(0x000000, 0.0075); // denser - objects fade into the background sooner
 // the geometric motif sheet (from the Bauhaus-poster reference): quarter
 // and half circles, donuts, dot + ring grids, clovers, arches, pac-men,
 // wings, petals, bowties, fans, domes, rainbows, leaves... shared by the
