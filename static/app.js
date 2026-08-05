@@ -4918,28 +4918,50 @@ function handsRetint(tr){
   if (handsVideoEl.paused) handsVideoEl.play().catch(() => {});
 }
 
-/* ---------- Scene "CITY": a flythrough down a winding street between
-   tall photo-textured towers, styled like TILES - same op-art photo
-   walls + specular sheen + a light that travels with the camera, same
-   winding lerp-follow flythrough camera. First of the four new
-   TILES-styled scenes. ---------- */
+/* ---------- Scene "CITY": an aerial flythrough that climbs above the
+   rooftops then dives down to weave between tall black towers, styled
+   like TILES - specular sheen + a light that travels with the camera.
+   First of the four new TILES-styled scenes. ---------- */
 const CITY_CHUNK_LENGTH = 200, CITY_REPEATS = 3, CITY_SPEED = 9;
-const CITY_HALF_W = 18; // half-width of the open street the camera flies down
+const CITY_HALF_W = 18; // half-width of the open street the towers line
 const cityGroup = new THREE.Group();
-const cityMats = [];
 const cityEdgeMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
 const cityEdgeBaseColor = new THREE.Color(0xffffff);
 function cityPathX(z){
   const a = (z / CITY_CHUNK_LENGTH) * Math.PI * 2;
   return Math.sin(a) * 20 + Math.sin(a * 2 + 1) * 8;
 }
+// altitude profile: high above the rooftops, down low enough to weave
+// between the towers, and back up - one full climb-and-dive per chunk
+function cityPathY(z){
+  const a = (z / CITY_CHUNK_LENGTH) * Math.PI * 2;
+  return 100 + Math.sin(a * 2) * 70;
+}
 {
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
   const boxGeo = new THREE.BoxGeometry(1, 1, 1);
   const edgeGeo = new THREE.EdgesGeometry(boxGeo);
+  // windows: a small tiled canvas texture (black facade, a scatter of
+  // lit and dark window cells) - cloned per tower with its own repeat
+  // so window size reads consistently regardless of that tower's own
+  // width/height
+  const winCv = document.createElement("canvas");
+  winCv.width = winCv.height = 32;
+  const winCx = winCv.getContext("2d");
+  winCx.fillStyle = "#050505";
+  winCx.fillRect(0, 0, 32, 32);
+  for (let wy = 0; wy < 4; wy++){
+    for (let wx = 0; wx < 4; wx++){
+      const lit = h(wx + 1, wy + 9) < 0.55;
+      winCx.fillStyle = lit ? `rgba(255,222,150,${0.35 + h(wx + 9, wy + 1) * 0.5})` : "rgba(255,255,255,0.05)";
+      winCx.fillRect(wx * 8 + 1, wy * 8 + 1, 5, 5);
+    }
+  }
+  const cityWinTex = new THREE.CanvasTexture(winCv);
+  cityWinTex.wrapS = cityWinTex.wrapT = THREE.RepeatWrapping;
+  // dark, near-black roof/underside cap - no windows, just a plain facet
+  const cityRoofMat = new THREE.MeshPhongMaterial({ color: 0x030303, specular: 0x222222, shininess: 20 });
   const TOWERS_PER_SIDE = 11;
-  for (let i = 0; i < TOWERS_PER_SIDE * 2; i++) cityMats.push(new THREE.MeshPhongMaterial({
-    map: tileImageTextures[i % tileImageTextures.length], specular: 0xffffff, shininess: 70 }));
   for (let rep = 0; rep < CITY_REPEATS; rep++){
     for (let side = 0; side < 2; side++){
       for (let i = 0; i < TOWERS_PER_SIDE; i++){
@@ -4951,14 +4973,26 @@ function cityPathX(z){
         const setback = h(k, 5) * 40;
         const streetX = cityPathX(z);
         const x = streetX + (side === 0 ? -1 : 1) * (CITY_HALF_W + w / 2 + setback);
-        const mat = cityMats[k % cityMats.length];
-        const tower = new THREE.Mesh(boxGeo, mat);
+        // black facade, its own window texture instance so the repeat
+        // (and so window size) can be tuned to this tower's own size
+        const tex = cityWinTex.clone();
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(Math.max(1, Math.round(w / 4)), Math.max(1, Math.round(height / 8)));
+        const winMat = new THREE.MeshPhongMaterial({ color: 0x0a0a0a, map: tex, specular: 0x333333, shininess: 25 });
+        const tower = new THREE.Mesh(boxGeo, [winMat, winMat, cityRoofMat, cityRoofMat, winMat, winMat]);
         tower.scale.set(w, height, d);
         tower.position.set(x, height / 2, z);
         tower.castShadow = true;
         tower.receiveShadow = true;
         tower.add(new THREE.LineSegments(edgeGeo, cityEdgeMat));
         cityGroup.add(tower);
+        // a small rooftop structure - mechanical unit/antenna base, for
+        // architectural silhouette variety
+        const roofCap = new THREE.Mesh(boxGeo, cityRoofMat);
+        const capH = 2 + h(k, 44) * 4;
+        roofCap.scale.set(w * (0.3 + h(k, 45) * 0.3), capH, d * (0.3 + h(k, 46) * 0.3));
+        roofCap.position.set(x, height + capH / 2, z);
+        cityGroup.add(roofCap);
       }
     }
   }
@@ -5159,7 +5193,7 @@ function updateArtistBackground(tr){
   // same lerp-follow camera snap as TILES/RINGS/NATURE
   if (wantCity && !cityGroup.visible){
     cityCamX = cityPathX(flightDist * CITY_SPEED - 8);
-    cityCamY = 6;
+    cityCamY = cityPathY(flightDist * CITY_SPEED - 8);
     cityCamYaw = 0; cityCamPitch = 0; cityCamBank = 0;
   }
   cityGroup.visible = wantCity;
@@ -6254,18 +6288,26 @@ function animate(t){
     camera.rotation.y = Math.sin(swayT * 0.012) * 0.075;
     camera.rotation.z = Math.sin(swayT * 0.008 + 3) * 0.0875 + cameraRollOffset;
   } else if (cityGroup.visible){
-    // winding street flythrough between the towers - same lerp-follow
-    // banking camera as TILES, just following the street's horizontal
-    // wind only (cityPathX) at a fixed low altitude
+    // aerial flythrough: climbs high above the rooftops (cityPathY) then
+    // dives down to weave between the towers and back up, banking through
+    // the turns - same lerp-follow camera pattern as TILES, now driven by
+    // both the horizontal street curve AND a vertical altitude profile,
+    // plus an extra side-to-side weave layered on top so it visibly
+    // maneuvers between buildings rather than just floating straight down
     const scroll = flightDist * CITY_SPEED;
     cityGroup.position.z = wrapScroll(scroll, CITY_CHUNK_LENGTH);
-    const hereX = cityPathX(scroll - 8);
-    const aheadX = cityPathX(scroll - 8 + 18);
+    const weaveAmp = 14;
+    const hereX = cityPathX(scroll - 8) + Math.sin((scroll - 8) * 0.04) * weaveAmp;
+    const aheadX = cityPathX(scroll - 8 + 18) + Math.sin((scroll - 8 + 18) * 0.04) * weaveAmp;
+    const hereY = cityPathY(scroll - 8);
+    const aheadY = cityPathY(scroll - 8 + 18);
     const follow = 0.02;
     cityCamX += (hereX + Math.sin(swayT * 0.03) * 0.7 - cityCamX) * follow;
-    cityCamY += (6 + Math.sin(swayT * 0.02 + 1) * 0.8 - cityCamY) * follow;
+    cityCamY += (hereY + Math.sin(swayT * 0.02 + 1) * 0.8 - cityCamY) * follow;
     cityCamYaw += (-Math.atan2(aheadX - hereX, 18) * 0.65 + Math.sin(swayT * 0.012) * 0.1 - cityCamYaw) * follow;
-    cityCamPitch += (0.08 + Math.sin(swayT * 0.017) * 0.03 - cityCamPitch) * follow; // gazes slightly upward, at the towers
+    // pitch follows the climb/dive slope, same technique TILES uses for
+    // its vertical bends - nose down while diving, nose up while climbing
+    cityCamPitch += (Math.atan2(aheadY - hereY, 18) * 0.6 + Math.sin(swayT * 0.017) * 0.03 - cityCamPitch) * follow;
     cityCamBank += (-Math.atan2(aheadX - hereX, 18) * 0.5 - cityCamBank) * follow;
     camera.position.x = cityCamX;
     camera.position.y = cityCamY;
