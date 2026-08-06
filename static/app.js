@@ -1778,10 +1778,14 @@ let panoMesh = null;
 // "reflection" (see rebuildPanoMesh)
 const SPHERE_FLOOR_Y = -8;
 let panoMirrorMesh = null;
-const panoMirrorMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.6 });
+// a touch softer/more diffuse than a sharp mirror copy - dimmer mirror
+// opacity, and the floor itself reads as more matte (lower shininess,
+// more of its own dark color mixed in) so the video showing through it
+// scatters rather than reflecting crisp and glossy
+const panoMirrorMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.5 });
 const sphereFloor = new THREE.Mesh(new THREE.PlaneGeometry(700, 700),
-  new THREE.MeshPhongMaterial({ color: 0x07080d, specular: 0xccddff, shininess: 140,
-    transparent: true, opacity: 0.5, side: THREE.DoubleSide }));
+  new THREE.MeshPhongMaterial({ color: 0x07080d, specular: 0x556677, shininess: 40,
+    transparent: true, opacity: 0.7, side: THREE.DoubleSide }));
 sphereFloor.rotateX(-Math.PI / 2);
 sphereFloor.position.y = SPHERE_FLOOR_Y;
 sphereFloor.visible = false;
