@@ -394,6 +394,9 @@ body.scene-hands #stage{background:linear-gradient(to top,
   display:flex;align-items:center;gap:6px;z-index:2;
 }
 .pano-btns .util-btn svg{width:12.8px;height:12.8px}
+/* background-video navigator: next to the scene navigator, same layout */
+#video-nav{display:flex;align-items:center;gap:5px}
+#video-nav .util-btn svg{width:12.8px;height:12.8px}
 .pano-label{
   font-family:var(--font-title);font-size:11px;letter-spacing:.04em;
   color:var(--fg-soft);min-width:44px;text-align:center;white-space:nowrap;

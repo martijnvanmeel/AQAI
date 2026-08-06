@@ -1778,14 +1778,15 @@ let panoMesh = null;
 // "reflection" (see rebuildPanoMesh)
 const SPHERE_FLOOR_Y = -8;
 let panoMirrorMesh = null;
-// a touch softer/more diffuse than a sharp mirror copy - dimmer mirror
-// opacity, and the floor itself reads as more matte (lower shininess,
-// more of its own dark color mixed in) so the video showing through it
-// scatters rather than reflecting crisp and glossy
-const panoMirrorMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.5 });
+// DoubleSide is required here: the real mesh's geometry is built
+// inside-out (geo.scale(-1,1,1), so its front faces point inward toward
+// the camera at the origin); the mirror additionally flips scale.y,
+// which flips winding a SECOND time and ends up facing the camera with
+// its back face - FrontSide alone would cull it to invisible
+const panoMirrorMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.65, side: THREE.DoubleSide });
 const sphereFloor = new THREE.Mesh(new THREE.PlaneGeometry(700, 700),
   new THREE.MeshPhongMaterial({ color: 0x07080d, specular: 0x556677, shininess: 40,
-    transparent: true, opacity: 0.7, side: THREE.DoubleSide }));
+    transparent: true, opacity: 0.55, side: THREE.DoubleSide }));
 sphereFloor.rotateX(-Math.PI / 2);
 sphereFloor.position.y = SPHERE_FLOOR_Y;
 sphereFloor.visible = false;
@@ -6595,7 +6596,7 @@ const GATE_PASSWORD_FULL = "aqaimusic";
 // hidden entirely in restricted mode; #btn-sphere-control deliberately isn't
 // here - it stays visible in both modes (it's a view control, not editing)
 const OWNER_ONLY_SELECTORS = [
-  "#pano-btns", "#btn-delete", "#btn-edit-title", "#btn-edit-artist",
+  "#pano-btns", "#pano-remove", "#btn-delete", "#btn-edit-title", "#btn-edit-artist",
   "#btn-edit-lyrics", "#btn-relocate-artist", "#lf-edit-btns",
 ];
 // true only when the server confirms this request never crossed the public
