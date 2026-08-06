@@ -3993,9 +3993,10 @@ for (let i = 0; i < 3; i++){
 const prismAmbient = new THREE.AmbientLight(0xffffff, 0.58); // steady, lights-free level
 prismAmbient.visible = false;
 scene.add(prismAmbient);
-// denser than before (was 0.006) - newly-visible slats/glow lines now
-// fade in from transparent instead of appearing at near-full opacity
-const prismFog = new THREE.FogExp2(0x000000, 0.015);
+// denser again (was 0.015, before that 0.006) - newly-visible slats/glow
+// lines fade in from transparent (matching the near-black background)
+// instead of appearing at near-full opacity
+const prismFog = new THREE.FogExp2(0x000000, 0.022);
 function prismRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
   // whole scene pulled 40% down. Half the slots stay pure artist palette,
