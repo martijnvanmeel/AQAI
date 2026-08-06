@@ -3843,10 +3843,12 @@ let prismCamYaw = 0, prismCamPitch = 0, prismCamRoll = 0;
     b.uv.push(0, 0, 1, 0, 1, 1, 0, 1);
     b.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
   };
-  // slats stretch from far out of sight above to far below (SLAT_H 150),
-  // and every slat and every glow rim gets its own random thickness -
-  // rims span roughly 1px hairlines to fat 10px bars on screen
-  const SLAT_H = 150, STEP = 3.4, CURVE_SEGS = 8;
+  // slats stretch from far out of sight above to far below - 3x taller
+  // than before (was 150) so their actual top/bottom ends always stay
+  // well outside the frame, whatever the camera's current tilt - and
+  // every slat and every glow rim gets its own random thickness - rims
+  // span roughly 1px hairlines to fat 10px bars on screen
+  const SLAT_H = 450, STEP = 3.4, CURVE_SEGS = 8;
   const perChunk = Math.floor(PRISM_CHUNK_LENGTH / STEP);
   for (let rep = 0; rep < PRISM_REPEATS; rep++){
     for (let zi = 0; zi < perChunk; zi++){
@@ -3991,7 +3993,9 @@ for (let i = 0; i < 3; i++){
 const prismAmbient = new THREE.AmbientLight(0xffffff, 0.58); // steady, lights-free level
 prismAmbient.visible = false;
 scene.add(prismAmbient);
-const prismFog = new THREE.FogExp2(0x000000, 0.006);
+// denser than before (was 0.006) - newly-visible slats/glow lines now
+// fade in from transparent instead of appearing at near-full opacity
+const prismFog = new THREE.FogExp2(0x000000, 0.015);
 function prismRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
   // whole scene pulled 40% down. Half the slots stay pure artist palette,
