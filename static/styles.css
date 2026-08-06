@@ -294,10 +294,11 @@ body.scene-maze #stage{
 body.scene-eyes #stage{background:radial-gradient(circle at center,
   color-mix(in srgb, var(--artist-color, #7CFF9E) 80%, black) 0%, #101010 100%)}
 /* PRISM: replaces the old 3D background blooms - a moving gradient at
-   15% visible, same drifting-window trick as NATURE/BLOCKS */
+   7.5% visible (50% darker than the original 15%), same drifting-window
+   trick as NATURE/BLOCKS */
 body.scene-prism #stage{
   background-image:linear-gradient(to top,
-    color-mix(in srgb, var(--artist-color, #7CFF9E) 15%, transparent) 0%, transparent 60%);
+    color-mix(in srgb, var(--artist-color, #7CFF9E) 7.5%, transparent) 0%, transparent 60%);
   background-size:100% 200%;
   animation:prismGradientDrift 30s ease-in-out infinite;
 }
