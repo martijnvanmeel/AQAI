@@ -1437,7 +1437,7 @@ scene.add(camera);
 // Also pushed deeper into the tube (z -8 instead of the music screen's 8)
 // so the rock walls fully surround the view; both restored on gate exit.
 camera.position.y = document.body.classList.contains("gate-active") ? -1.1 : 0;
-camera.position.z = document.body.classList.contains("gate-active") ? -8 : 8;
+camera.position.z = document.body.classList.contains("gate-active") ? -8 : 100;
 // tighter intro lens from the very first frame (updateArtistBackground
 // re-derives the per-scene zoom on every track/gate change after this)
 camera.zoom = document.body.classList.contains("gate-active") ? 1.3 : 1;
@@ -6468,7 +6468,13 @@ $("#gate-btn").onclick = () => {
   tunnelGroup.visible = false; // intro-only tunnel hands off to the sphere (or the Polaroid road)
   tunnelLight.visible = false;
   camera.position.y = 0; // undo the tunnel's lowered viewpoint for the sphere's mouse-look
-  camera.position.z = 8; // undo the tunnel's deeper placement too
+  // pulled back further than before (was 8) - still tiny next to the
+  // sphere's own 400-unit radius, so it stays comfortably inside it
+  camera.position.z = 100;
+  // the pano shader's near/far distance range was baked in from wherever
+  // the camera was when the mesh was last built (during the gate) -
+  // recompute now that it just moved, so the falloff still matches
+  if (panoMesh) computePanoDistRange(panoMesh);
   updateArtistBackground(TRACKS[cur]);
   // .home-top/#lyrics/#wave-canvas were all display:none behind the gate,
   // so the very first positionWaveCanvas() (run from the initial resize()
