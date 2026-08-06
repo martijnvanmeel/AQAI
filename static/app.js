@@ -5058,6 +5058,56 @@ function cityRetint(tr){
 }
 let cityCamX = 0, cityCamY = 0, cityCamYaw = 0, cityCamPitch = 0, cityCamBank = 0;
 
+/* ---------- Scene "ORBS": like SPHERE, but instead of one static
+   sphere it's an endless chain of full spheres, each one shifted 15%
+   of its own size to the side of the last, flown forward through them
+   one at a time. Every pair of overlapping spheres carves a natural
+   circular opening where their surfaces intersect - normal depth
+   testing does that for free, no hole geometry needed - and the camera
+   threads dead-center through each in turn. All spheres show the same
+   panorama video the plain SPHERE scene uses. ---------- */
+const SC_R = 55;           // every sphere's radius
+const SC_STEP = 75;        // distance between consecutive sphere centers (< 2*SC_R, so they overlap)
+const SC_OFFSET = SC_R * 0.3; // "15% from the side" - 15% of each sphere's own diameter
+const SC_SPHERES_PER_CHUNK = 6; // even, so the alternating left/right offset wraps seamlessly
+const SC_CHUNK_LENGTH = SC_STEP * SC_SPHERES_PER_CHUNK;
+const SC_REPEATS = 3;
+const SC_SPEED = 6;
+const orbsGroup = new THREE.Group();
+// same shared texture the plain SPHERE scene plays, kept in sync with
+// it in loadPanoFile() (video or gif, whichever is currently loaded) -
+// "same video in all spheres" falls out for free from reusing one material
+const orbsMat = new THREE.MeshBasicMaterial({ map: panoTexture });
+{
+  const geo = new THREE.SphereGeometry(SC_R, 48, 32);
+  geo.scale(-1, 1, 1); // inside-out, same trick as the pano patch - front faces point inward
+  for (let rep = 0; rep < SC_REPEATS; rep++){
+    for (let n = 0; n < SC_SPHERES_PER_CHUNK; n++){
+      const globalN = rep * SC_SPHERES_PER_CHUNK + n;
+      const orb = new THREE.Mesh(geo, orbsMat);
+      orb.position.set(n % 2 === 0 ? -SC_OFFSET : SC_OFFSET, 0, -globalN * SC_STEP);
+      orb.frustumCulled = false;
+      orbsGroup.add(orb);
+    }
+  }
+}
+orbsGroup.visible = false;
+scene.add(orbsGroup);
+// smoothstep-eased path threading dead-center through each sphere in
+// turn - a step function (alternating +/-SC_OFFSET) with the corners
+// rounded off, not a raw sine, so it actually passes through every
+// sphere's own center rather than cutting the corner
+function orbsPathX(dist){
+  const n = dist / SC_STEP;
+  const i0 = Math.floor(n);
+  const t = n - i0;
+  const eased = t * t * (3 - 2 * t);
+  const x0 = i0 % 2 === 0 ? -SC_OFFSET : SC_OFFSET;
+  const x1 = (i0 + 1) % 2 === 0 ? -SC_OFFSET : SC_OFFSET;
+  return x0 + (x1 - x0) * eased;
+}
+let orbsCamX = 0, orbsCamYaw = 0, orbsCamBank = 0;
+
 const SCENE_LIST = [
   { id: "auto",   label: "AUTO" },
   { id: "sphere", label: "SPHERE" },
@@ -5075,6 +5125,7 @@ const SCENE_LIST = [
   { id: "eyes",   label: "EYES" },
   { id: "hands",  label: "HANDS" },
   { id: "city",   label: "CITY" },
+  { id: "orbs",   label: "ORBS" },
 ];
 let sceneOverride = "auto";
 let sceneNavIdx = 0;
@@ -5138,8 +5189,9 @@ function updateArtistBackground(tr){
   const wantEyes = !gateActive && sceneId === "eyes";
   const wantHands = !gateActive && sceneId === "hands";
   const wantCity = !gateActive && sceneId === "city";
+  const wantOrbs = !gateActive && sceneId === "orbs";
   const want3d = wantRoad || wantMist || wantMaze || wantTiles || wantBeams || wantPrism || wantRings || wantCheck
-    || wantCube || wantPortal || wantDomino || wantEyes || wantHands || wantCity;
+    || wantCube || wantPortal || wantDomino || wantEyes || wantHands || wantCity || wantOrbs;
   // same lerp-follow camera snap as the other flythrough scenes
   if (wantRoad && !roadGroup.visible){
     const here0 = roadCenterAt(flightDist * ROAD_SPEED - 8);
@@ -5221,6 +5273,11 @@ function updateArtistBackground(tr){
   cityGroup.visible = wantCity;
   cityDirLight.visible = wantCity;
   cityAmbient.visible = wantCity;
+  if (wantOrbs && !orbsGroup.visible){
+    orbsCamX = orbsPathX(flightDist * SC_SPEED);
+    orbsCamYaw = 0; orbsCamBank = 0;
+  }
+  orbsGroup.visible = wantOrbs;
   const wantSphere = !gateActive && !want3d;
   if (panoMesh) panoMesh.visible = wantSphere;
   if (panoMirrorMesh) panoMirrorMesh.visible = wantSphere;
@@ -5351,6 +5408,11 @@ function updateArtistBackground(tr){
     cityRetint(tr);
     renderer.setClearColor(cityFog.color, 1);
     scene.fog = cityFog;
+  } else if (wantOrbs){
+    // no fog - the camera is always fully enclosed by video-covered
+    // sphere walls, there's no distant emptiness to fade
+    renderer.setClearColor(0x000000, 1);
+    scene.fog = null;
   } else {
     renderer.setClearColor(0x000000, 0);
     scene.fog = null;
@@ -5372,12 +5434,14 @@ function loadPanoFile(file, base = "/panorama2/"){
     currentPanoKind = "gif";
     panoMat.map = panoGifTexture;
     panoMirrorMat.map = panoGifTexture; // floor reflection follows
+    orbsMat.map = panoGifTexture; // ORBS scene follows too
     if (panoGifImg.getAttribute("src") !== src) panoGifImg.src = src;
     else rebuildPanoMesh();
   } else {
     currentPanoKind = "video";
     panoMat.map = panoTexture;
     panoMirrorMat.map = panoTexture; // floor reflection follows
+    orbsMat.map = panoTexture; // ORBS scene follows too
     if (panoVideoEl.getAttribute("src") !== src){
       panoVideoEl.src = src;
       panoVideoEl.play().catch(() => {});
@@ -6339,6 +6403,22 @@ function animate(t){
     // the light travels with the camera, same pattern as TILES/DOMINO
     cityDirLight.position.set(cityCamX + 15, cityCamY + 60, -30);
     cityDirLight.target.position.set(cityCamX, cityCamY, -80);
+  } else if (orbsGroup.visible){
+    // fly forward through the endless sphere chain, threading dead-center
+    // through each one and out through its overlap with the next
+    const scroll = flightDist * SC_SPEED;
+    orbsGroup.position.z = wrapScroll(scroll, SC_CHUNK_LENGTH);
+    const hereX = orbsPathX(scroll - 8);
+    const aheadX = orbsPathX(scroll - 8 + 8);
+    const follow = 0.03;
+    orbsCamX += (hereX - orbsCamX) * follow;
+    orbsCamYaw += (-Math.atan2(aheadX - hereX, 8) * 0.6 - orbsCamYaw) * follow;
+    orbsCamBank += (-Math.atan2(aheadX - hereX, 8) * 0.4 - orbsCamBank) * follow;
+    camera.position.x = orbsCamX;
+    camera.position.y = 0;
+    camera.rotation.x = 0;
+    camera.rotation.y = orbsCamYaw;
+    camera.rotation.z = orbsCamBank + cameraRollOffset;
   } else if (donutGroup.visible){
     // winding tunnel: the camera follows the same bending spine the walls
     // were built along, banking into the curves - exactly the RINGS/TILES
