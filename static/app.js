@@ -4918,12 +4918,13 @@ function handsRetint(tr){
   if (handsVideoEl.paused) handsVideoEl.play().catch(() => {});
 }
 
-/* ---------- Scene "CITY": an aerial flythrough that climbs above the
-   rooftops then dives down to weave between tall black towers, styled
-   like TILES - specular sheen + a light that travels with the camera.
-   First of the four new TILES-styled scenes. ---------- */
-const CITY_CHUNK_LENGTH = 200, CITY_REPEATS = 3, CITY_SPEED = 9;
+/* ---------- Scene "CITY": a slow aerial flythrough that stays high,
+   maneuvering between the tops of tall black towers of varied shapes and
+   sizes, styled like TILES - specular sheen + a light that travels with
+   the camera. First of the four new TILES-styled scenes. ---------- */
+const CITY_CHUNK_LENGTH = 200, CITY_REPEATS = 3, CITY_SPEED = 4;
 const CITY_HALF_W = 18; // half-width of the open street the towers line
+const CITY_MIN_H = 25, CITY_MAX_H = 170; // tower height range
 const cityGroup = new THREE.Group();
 const cityEdgeMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
 const cityEdgeBaseColor = new THREE.Color(0xffffff);
@@ -4931,16 +4932,26 @@ function cityPathX(z){
   const a = (z / CITY_CHUNK_LENGTH) * Math.PI * 2;
   return Math.sin(a) * 20 + Math.sin(a * 2 + 1) * 8;
 }
-// altitude profile: high above the rooftops, down low enough to weave
-// between the towers, and back up - one full climb-and-dive per chunk
+// altitude profile: stays in a band between the tallest tower's own top
+// (CITY_MAX_H) and 3/4 of that height - high enough to never plunge down
+// into the bulk of the towers, low enough to still weave between the
+// tops of the tallest ones. Normalized 0..1 sine so it never dips below
+// the band's floor.
 function cityPathY(z){
   const a = (z / CITY_CHUNK_LENGTH) * Math.PI * 2;
-  return 100 + Math.sin(a * 2) * 70;
+  const bandLow = CITY_MAX_H * 0.75, bandHigh = CITY_MAX_H;
+  return bandLow + (Math.sin(a * 2) * 0.5 + 0.5) * (bandHigh - bandLow);
 }
 {
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
   const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-  const edgeGeo = new THREE.EdgesGeometry(boxGeo);
+  const boxEdgeGeo = new THREE.EdgesGeometry(boxGeo);
+  // two more silhouettes besides the plain box - a round tower and a
+  // hexagonal-prism tower, for real form variety, not just size variety
+  const roundGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 16);
+  const roundEdgeGeo = new THREE.EdgesGeometry(roundGeo);
+  const hexGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 6);
+  const hexEdgeGeo = new THREE.EdgesGeometry(hexGeo);
   // windows: a small tiled canvas texture (black facade, a scatter of
   // lit and dark window cells) - cloned per tower with its own repeat
   // so window size reads consistently regardless of that tower's own
@@ -4961,13 +4972,13 @@ function cityPathY(z){
   cityWinTex.wrapS = cityWinTex.wrapT = THREE.RepeatWrapping;
   // dark, near-black roof/underside cap - no windows, just a plain facet
   const cityRoofMat = new THREE.MeshPhongMaterial({ color: 0x030303, specular: 0x222222, shininess: 20 });
-  const TOWERS_PER_SIDE = 11;
+  const TOWERS_PER_SIDE = 18; // denser city (was 11)
   for (let rep = 0; rep < CITY_REPEATS; rep++){
     for (let side = 0; side < 2; side++){
       for (let i = 0; i < TOWERS_PER_SIDE; i++){
         const k = side * TOWERS_PER_SIDE + i;
         const z = -h(k, 1) * CITY_CHUNK_LENGTH - rep * CITY_CHUNK_LENGTH;
-        const w = 8 + h(k, 2) * 8, d = 8 + h(k, 3) * 8, height = 30 + h(k, 4) * 110;
+        const w = 6 + h(k, 2) * 14, d = 6 + h(k, 3) * 14, height = CITY_MIN_H + h(k, 4) * (CITY_MAX_H - CITY_MIN_H);
         // set back from the street edge by a varying amount, so towers
         // don't all form one flat wall
         const setback = h(k, 5) * 40;
@@ -4979,20 +4990,26 @@ function cityPathY(z){
         tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
         tex.repeat.set(Math.max(1, Math.round(w / 4)), Math.max(1, Math.round(height / 8)));
         const winMat = new THREE.MeshPhongMaterial({ color: 0x0a0a0a, map: tex, specular: 0x333333, shininess: 25 });
-        const tower = new THREE.Mesh(boxGeo, [winMat, winMat, cityRoofMat, cityRoofMat, winMat, winMat]);
+        // three different forms, chosen per tower
+        const formT = h(k, 40);
+        let geo, edgeGeo, mats;
+        if (formT < 0.55){
+          geo = boxGeo; edgeGeo = boxEdgeGeo;
+          mats = [winMat, winMat, cityRoofMat, cityRoofMat, winMat, winMat];
+        } else if (formT < 0.8){
+          geo = roundGeo; edgeGeo = roundEdgeGeo;
+          mats = [winMat, cityRoofMat, cityRoofMat];
+        } else {
+          geo = hexGeo; edgeGeo = hexEdgeGeo;
+          mats = [winMat, cityRoofMat, cityRoofMat];
+        }
+        const tower = new THREE.Mesh(geo, mats);
         tower.scale.set(w, height, d);
         tower.position.set(x, height / 2, z);
         tower.castShadow = true;
         tower.receiveShadow = true;
         tower.add(new THREE.LineSegments(edgeGeo, cityEdgeMat));
         cityGroup.add(tower);
-        // a small rooftop structure - mechanical unit/antenna base, for
-        // architectural silhouette variety
-        const roofCap = new THREE.Mesh(boxGeo, cityRoofMat);
-        const capH = 2 + h(k, 44) * 4;
-        roofCap.scale.set(w * (0.3 + h(k, 45) * 0.3), capH, d * (0.3 + h(k, 46) * 0.3));
-        roofCap.position.set(x, height + capH / 2, z);
-        cityGroup.add(roofCap);
       }
     }
   }
@@ -6296,7 +6313,7 @@ function animate(t){
     // maneuvers between buildings rather than just floating straight down
     const scroll = flightDist * CITY_SPEED;
     cityGroup.position.z = wrapScroll(scroll, CITY_CHUNK_LENGTH);
-    const weaveAmp = 14;
+    const weaveAmp = 10;
     const hereX = cityPathX(scroll - 8) + Math.sin((scroll - 8) * 0.04) * weaveAmp;
     const aheadX = cityPathX(scroll - 8 + 18) + Math.sin((scroll - 8 + 18) * 0.04) * weaveAmp;
     const hereY = cityPathY(scroll - 8);
