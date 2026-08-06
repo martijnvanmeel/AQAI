@@ -4856,141 +4856,6 @@ function handsRetint(tr){
   if (handsVideoEl.paused) handsVideoEl.play().catch(() => {});
 }
 
-/* ---------- Scene "CITY": a slow aerial flythrough that stays high,
-   maneuvering between the tops of tall black towers of varied shapes and
-   sizes, styled like TILES - specular sheen + a light that travels with
-   the camera. First of the four new TILES-styled scenes. ---------- */
-const CITY_CHUNK_LENGTH = 200, CITY_REPEATS = 3, CITY_SPEED = 4;
-const CITY_HALF_W = 18; // half-width of the open street the towers line
-const CITY_MIN_H = 25, CITY_MAX_H = 170; // tower height range
-const cityGroup = new THREE.Group();
-const cityEdgeMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
-const cityEdgeBaseColor = new THREE.Color(0xffffff);
-function cityPathX(z){
-  const a = (z / CITY_CHUNK_LENGTH) * Math.PI * 2;
-  return Math.sin(a) * 20 + Math.sin(a * 2 + 1) * 8;
-}
-// altitude profile: stays in a band between the tallest tower's own top
-// (CITY_MAX_H) and 3/4 of that height - high enough to never plunge down
-// into the bulk of the towers, low enough to still weave between the
-// tops of the tallest ones. Normalized 0..1 sine so it never dips below
-// the band's floor.
-function cityPathY(z){
-  const a = (z / CITY_CHUNK_LENGTH) * Math.PI * 2;
-  const bandLow = CITY_MAX_H * 0.75, bandHigh = CITY_MAX_H;
-  return bandLow + (Math.sin(a * 2) * 0.5 + 0.5) * (bandHigh - bandLow);
-}
-{
-  const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
-  const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-  const boxEdgeGeo = new THREE.EdgesGeometry(boxGeo);
-  // two more silhouettes besides the plain box - a round tower and a
-  // hexagonal-prism tower, for real form variety, not just size variety
-  const roundGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 16);
-  const roundEdgeGeo = new THREE.EdgesGeometry(roundGeo);
-  const hexGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 6);
-  const hexEdgeGeo = new THREE.EdgesGeometry(hexGeo);
-  // windows: a small tiled canvas texture (black facade, a scatter of
-  // lit and dark window cells) - cloned per tower with its own repeat
-  // so window size reads consistently regardless of that tower's own
-  // width/height
-  const winCv = document.createElement("canvas");
-  winCv.width = winCv.height = 32;
-  const winCx = winCv.getContext("2d");
-  winCx.fillStyle = "#050505";
-  winCx.fillRect(0, 0, 32, 32);
-  for (let wy = 0; wy < 4; wy++){
-    for (let wx = 0; wx < 4; wx++){
-      const lit = h(wx + 1, wy + 9) < 0.55;
-      winCx.fillStyle = lit ? `rgba(255,222,150,${0.35 + h(wx + 9, wy + 1) * 0.5})` : "rgba(255,255,255,0.05)";
-      winCx.fillRect(wx * 8 + 1, wy * 8 + 1, 5, 5);
-    }
-  }
-  const cityWinTex = new THREE.CanvasTexture(winCv);
-  cityWinTex.wrapS = cityWinTex.wrapT = THREE.RepeatWrapping;
-  // dark, near-black roof/underside cap - no windows, just a plain facet
-  const cityRoofMat = new THREE.MeshPhongMaterial({ color: 0x030303, specular: 0x222222, shininess: 20 });
-  const TOWERS_PER_SIDE = 18; // denser city (was 11)
-  for (let rep = 0; rep < CITY_REPEATS; rep++){
-    for (let side = 0; side < 2; side++){
-      for (let i = 0; i < TOWERS_PER_SIDE; i++){
-        const k = side * TOWERS_PER_SIDE + i;
-        const z = -h(k, 1) * CITY_CHUNK_LENGTH - rep * CITY_CHUNK_LENGTH;
-        const w = 6 + h(k, 2) * 14, d = 6 + h(k, 3) * 14, height = CITY_MIN_H + h(k, 4) * (CITY_MAX_H - CITY_MIN_H);
-        // set back from the street edge by a varying amount, so towers
-        // don't all form one flat wall
-        const setback = h(k, 5) * 40;
-        const streetX = cityPathX(z);
-        const x = streetX + (side === 0 ? -1 : 1) * (CITY_HALF_W + w / 2 + setback);
-        // black facade, its own window texture instance so the repeat
-        // (and so window size) can be tuned to this tower's own size
-        const tex = cityWinTex.clone();
-        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-        tex.repeat.set(Math.max(1, Math.round(w / 4)), Math.max(1, Math.round(height / 8)));
-        const winMat = new THREE.MeshPhongMaterial({ color: 0x0a0a0a, map: tex, specular: 0x333333, shininess: 25 });
-        // three different forms, chosen per tower
-        const formT = h(k, 40);
-        let geo, edgeGeo, mats;
-        if (formT < 0.55){
-          geo = boxGeo; edgeGeo = boxEdgeGeo;
-          mats = [winMat, winMat, cityRoofMat, cityRoofMat, winMat, winMat];
-        } else if (formT < 0.8){
-          geo = roundGeo; edgeGeo = roundEdgeGeo;
-          mats = [winMat, cityRoofMat, cityRoofMat];
-        } else {
-          geo = hexGeo; edgeGeo = hexEdgeGeo;
-          mats = [winMat, cityRoofMat, cityRoofMat];
-        }
-        const tower = new THREE.Mesh(geo, mats);
-        tower.scale.set(w, height, d);
-        tower.position.set(x, height / 2, z);
-        tower.castShadow = true;
-        tower.receiveShadow = true;
-        tower.add(new THREE.LineSegments(edgeGeo, cityEdgeMat));
-        cityGroup.add(tower);
-      }
-    }
-  }
-  // a flat dark street, specular like TILES/BLOCKS' floors
-  const streetMat = new THREE.MeshPhongMaterial({ color: 0x0c0c10, specular: 0x888888, shininess: 90 });
-  const street = new THREE.Mesh(new THREE.PlaneGeometry(CITY_HALF_W * 2, CITY_CHUNK_LENGTH * CITY_REPEATS), streetMat);
-  street.rotation.x = -Math.PI / 2;
-  street.position.set(0, 0, -CITY_CHUNK_LENGTH * CITY_REPEATS / 2 + CITY_CHUNK_LENGTH / 2);
-  street.receiveShadow = true;
-  cityGroup.add(street);
-  // small starfield high above the towers, for scale
-  const cityStarPos = [];
-  for (let i = 0; i < 260; i++){
-    cityStarPos.push((h(i, 41) - 0.5) * 400, 120 + h(i, 42) * 220, -h(i, 43) * CITY_CHUNK_LENGTH * CITY_REPEATS);
-  }
-  const cityStarsGeo = new THREE.BufferGeometry();
-  cityStarsGeo.setAttribute("position", new THREE.Float32BufferAttribute(cityStarPos, 3));
-  const cityStarsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 1.4, sizeAttenuation: true,
-    map: roadDotTexture, transparent: true, opacity: 0.8, depthWrite: false });
-  const cityStars = new THREE.Points(cityStarsGeo, cityStarsMat);
-  cityStars.frustumCulled = false;
-  cityGroup.add(cityStars);
-}
-cityGroup.visible = false;
-scene.add(cityGroup);
-// the light travels with the camera, same pattern as TILES/DOMINO
-const cityDirLight = new THREE.DirectionalLight(0xfff4e8, 0.6);
-cityDirLight.visible = false;
-scene.add(cityDirLight);
-scene.add(cityDirLight.target);
-const cityAmbient = new THREE.AmbientLight(0xffffff, 0.4);
-cityAmbient.visible = false;
-scene.add(cityAmbient);
-const cityFog = new THREE.FogExp2(0x000000, 0.01);
-function cityRetint(tr){
-  const { dominant } = artistScenePalette(tr);
-  cityEdgeBaseColor.copy(dominant).lerp(new THREE.Color(0xffffff), 0.4);
-  cityEdgeMat.color.copy(cityEdgeBaseColor);
-  // fades into the artist color at 60% darker, same convention as TILES
-  cityFog.color.copy(dominant).multiplyScalar(0.4);
-}
-let cityCamX = 0, cityCamY = 0, cityCamYaw = 0, cityCamPitch = 0, cityCamBank = 0;
-
 /* ---------- Scene "ORBS": like SPHERE, but instead of one static
    sphere it's a row of full spheres strung along a single straight
    line (per the reference sketch - three-plus overlapping circles seen
@@ -5040,7 +4905,6 @@ const SCENE_LIST = [
   { id: "domino", label: "DOMINO" },
   { id: "eyes",   label: "EYES" },
   { id: "hands",  label: "HANDS" },
-  { id: "city",   label: "CITY" },
   { id: "orbs",   label: "ORBS" },
 ];
 let sceneOverride = "auto";
@@ -5104,10 +4968,9 @@ function updateArtistBackground(tr){
   const wantDomino = !gateActive && sceneId === "domino";
   const wantEyes = !gateActive && sceneId === "eyes";
   const wantHands = !gateActive && sceneId === "hands";
-  const wantCity = !gateActive && sceneId === "city";
   const wantOrbs = !gateActive && sceneId === "orbs";
   const want3d = wantRoad || wantMist || wantMaze || wantTiles || wantBeams || wantPrism || wantRings || wantCheck
-    || wantCube || wantPortal || wantDomino || wantEyes || wantHands || wantCity || wantOrbs;
+    || wantCube || wantPortal || wantDomino || wantEyes || wantHands || wantOrbs;
   // same lerp-follow camera snap as the other flythrough scenes
   if (wantRoad && !roadGroup.visible){
     const here0 = roadCenterAt(flightDist * ROAD_SPEED - 8);
@@ -5180,15 +5043,6 @@ function updateArtistBackground(tr){
   eyesCubeAmbient.visible = wantEyes;
   handsGroup.visible = wantHands;
   document.body.classList.toggle("scene-hands", wantHands);
-  // same lerp-follow camera snap as TILES/RINGS/NATURE
-  if (wantCity && !cityGroup.visible){
-    cityCamX = cityPathX(flightDist * CITY_SPEED - 8);
-    cityCamY = cityPathY(flightDist * CITY_SPEED - 8);
-    cityCamYaw = 0; cityCamPitch = 0; cityCamBank = 0;
-  }
-  cityGroup.visible = wantCity;
-  cityDirLight.visible = wantCity;
-  cityAmbient.visible = wantCity;
   orbsGroup.visible = wantOrbs;
   const wantSphere = !gateActive && !want3d;
   if (panoMesh) panoMesh.visible = wantSphere;
@@ -5313,10 +5167,6 @@ function updateArtistBackground(tr){
     // (body.scene-hands #stage), same pattern as ROADS/RINGS/NATURE
     renderer.setClearColor(0x000000, 0);
     scene.fog = handsFog;
-  } else if (wantCity){
-    cityRetint(tr);
-    renderer.setClearColor(cityFog.color, 1);
-    scene.fog = cityFog;
   } else if (wantOrbs){
     // no fog - the camera is always fully enclosed by video-covered
     // sphere walls, there's no distant emptiness to fade
@@ -6280,36 +6130,6 @@ function animate(t){
     camera.rotation.x = Math.sin(swayT * 0.01 + 2) * 0.0625;
     camera.rotation.y = Math.sin(swayT * 0.012) * 0.075;
     camera.rotation.z = Math.sin(swayT * 0.008 + 3) * 0.0875 + cameraRollOffset;
-  } else if (cityGroup.visible){
-    // aerial flythrough: climbs high above the rooftops (cityPathY) then
-    // dives down to weave between the towers and back up, banking through
-    // the turns - same lerp-follow camera pattern as TILES, now driven by
-    // both the horizontal street curve AND a vertical altitude profile,
-    // plus an extra side-to-side weave layered on top so it visibly
-    // maneuvers between buildings rather than just floating straight down
-    const scroll = flightDist * CITY_SPEED;
-    cityGroup.position.z = wrapScroll(scroll, CITY_CHUNK_LENGTH);
-    const weaveAmp = 10;
-    const hereX = cityPathX(scroll - 8) + Math.sin((scroll - 8) * 0.04) * weaveAmp;
-    const aheadX = cityPathX(scroll - 8 + 18) + Math.sin((scroll - 8 + 18) * 0.04) * weaveAmp;
-    const hereY = cityPathY(scroll - 8);
-    const aheadY = cityPathY(scroll - 8 + 18);
-    const follow = 0.02;
-    cityCamX += (hereX + Math.sin(swayT * 0.03) * 0.7 - cityCamX) * follow;
-    cityCamY += (hereY + Math.sin(swayT * 0.02 + 1) * 0.8 - cityCamY) * follow;
-    cityCamYaw += (-Math.atan2(aheadX - hereX, 18) * 0.65 + Math.sin(swayT * 0.012) * 0.1 - cityCamYaw) * follow;
-    // pitch follows the climb/dive slope, same technique TILES uses for
-    // its vertical bends - nose down while diving, nose up while climbing
-    cityCamPitch += (Math.atan2(aheadY - hereY, 18) * 0.6 + Math.sin(swayT * 0.017) * 0.03 - cityCamPitch) * follow;
-    cityCamBank += (-Math.atan2(aheadX - hereX, 18) * 0.5 - cityCamBank) * follow;
-    camera.position.x = cityCamX;
-    camera.position.y = cityCamY;
-    camera.rotation.x = cityCamPitch;
-    camera.rotation.y = cityCamYaw;
-    camera.rotation.z = cityCamBank + cameraRollOffset;
-    // the light travels with the camera, same pattern as TILES/DOMINO
-    cityDirLight.position.set(cityCamX + 15, cityCamY + 60, -30);
-    cityDirLight.target.position.set(cityCamX, cityCamY, -80);
   } else if (orbsGroup.visible){
     // glides forward and back along the straight row of spheres (see the
     // reference sketch) - an actual back-and-forth oscillation, not a
