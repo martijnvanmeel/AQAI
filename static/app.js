@@ -4927,27 +4927,6 @@ function setSceneByIndex(idx){
 }
 if ($("#scene-prev")) $("#scene-prev").onclick = () => setSceneByIndex(sceneNavIdx - 1);
 if ($("#scene-next")) $("#scene-next").onclick = () => setSceneByIndex(sceneNavIdx + 1);
-// captures the live camera's current position/rotation/zoom for whichever
-// scene is active right now - copied to the clipboard and stacked into
-// localStorage ("savedCameraViews", newest first) so a good angle found
-// while tuning a scene isn't lost; read it back later with
-// JSON.parse(localStorage.savedCameraViews)
-if ($("#cam-save")) $("#cam-save").onclick = () => {
-  const view = {
-    scene: SCENE_LIST[sceneNavIdx] ? SCENE_LIST[sceneNavIdx].id : sceneOverride,
-    position: camera.position.toArray().map(n => Math.round(n * 1000) / 1000),
-    rotation: [camera.rotation.x, camera.rotation.y, camera.rotation.z].map(n => Math.round(n * 1000) / 1000),
-    zoom: camera.zoom,
-    savedAt: new Date().toISOString(),
-  };
-  let saved = [];
-  try { saved = JSON.parse(localStorage.getItem("savedCameraViews") || "[]"); } catch { saved = []; }
-  saved.unshift(view);
-  localStorage.setItem("savedCameraViews", JSON.stringify(saved.slice(0, 50)));
-  const json = JSON.stringify(view);
-  if (navigator.clipboard) navigator.clipboard.writeText(json).catch(() => {});
-  toast(`Camera saved (${view.scene})`);
-};
 
 // swaps the sphere for a per-artist 3D scene: Polaroid gets the synthwave
 // road, Aveluna gets the mist world. Called on every track load (see
