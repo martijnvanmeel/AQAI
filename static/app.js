@@ -3804,6 +3804,7 @@ const PRISM_REPEATS = 3;
 const PRISM_SPEED = 10;
 const prismGroup = new THREE.Group();
 const prismMats = [];
+const prismMoverRimMats = []; // {mat, srcIdx} - movers' own rim material clones, see prismRetint
 const prismMovers = []; // slats that breathe toward the camera line and back
 // step-and-glide gaze: every ~11s a new rotation target is picked, and the
 // camera eases over to it at a slow pace (see the prism branch in animate)
@@ -3895,9 +3896,18 @@ let prismCamYaw = 0, prismCamPitch = 0, prismCamRoll = 0;
       const panel = new THREE.Mesh(new THREE.PlaneGeometry(slatW, SLAT_H), panelMat);
       panel.rotation.y = Math.PI / 2;
       mover.add(panel);
+      // each mover's rims are its own material clone (not the shared
+      // prismMats instance the static curtain uses), so its opacity can
+      // pulse independently - see the prism branch in animate(). Kept
+      // color-synced with the shared source material in prismRetint.
+      const rimMats = [];
       [-slatW / 2, slatW / 2].forEach((zo, ei) => {
         const edgeW = 0.1 + h(i * 9 + ei, 9) * 1.1;
-        const rim = new THREE.Mesh(new THREE.PlaneGeometry(edgeW * 2, SLAT_H), prismMats[(i + ei) % 6]);
+        const srcIdx = (i + ei) % 6;
+        const rimMat = prismMats[srcIdx].clone();
+        prismMoverRimMats.push({ mat: rimMat, srcIdx });
+        rimMats.push(rimMat);
+        const rim = new THREE.Mesh(new THREE.PlaneGeometry(edgeW * 2, SLAT_H), rimMat);
         rim.rotation.y = Math.PI / 2;
         rim.position.set(-sideSign * 0.12, 0, zo);
         mover.add(rim);
@@ -3907,6 +3917,7 @@ let prismCamYaw = 0, prismCamPitch = 0, prismCamRoll = 0;
       mover.userData.amp = 6 + h(i, 10) * 7;
       mover.userData.speed = 0.12 + h(i, 11) * 0.15;
       mover.userData.phase = h(i, 12) * Math.PI * 2;
+      mover.userData.rimMats = rimMats;
       mover.traverse(o => { o.frustumCulled = false; });
       prismMovers.push(mover);
       prismGroup.add(mover);
@@ -3999,15 +4010,19 @@ scene.add(prismAmbient);
 const prismFog = new THREE.FogExp2(0x000000, 0.022);
 function prismRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
-  // whole scene pulled 40% down. Half the slots stay pure artist palette,
-  // the other half now mix in a fixed yellow/green/red accent for more
-  // color variety in the glowing edges instead of everything reading as
-  // one tint family
+  // half the slots stay pure artist palette, the other half mix in a
+  // fixed yellow/green/red accent for more color variety in the glowing
+  // edges instead of everything reading as one tint family - full
+  // intensity now (was pulled 40% down)
   const prismAccents = [0xffd400, 0x3ddc73, 0xff4d4d];
   prismMats.forEach((mat, i) => {
-    if (i < 3) mat.color.copy(dominant).multiplyScalar(0.6);
-    else mat.color.copy(new THREE.Color(prismAccents[i - 3])).lerp(others[i % others.length], 0.35).multiplyScalar(0.6);
+    if (i < 3) mat.color.copy(dominant);
+    else mat.color.copy(new THREE.Color(prismAccents[i - 3])).lerp(others[i % others.length], 0.35);
   });
+  // movers' rim materials are their own clones (see the build block) so
+  // their opacity can pulse independently - keep their color synced to
+  // the shared source material here
+  prismMoverRimMats.forEach(({ mat, srcIdx }) => mat.color.copy(prismMats[srcIdx].color));
   // the three star lights: artist color plus two other artists' hues
   prismStarLights.forEach((light, i) => {
     const c = i === 0 ? dominant.clone() : others[i % others.length].clone();
@@ -5894,6 +5909,11 @@ function animate(t){
     prismMovers.forEach(m => {
       const s01 = 0.5 + 0.5 * Math.sin(nowSec * m.userData.speed + m.userData.phase);
       m.position.x = m.userData.baseX - Math.sign(m.userData.baseX) * m.userData.amp * s01;
+      // rim glow at full 100% opacity at the midpoint of the swing
+      // (s01=0.5), fading toward 0 at either end of its travel - a
+      // parabola peaking at exactly 1 when s01=0.5
+      const glow = 4 * s01 * (1 - s01);
+      m.userData.rimMats.forEach(mat => { mat.opacity = glow; });
     });
     // star layers ride their own clocks - half speed behind, 1.7x in front
     prismStarLayers.forEach(g => {
