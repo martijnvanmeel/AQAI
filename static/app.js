@@ -6418,8 +6418,12 @@ const GATE_PASSWORD_RESTRICTED = "aqai2026";
 const GATE_PASSWORD_FULL = "aqaimusic";
 // hidden entirely in restricted mode; #btn-sphere-control deliberately isn't
 // here - it stays visible in both modes (it's a view control, not editing)
+// #pano-remove deliberately NOT in this list - deleting a shared
+// background video isn't sensitive to any one visitor's own data the
+// way renaming/deleting a track is, so it stays visible even over the
+// public tunnel; the server endpoint still 403s a non-local request
 const OWNER_ONLY_SELECTORS = [
-  "#pano-btns", "#pano-remove", "#btn-delete", "#btn-edit-title", "#btn-edit-artist",
+  "#pano-btns", "#btn-delete", "#btn-edit-title", "#btn-edit-artist",
   "#btn-edit-lyrics", "#btn-relocate-artist", "#lf-edit-btns",
 ];
 // true only when the server confirms this request never crossed the public
