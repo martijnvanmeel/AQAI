@@ -251,6 +251,14 @@ body.gate-active::after{display:none}
 }
 body.scene-3d #dim-overlay,
 body.gate-active #dim-overlay{display:block}
+/* SPHERE: a corner vignette over the video - transparent through the
+   middle, sinking to 50% black at the corners */
+#sphere-vignette{
+  position:fixed;inset:0;z-index:1;pointer-events:none;display:none;
+  background:radial-gradient(circle at center,
+    transparent 0%, transparent 40%, rgba(0,0,0,.5) 100%);
+}
+body.scene-sphere #sphere-vignette{display:block}
 /* retired: the PRISM edge fade is gone - beams keep full brightness out
    to the frame edges */
 #prism-fade{display:none}
