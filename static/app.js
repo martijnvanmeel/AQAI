@@ -1779,28 +1779,6 @@ panoMat.onBeforeCompile = shader => {
 const PANO_DISTANCE = 400; // radius of the curve, in front of the camera
 const PANO_YAW_CENTER = Math.PI / 2; // rotates the patch to face the default camera direction
 let panoMesh = null;
-// the sphere scene's reflective floor: a glossy dark plane at this height,
-// with a flipped, dimmed copy of the video patch beneath it as the
-// "reflection" (see rebuildPanoMesh)
-const SPHERE_FLOOR_Y = -8;
-let panoMirrorMesh = null;
-// DoubleSide is required here: the real mesh's geometry is built
-// inside-out (geo.scale(-1,1,1), so its front faces point inward toward
-// the camera at the origin); the mirror additionally flips scale.y,
-// which flips winding a SECOND time and ends up facing the camera with
-// its back face - FrontSide alone would cull it to invisible
-const panoMirrorMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.65, side: THREE.DoubleSide });
-const sphereFloor = new THREE.Mesh(new THREE.PlaneGeometry(700, 700),
-  new THREE.MeshPhongMaterial({ color: 0x07080d, specular: 0x556677, shininess: 40,
-    transparent: true, opacity: 0.55, side: THREE.DoubleSide }));
-sphereFloor.rotateX(-Math.PI / 2);
-sphereFloor.position.y = SPHERE_FLOOR_Y;
-sphereFloor.visible = false;
-scene.add(sphereFloor);
-const sphereFloorLight = new THREE.DirectionalLight(0xffffff, 0.7);
-sphereFloorLight.position.set(30, 60, 40);
-sphereFloorLight.visible = false;
-scene.add(sphereFloorLight);
 function computePanoDistRange(mesh){
   mesh.updateMatrixWorld(true);
   const pos = mesh.geometry.attributes.position;
@@ -1828,15 +1806,12 @@ function buildPanoGeometry(aspect){
   let thetaLength = minTheta, phiLength = thetaLength * aspect;
   if (phiLength < minPhi){ phiLength = minPhi; thetaLength = phiLength / aspect; }
   phiLength = Math.min(phiLength, Math.PI * 1.9);
-  // clamped well under PI/2 now (was 0.95*PI) - the patch no longer
-  // straddles the equator, it runs FROM the equator UP to the pole (see
-  // thetaStart below), so this is the whole upward angular budget and
-  // must stay short of actually reaching the pole
-  thetaLength = Math.min(thetaLength, Math.PI * 0.47);
+  thetaLength = Math.min(thetaLength, Math.PI * 0.95);
+  // symmetric about the equator again - no more floor to cut it off at
   const geo = new THREE.SphereGeometry(
     PANO_DISTANCE, 60, 40,
     -phiLength / 2, phiLength,
-    Math.PI / 2 - thetaLength, thetaLength
+    (Math.PI - thetaLength) / 2, thetaLength
   );
   geo.scale(-1, 1, 1);
   return geo;
@@ -1860,11 +1835,6 @@ function rebuildPanoMesh(){
   if (panoMesh){ scene.remove(panoMesh); panoMesh.geometry.dispose(); }
   panoMesh = new THREE.Mesh(buildPanoGeometry(aspect), panoMat);
   panoMesh.rotation.y = PANO_YAW_CENTER;
-  // the geometry's own local bottom edge is the equator (see
-  // buildPanoGeometry) - sitting it at the floor's height means the
-  // video patch exactly fills the upper half of the "sphere", cut clean
-  // by the reflective ground with no gap and no overlap
-  panoMesh.position.y = SPHERE_FLOOR_Y;
   // the sphere is reserved for the music screen - the intro shows the rock
   // tunnel instead (see tunnelGroup below), and the per-artist 3D worlds
   // (road/mist/maze - anything that sets body.scene-3d) replace it too,
@@ -1873,50 +1843,6 @@ function rebuildPanoMesh(){
     && !document.body.classList.contains("scene-3d");
   scene.add(panoMesh);
   computePanoDistRange(panoMesh);
-  // the reflection copy under the glossy floor: same geometry flipped
-  // vertically about the floor plane, plain dimmed video (no shader
-  // treatment - reflections read simpler than the source)
-  if (panoMirrorMesh){ scene.remove(panoMirrorMesh); }
-  panoMirrorMesh = new THREE.Mesh(panoMesh.geometry, panoMirrorMat);
-  panoMirrorMesh.rotation.y = PANO_YAW_CENTER;
-  panoMirrorMesh.scale.y = -1;
-  // same position as the real mesh (not doubled) - the geometry's local
-  // bottom edge (the equator, y=0) IS the floor line now, so flipping in
-  // place mirrors it exactly onto the floor with zero gap
-  panoMirrorMesh.position.y = SPHERE_FLOOR_Y;
-  panoMirrorMesh.visible = panoMesh.visible;
-  scene.add(panoMirrorMesh);
-  // vertical gradient tint baked as vertex colors on the shared geometry -
-  // only panoMirrorMat has vertexColors on, so panoMesh (the real video)
-  // is unaffected. Blue-ish near the horizon (top of the reflection),
-  // fading down into black - the mirror flip (scale.y=-1) means the
-  // geometry's own LOCAL bottom ends up nearest the horizon, so that's
-  // the end that gets the blue
-  {
-    const pos = panoMesh.geometry.attributes.position;
-    let minY = Infinity, maxY = -Infinity;
-    for (let i = 0; i < pos.count; i++){
-      const y = pos.getY(i);
-      if (y < minY) minY = y;
-      if (y > maxY) maxY = y;
-    }
-    const spanY = Math.max(1e-6, maxY - minY);
-    const blue = new THREE.Color(0x2a5a8a), black = new THREE.Color(0x000000);
-    const colors = new Float32Array(pos.count * 3);
-    const c = new THREE.Color();
-    for (let i = 0; i < pos.count; i++){
-      const t = (pos.getY(i) - minY) / spanY; // 0 = local bottom (near horizon), 1 = local top (deep)
-      c.copy(blue).lerp(black, t);
-      colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
-    }
-    panoMesh.geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-  }
-  panoMirrorMat.vertexColors = true;
-  // opacity split the difference of the requested 25% (near horizon) to
-  // 45% (deep) range - vertexColors can't vary alpha per-vertex on a
-  // plain MeshBasicMaterial, so the darkening itself (toward black)
-  // carries most of the fade
-  panoMirrorMat.opacity = 0.35;
 }
 
 /* ---------- intro-only rock tunnel: replaces the sphere while the gate is
@@ -5066,20 +4992,19 @@ function cityRetint(tr){
 let cityCamX = 0, cityCamY = 0, cityCamYaw = 0, cityCamPitch = 0, cityCamBank = 0;
 
 /* ---------- Scene "ORBS": like SPHERE, but instead of one static
-   sphere it's an endless chain of full spheres, each one shifted 15%
-   of its own size to the side of the last, flown forward through them
-   one at a time. Every pair of overlapping spheres carves a natural
-   circular opening where their surfaces intersect - normal depth
-   testing does that for free, no hole geometry needed - and the camera
-   threads dead-center through each in turn. All spheres show the same
-   panorama video the plain SPHERE scene uses. ---------- */
-const SC_R = 55;           // every sphere's radius
-const SC_STEP = 75;        // distance between consecutive sphere centers (< 2*SC_R, so they overlap)
-const SC_OFFSET = SC_R * 0.3; // "15% from the side" - 15% of each sphere's own diameter
-const SC_SPHERES_PER_CHUNK = 6; // even, so the alternating left/right offset wraps seamlessly
-const SC_CHUNK_LENGTH = SC_STEP * SC_SPHERES_PER_CHUNK;
-const SC_REPEATS = 3;
-const SC_SPEED = 6;
+   sphere it's a row of full spheres strung along a single straight
+   line (per the reference sketch - three-plus overlapping circles seen
+   from above, one center line straight through all of them), with the
+   camera gliding forward and backward along that same line rather than
+   flying endlessly one-way. Every pair of overlapping spheres carves a
+   natural circular opening where their surfaces intersect - normal
+   depth testing does that for free, no hole geometry needed. All
+   spheres show the same panorama video the plain SPHERE scene uses. */
+const SC_R = 55;             // every sphere's radius
+const SC_STEP = 70;          // distance between consecutive sphere centers (< 2*SC_R, so they overlap)
+const SC_COUNT = 5;          // spheres in the row (sketch shows 3+; a couple extra reads better)
+const SC_OSC_AMP = (SC_COUNT - 1) / 2 * SC_STEP - 10; // swing just short of the outermost sphere's center
+const SC_OSC_PERIOD = 26;    // seconds for one full forward-and-back cycle
 const orbsGroup = new THREE.Group();
 // same shared texture the plain SPHERE scene plays, kept in sync with
 // it in loadPanoFile() (video or gif, whichever is currently loaded) -
@@ -5088,32 +5013,16 @@ const orbsMat = new THREE.MeshBasicMaterial({ map: panoTexture });
 {
   const geo = new THREE.SphereGeometry(SC_R, 48, 32);
   geo.scale(-1, 1, 1); // inside-out, same trick as the pano patch - front faces point inward
-  for (let rep = 0; rep < SC_REPEATS; rep++){
-    for (let n = 0; n < SC_SPHERES_PER_CHUNK; n++){
-      const globalN = rep * SC_SPHERES_PER_CHUNK + n;
-      const orb = new THREE.Mesh(geo, orbsMat);
-      orb.position.set(n % 2 === 0 ? -SC_OFFSET : SC_OFFSET, 0, -globalN * SC_STEP);
-      orb.frustumCulled = false;
-      orbsGroup.add(orb);
-    }
+  for (let i = 0; i < SC_COUNT; i++){
+    const orb = new THREE.Mesh(geo, orbsMat);
+    orb.position.set(0, 0, (i - (SC_COUNT - 1) / 2) * SC_STEP);
+    orb.frustumCulled = false;
+    orbsGroup.add(orb);
   }
 }
 orbsGroup.visible = false;
 scene.add(orbsGroup);
-// smoothstep-eased path threading dead-center through each sphere in
-// turn - a step function (alternating +/-SC_OFFSET) with the corners
-// rounded off, not a raw sine, so it actually passes through every
-// sphere's own center rather than cutting the corner
-function orbsPathX(dist){
-  const n = dist / SC_STEP;
-  const i0 = Math.floor(n);
-  const t = n - i0;
-  const eased = t * t * (3 - 2 * t);
-  const x0 = i0 % 2 === 0 ? -SC_OFFSET : SC_OFFSET;
-  const x1 = (i0 + 1) % 2 === 0 ? -SC_OFFSET : SC_OFFSET;
-  return x0 + (x1 - x0) * eased;
-}
-let orbsCamX = 0, orbsCamYaw = 0, orbsCamBank = 0;
+let orbsCamYaw = 0;
 
 const SCENE_LIST = [
   { id: "auto",   label: "AUTO" },
@@ -5280,16 +5189,9 @@ function updateArtistBackground(tr){
   cityGroup.visible = wantCity;
   cityDirLight.visible = wantCity;
   cityAmbient.visible = wantCity;
-  if (wantOrbs && !orbsGroup.visible){
-    orbsCamX = orbsPathX(flightDist * SC_SPEED);
-    orbsCamYaw = 0; orbsCamBank = 0;
-  }
   orbsGroup.visible = wantOrbs;
   const wantSphere = !gateActive && !want3d;
   if (panoMesh) panoMesh.visible = wantSphere;
-  if (panoMirrorMesh) panoMirrorMesh.visible = wantSphere;
-  sphereFloor.visible = wantSphere;
-  sphereFloorLight.visible = wantSphere;
   // snap the lerp-follow camera state straight to the tunnel's centerline
   // the instant this scene turns on - otherwise the camera starts at
   // wherever it was left (often (0,0), outside the bent tube's actual
@@ -5440,14 +5342,12 @@ function loadPanoFile(file, base = "/panorama2/"){
   if (isGifFile(file)){
     currentPanoKind = "gif";
     panoMat.map = panoGifTexture;
-    panoMirrorMat.map = panoGifTexture; // floor reflection follows
     orbsMat.map = panoGifTexture; // ORBS scene follows too
     if (panoGifImg.getAttribute("src") !== src) panoGifImg.src = src;
     else rebuildPanoMesh();
   } else {
     currentPanoKind = "video";
     panoMat.map = panoTexture;
-    panoMirrorMat.map = panoTexture; // floor reflection follows
     orbsMat.map = panoTexture; // ORBS scene follows too
     if (panoVideoEl.getAttribute("src") !== src){
       panoVideoEl.src = src;
@@ -6411,21 +6311,26 @@ function animate(t){
     cityDirLight.position.set(cityCamX + 15, cityCamY + 60, -30);
     cityDirLight.target.position.set(cityCamX, cityCamY, -80);
   } else if (orbsGroup.visible){
-    // fly forward through the endless sphere chain, threading dead-center
-    // through each one and out through its overlap with the next
-    const scroll = flightDist * SC_SPEED;
-    orbsGroup.position.z = wrapScroll(scroll, SC_CHUNK_LENGTH);
-    const hereX = orbsPathX(scroll - 8);
-    const aheadX = orbsPathX(scroll - 8 + 8);
-    const follow = 0.03;
-    orbsCamX += (hereX - orbsCamX) * follow;
-    orbsCamYaw += (-Math.atan2(aheadX - hereX, 8) * 0.6 - orbsCamYaw) * follow;
-    orbsCamBank += (-Math.atan2(aheadX - hereX, 8) * 0.4 - orbsCamBank) * follow;
-    camera.position.x = orbsCamX;
+    // glides forward and back along the straight row of spheres (see the
+    // reference sketch) - an actual back-and-forth oscillation, not a
+    // one-way flythrough. The spheres themselves never move; the camera
+    // slides through them and reverses at each end
+    const nowSec = (t || 0) * 0.001;
+    const rate = Math.PI * 2 / SC_OSC_PERIOD;
+    const z = Math.sin(nowSec * rate) * SC_OSC_AMP;
+    const velocity = Math.cos(nowSec * rate); // only the sign matters
+    const follow = 0.01;
+    // faces whichever direction it's currently travelling - a slow
+    // lerped 180-degree turn around each end of the swing, not an
+    // instant flip
+    const targetYaw = velocity < 0 ? 0 : Math.PI;
+    orbsCamYaw += (targetYaw - orbsCamYaw) * follow;
+    camera.position.x = 0;
     camera.position.y = 0;
+    camera.position.z = z;
     camera.rotation.x = 0;
     camera.rotation.y = orbsCamYaw;
-    camera.rotation.z = orbsCamBank + cameraRollOffset;
+    camera.rotation.z = cameraRollOffset;
   } else if (donutGroup.visible){
     // winding tunnel: the camera follows the same bending spine the walls
     // were built along, banking into the curves - exactly the RINGS/TILES
