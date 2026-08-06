@@ -4714,22 +4714,20 @@ const eyesIrisMats = [];
       const scl = new THREE.Mesh(eyeSclGeo, sclMat);
       const sclBaseH = size / 2 * 1.25 * 1.25; // half its own width, +25% taller twice now, open-eye state
       scl.scale.set(size, sclBaseH, 1);
-      scl.renderOrder = 0;
       const irisRing = new THREE.Mesh(eyeIrisRingGeo, eyesIrisMats[i % eyesIrisMats.length]);
       const pupil = new THREE.Mesh(eyePupilGeo, eyePupilMat);
       pupil.position.z = 0.01;
-      // both circles always draw on top of the white, by explicit
-      // renderOrder - not just z-position, which transparent depth-sort
-      // alone can't guarantee
-      irisRing.renderOrder = 1;
-      pupil.renderOrder = 2;
       const iris = new THREE.Group();
       iris.add(irisRing); iris.add(pupil);
       iris.scale.set(size * 0.375 * 0.7, size * 0.375 * 0.7, 1); // 70% of the previous size
-      // a hair in front of the white, not a real gap - renderOrder above
-      // is what actually guarantees the circles draw on top; this just
-      // keeps both essentially at the same z-depth as their own white
-      iris.position.z = 0.02;
+      // NOT renderOrder - a fixed renderOrder is scene-global, so it was
+      // forcing every eye's circles in front of every OTHER eye's white
+      // too, including bigger/closer eyes that should occlude a smaller/
+      // farther eye's circles. A real (if small) z-offset lets Three's
+      // normal per-object distance sort get both right: each eye's own
+      // circles land in front of its own white, AND eyes still correctly
+      // occlude each other by actual distance from the camera.
+      iris.position.z = 0.6;
       eye.add(iris); eye.add(scl); // circle added before the white
       // biased toward the sides (left/right) and away from dead center,
       // so the camera's own flight corridor down the middle stays open
@@ -4814,7 +4812,10 @@ const eyesCubeAmbient = new THREE.AmbientLight(0xffffff, 0.45);
 eyesCubeAmbient.visible = false;
 scene.add(eyesCubeAmbient);
 const eyesBgColor = new THREE.Color(0x102040);
-const eyesFog = new THREE.FogExp2(0x102040, 0.008);
+// denser than before (was 0.008) so eyes and cubes actually blend into
+// the background color as they get distant, instead of staying clearly
+// visible at any range
+const eyesFog = new THREE.FogExp2(0x102040, 0.016);
 function eyesRetint(tr){
   const { dominant, others } = artistScenePalette(tr);
   // irises: half in the artist's color, the rest in the other artists'
