@@ -4857,13 +4857,14 @@ function handsRetint(tr){
 }
 
 /* ---------- Scene "ORBS": like SPHERE, but instead of one static
-   sphere it's a row of full spheres strung along a single straight
-   line (per the reference sketch - three-plus overlapping circles seen
-   from above, one center line straight through all of them), with the
+   sphere it's a row of spheres strung along a single straight line (per
+   the reference sketch - three-plus overlapping circles seen from
+   above, one center line straight through all of them), with the
    camera gliding forward and backward along that same line rather than
-   flying endlessly one-way. Every pair of overlapping spheres carves a
-   natural circular opening where their surfaces intersect - normal
-   depth testing does that for free, no hole geometry needed. All
+   flying endlessly one-way. Every sphere has its own two polar caps -
+   the actual surface area that would sit inside its neighbor - cut away
+   as real geometry, not just occluded by depth testing, so each one is
+   a genuine open tube you see straight through into the next. All
    spheres show the same panorama video the plain SPHERE scene uses. */
 const SC_R = 55;             // every sphere's radius
 const SC_STEP = 70;          // distance between consecutive sphere centers (< 2*SC_R, so they overlap)
@@ -4874,9 +4875,17 @@ const orbsGroup = new THREE.Group();
 // same shared texture the plain SPHERE scene plays, kept in sync with
 // it in loadPanoFile() (video or gif, whichever is currently loaded) -
 // "same video in all spheres" falls out for free from reusing one material
-const orbsMat = new THREE.MeshBasicMaterial({ map: panoTexture });
+const orbsMat = new THREE.MeshBasicMaterial({ map: panoTexture, side: THREE.DoubleSide });
 {
-  const geo = new THREE.SphereGeometry(SC_R, 48, 32);
+  // the sphere-sphere intersection circle, for two equal-radius spheres
+  // whose centers are SC_STEP apart, sits at the exact midpoint between
+  // them - its angular radius (measured from either center, off the
+  // line joining them) is acos((SC_STEP/2)/SC_R). Padded a few degrees
+  // wider so the cut is a hair bigger than the true overlap: no thin
+  // ring of surface left poking through the opening, no seam.
+  const cutAngle = Math.acos((SC_STEP / 2) / SC_R) + 0.05;
+  const geo = new THREE.SphereGeometry(SC_R, 48, 32, 0, Math.PI * 2, cutAngle, Math.PI - cutAngle * 2);
+  geo.rotateX(Math.PI / 2); // poles (theta=0/PI) now point along +Z/-Z, the row's own axis
   geo.scale(-1, 1, 1); // inside-out, same trick as the pano patch - front faces point inward
   for (let i = 0; i < SC_COUNT; i++){
     const orb = new THREE.Mesh(geo, orbsMat);
