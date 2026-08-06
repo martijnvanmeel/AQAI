@@ -509,11 +509,17 @@ function fadeOutForGap(dl, dli){
   // fades the whole sentence down to 50% opacity over a fixed 2s, instead
   // of tracking the gap's own (often much longer) duration and only
   // fading each word's color down to a dark blue
+  // freeze every word at its CURRENT rendered color (whether that's
+  // already-white, mid-fade, or still unsung) before stopping the
+  // animation - otherwise stopping it snaps each word back to its
+  // pre-animation inactive color first, which then fades in from the
+  // wrong place instead of the already-sung words fading out from white
   const spans = row.querySelectorAll(".w");
   spans.forEach(w => {
-    w.style.animation = "none";
+    const cur = getComputedStyle(w).color;
     w.style.transition = "none";
-    w.style.color = "";
+    w.style.animation = "none";
+    w.style.color = cur;
   });
   row.style.transition = "none";
   row.style.opacity = "1";
