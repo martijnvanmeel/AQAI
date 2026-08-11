@@ -144,15 +144,6 @@ body.gate-active::after{display:none}
    wrapper, so #gate-logo3d keeps preserve-3d and its 50px extrusion shows) */
 /* sphere-control toggle: lit in the artist colour while the user is
    steering the sphere with the mouse (auto music-reactive drift otherwise) */
-/* fullscreen toggle - fixed top-corner spacing,
-   mirrored to the left. Shows the "enter fullscreen" (expand) icon while
-   off, swaps to "exit fullscreen" (compress) once .on - see the
-   fullscreenchange listener in app.js */
-#btn-fullscreen{position:fixed;top:10px;left:10px;z-index:3}
-#btn-fullscreen.on{background:var(--artist-color, var(--active-green));color:#000000;border-color:var(--artist-color, var(--active-green))}
-#btn-fullscreen .fs-icon-on{display:none}
-#btn-fullscreen.on .fs-icon-off{display:none}
-#btn-fullscreen.on .fs-icon-on{display:block}
 .gate-btn{
   font-family:var(--font-display);font-weight:600;font-size:13px;letter-spacing:.2em;
   color:var(--bg);background:var(--object);
@@ -412,12 +403,6 @@ body.scene-hands #stage{background:linear-gradient(to top,
 }
 .pano-btns .util-btn svg{width:12.8px;height:12.8px}
 /* background-video navigator: next to the scene navigator, same layout */
-#video-nav{display:flex;align-items:center;gap:5px}
-#video-nav .util-btn svg{width:12.8px;height:12.8px}
-.pano-label{
-  font-family:var(--font-title);font-size:11px;letter-spacing:.04em;
-  color:var(--fg-soft);min-width:44px;text-align:center;white-space:nowrap;
-}
 .util-btn{
   width:30.4px;height:30.4px;border-radius:11.2px;position:relative;
   display:flex;align-items:center;justify-content:center;

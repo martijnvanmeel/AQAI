@@ -50,26 +50,21 @@ function themeIndexForTrack(track) {
    inside of a sphere so the mouse can look around it (see panoVideoEl /
    panoSphere further down, near the 3D visualizer setup) ---- */
 let PANORAMAS = [];
-let panoManualIndex = -1;
-// reserved for the intro screen only - excluded from the per-track pick,
-// the 5s random rotation, and manual prev/next browsing during playback
+// reserved for the intro screen only - excluded from the per-track pick
 const INTRO_PANO_FILE = "From Klickpin.com- 68749462254-pin-id-68749462254.mp4";
 // test source: Panoramas2 (mix of .mp4 clips and .gif animations), served
 // via /api/panoramas2 + /panorama2/ instead of the original panoramas folder
 fetch("/api/panoramas2").then(r => r.json()).then(data => {
   PANORAMAS = (data.files || []).filter(f => f !== INTRO_PANO_FILE);
-  updatePanoLabel();
 }).catch(() => {});
+// every song picks a genuinely random background (not tied to the track's
+// own identity) - the plain sphere (no video swap this time) counts as
+// one extra equally-weighted outcome alongside each individual clip, so
+// there's a 1-in-(N+1) chance the background just stays as it was
 function setBgVideoForTrack(track) {
   if (!PANORAMAS.length || typeof panoVideoEl === "undefined") return;
-  // the server lists panoramas newest-first; bias the (still per-track
-  // deterministic) pick toward the front of that list so freshly-added
-  // clips show up far more often than older ones
-  const frac = (hashString((track.id || track.title || "") + "#bg") % 100000) / 100000;
-  const idx = Math.min(PANORAMAS.length - 1, Math.floor(Math.pow(frac, 2.2) * PANORAMAS.length));
-  loadPanoFile(PANORAMAS[idx]);
-  panoManualIndex = idx;
-  updatePanoLabel();
+  const idx = Math.floor(Math.random() * (PANORAMAS.length + 1));
+  if (idx < PANORAMAS.length) loadPanoFile(PANORAMAS[idx]);
 }
 function applyTheme(idx) {
   if (idx === currentThemeIndex) return;
@@ -5212,78 +5207,15 @@ function loadPanoFile(file, base = "/panorama2/"){
   }
 }
 
-/* ---- manual panorama browser: page through every clip in the Panoramas2
-   folder (newest first), overriding the automatic per-track pick until
-   the next track loads ---- */
-function updatePanoLabel(){
-  const label = $("#pano-label");
-  if (!label) return;
-  label.textContent = PANORAMAS.length
-    ? `${panoManualIndex + 1} / ${PANORAMAS.length}`
-    : "0 / 0";
-}
-function showPanoAt(idx){
-  if (!PANORAMAS.length) return;
-  panoManualIndex = ((idx % PANORAMAS.length) + PANORAMAS.length) % PANORAMAS.length;
-  loadPanoFile(PANORAMAS[panoManualIndex]);
-  updatePanoLabel();
-}
 // manual sphere control is retired (button removed) - the sphere always
 // drifts on its own and reacts to the music (see animate())
 const sphereUserControl = false;
-$("#pano-prev").onclick = () => showPanoAt(panoManualIndex - 1);
-$("#pano-next").onclick = () => showPanoAt(panoManualIndex + 1);
-
-/* fullscreen toggle - top-left corner, mirrors #btn-sphere-control's
-   top-right spacing. Icon/aria state follows the real fullscreen state
-   (via fullscreenchange) rather than being flipped optimistically, so it
-   stays correct even if the browser exits fullscreen on its own (Escape key) */
-function updateFullscreenBtn(){
-  const on = !!document.fullscreenElement;
-  const btn = $("#btn-fullscreen");
-  btn.classList.toggle("on", on);
-  btn.setAttribute("aria-pressed", on ? "true" : "false");
-  btn.setAttribute("aria-label", on ? "Exit fullscreen" : "Enter fullscreen");
-}
-$("#btn-fullscreen").onclick = () => {
-  if (document.fullscreenElement) document.exitFullscreen();
-  else document.documentElement.requestFullscreen().catch(() => toast("Fullscreen isn't available"));
-};
-document.addEventListener("fullscreenchange", updateFullscreenBtn);
 
 // the intro/gate screen shows this specific clip (reserved via
 // INTRO_PANO_FILE, excluded from regular playback rotation) on the shared
 // panorama sphere until the listener taps in, at which point load() picks
 // a per-track background as usual
 loadPanoFile(INTRO_PANO_FILE);
-
-// lets you cull a background you don't like right when you see it - the
-// file is moved server-side into Panoramas2/_removed (not deleted
-// outright) so a wrong click stays recoverable
-let panoRemoveInFlight = false;
-function removeCurrentPano(){
-  if (panoRemoveInFlight || !PANORAMAS.length) return;
-  const file = PANORAMAS[panoManualIndex];
-  if (!file) return;
-  panoRemoveInFlight = true;
-  fetch("/api/panoramas2/remove", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ file })
-  }).then(r => r.json()).then(data => {
-    if (!data.ok){ toast("Could not remove background"); return; }
-    PANORAMAS.splice(panoManualIndex, 1);
-    toast("Background removed");
-    if (!PANORAMAS.length){
-      panoManualIndex = -1;
-      updatePanoLabel();
-      return;
-    }
-    showPanoAt(panoManualIndex);
-  }).catch(() => toast("Could not remove background"))
-    .finally(() => { panoRemoveInFlight = false; });
-}
-$("#pano-remove").onclick = removeCurrentPano;
 
 let mouseNX = 0, mouseNY = 0;
 addEventListener("mousemove", e => {
@@ -6418,10 +6350,6 @@ const GATE_PASSWORD_RESTRICTED = "aqai2026";
 const GATE_PASSWORD_FULL = "aqaimusic";
 // hidden entirely in restricted mode; #btn-sphere-control deliberately isn't
 // here - it stays visible in both modes (it's a view control, not editing)
-// #pano-remove deliberately NOT in this list - deleting a shared
-// background video isn't sensitive to any one visitor's own data the
-// way renaming/deleting a track is, so it stays visible even over the
-// public tunnel; the server endpoint still 403s a non-local request
 const OWNER_ONLY_SELECTORS = [
   "#pano-btns", "#btn-delete", "#btn-edit-title", "#btn-edit-artist",
   "#btn-edit-lyrics", "#btn-relocate-artist", "#lf-edit-btns",
