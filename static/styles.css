@@ -185,20 +185,6 @@ body.gate-active::after{display:none}
 @keyframes wordActiveWhite{
   0%,100%{color:var(--fg)}
 }
-/* password gate: hidden by default, shown/hidden via JS based on the
-   GATE_PASSWORD_ENABLED flag near the top of app.js - flip that one flag
-   off to remove the whole feature (reveals #gate-actions-main instead) */
-#gate-actions-main{display:none}
-.gate-password-input{
-  font-family:var(--font-display);font-weight:600;font-size:13px;letter-spacing:.1em;
-  text-align:center;color:var(--fg);background:rgba(255,255,255,.08);
-  border:1.5px solid var(--line);border-radius:999px;
-  padding:16px 28px;width:220px;outline:none;
-}
-.gate-password-input::placeholder{color:var(--fg-soft);letter-spacing:.2em}
-.gate-password-input:focus{border-color:var(--object)}
-.gate-password-error{color:#FF5C5C;display:none}
-.gate-password-error.show{display:block}
 .gate-hint{font-size:11px;color:var(--fg-soft);letter-spacing:.16em;text-transform:uppercase}
 /* same white->yellow->green->blue->green->yellow->white->pause cycle as
    the button, just on text color, slower, and staggered per letter (see
@@ -387,15 +373,6 @@ body.scene-hands #stage{background:linear-gradient(to top,
 @keyframes logoGreenArtistCycle{
   0%,100%{color:var(--artist-color, var(--active-green))}
   50%{color:color-mix(in srgb, var(--artist-color, var(--active-green)) 80%, white)}
-}
-.util-btns{position:absolute;right:14px;top:50%;transform:translateY(-50%);display:flex;gap:6px;align-items:center}
-/* scene navigator: ‹ SCENE › pill next to the sphere-control button */
-#scene-nav{display:flex;align-items:center;gap:5px}
-#scene-label{
-  font-family:var(--font-title);font-weight:700;font-size:11px;letter-spacing:.1em;
-  text-transform:uppercase;text-align:center;min-width:56px;
-  color:var(--artist-color, var(--active-green));
-  position:relative;top:1px;
 }
 .pano-btns{
   position:absolute;left:14px;top:14px;

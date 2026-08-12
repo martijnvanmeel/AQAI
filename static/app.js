@@ -4913,33 +4913,11 @@ orbsGroup.visible = false;
 scene.add(orbsGroup);
 let orbsCamYaw = 0;
 
-// AUTO, EYES, HANDS, and ORBS made inactive (not selectable) - their
-// scene code is left in place, just not listed here or defaulted to
-const SCENE_LIST = [
-  { id: "sphere", label: "SPHERE" },
-  { id: "road",   label: "ROAD" },
-  { id: "mist",   label: "DREAM" },
-  { id: "maze",   label: "BLOCKS" },
-  { id: "tiles",  label: "TILES" },
-  { id: "beams",  label: "ROADS" },
-  { id: "prism",  label: "PRISM" },
-  { id: "rings",  label: "RINGS" },
-  { id: "check",  label: "NATURE" },
-  { id: "cube",   label: "CUBE" },
-  { id: "portal", label: "PORTAL" },
-  { id: "domino", label: "DOMINO" },
-];
-let sceneOverride = "sphere";
-let sceneNavIdx = 0;
-function setSceneByIndex(idx){
-  sceneNavIdx = ((idx % SCENE_LIST.length) + SCENE_LIST.length) % SCENE_LIST.length;
-  sceneOverride = SCENE_LIST[sceneNavIdx].id;
-  const label = $("#scene-label");
-  if (label) label.textContent = SCENE_LIST[sceneNavIdx].label;
-  if (TRACKS.length) updateArtistBackground(TRACKS[cur]);
-}
-if ($("#scene-prev")) $("#scene-prev").onclick = () => setSceneByIndex(sceneNavIdx - 1);
-if ($("#scene-next")) $("#scene-next").onclick = () => setSceneByIndex(sceneNavIdx + 1);
+// scene-type navigation (SPHERE/ROAD/PRISM/etc) has been retired - the
+// sphere is always the active world now. AUTO, EYES, HANDS, and ORBS were
+// already inactive before that; all of their scene code is left in place,
+// just never selected
+const sceneOverride = "sphere";
 
 // swaps the sphere for a per-artist 3D scene: Polaroid gets the synthwave
 // road, Aveluna gets the mist world. Called on every track load (see
@@ -5266,6 +5244,7 @@ function audioIntensity(){
 
 const gateLogoTiltEl = $("#gate-logo-tilt");
 let camYaw = 0, camPitch = 0;
+let sphereSpinYaw = 0; // SPHERE scene's own continuous clockwise turn (see animate())
 // timestamp the automatic motion (re)starts from; null forces a fresh
 // "centred, then ease in" ramp the next time auto-drift takes over
 let autoMotionStartT = null;
@@ -5347,6 +5326,16 @@ function animate(t){
     targetPitch = -mouseNY * 0.35;
     camSmooth = 0.04335; // slow trailing follow for mouse-look
     autoMotionStartT = null; // restart the centred ramp when auto resumes
+  } else if (document.body.classList.contains("scene-sphere")){
+    // SPHERE scene only: a steady, continuous clockwise turn - one full
+    // 360 every 30s, forever. No easing target to chase (that's what made
+    // the other scenes' drift feel organic but would make a full spin look
+    // like it hitches) - sphereSpinYaw itself already advances smoothly.
+    sphereSpinYaw -= dtSec * (Math.PI * 2 / 30); // negative = clockwise seen from above
+    targetYaw = sphereSpinYaw;
+    targetPitch = 0;
+    camSmooth = 1;
+    autoMotionStartT = null; // restart the centred ramp for when the gate returns
   } else {
     if (autoMotionStartT === null) autoMotionStartT = t || 0;
     // always begin dead-centre: hold for 1s, then ease the movement in and
@@ -6336,64 +6325,24 @@ if (gateHintEl){
   });
 }
 
-// intro-screen password gate, for keeping the site out of casual view while
-// still finishing it up. This is a soft, client-side gate only (the actual
-// audio/API files aren't protected by it) - good enough to stop casual
-// visitors, not real access control. Flip GATE_PASSWORD_ENABLED to false
-// (and delete this block + the matching HTML/CSS whenever convenient) to
-// remove the feature entirely once the site is ready to be fully public.
-const GATE_PASSWORD_ENABLED = true;
-// two access levels: the restricted password hides editing controls
-// (background-video prev/next/remove, delete song, rename title/artist),
-// the full password shows everything. Change either string to your own.
-const GATE_PASSWORD_RESTRICTED = "aqai2026";
-const GATE_PASSWORD_FULL = "aqaimusic";
-// hidden entirely in restricted mode; #btn-sphere-control deliberately isn't
-// here - it stays visible in both modes (it's a view control, not editing)
+// hidden entirely for non-owner visitors; #btn-sphere-control deliberately
+// isn't here - it stays visible for everyone (it's a view control, not editing)
 const OWNER_ONLY_SELECTORS = [
   "#pano-btns", "#btn-delete", "#btn-edit-title", "#btn-edit-artist",
   "#btn-edit-lyrics", "#btn-relocate-artist", "#lf-edit-btns",
 ];
 // true only when the server confirms this request never crossed the public
 // reverse proxy (see "editable" on /api/tracks and _is_public_request() in
-// server.py) - the real boundary; the restricted password above is just a
-// convenience toggle for viewing the restricted look while running locally.
-// Editing controls (rename/delete/lyrics) need BOTH: locally-served AND not
-// in restricted mode.
+// server.py) - the real boundary for who gets editing controls
 let EDITABLE = false;
-let restrictedMode = false;
 function updateEditControlsVisibility(){
-  const hide = restrictedMode || !EDITABLE;
+  const hide = !EDITABLE;
   OWNER_ONLY_SELECTORS.forEach(sel => {
     const el = document.querySelector(sel);
     if (el) el.style.display = hide ? "none" : "";
   });
   const lfList = $("#lf-list");
   if (lfList) lfList.classList.toggle("editable", !hide);
-}
-function applyAccessMode(restricted){
-  restrictedMode = restricted;
-  updateEditControlsVisibility();
-}
-if (!GATE_PASSWORD_ENABLED){
-  $("#gate-password-form").style.display = "none";
-  $("#gate-actions-main").style.display = "flex";
-} else {
-  $("#gate-password-form").addEventListener("submit", e => {
-    e.preventDefault();
-    const input = $("#gate-password-input");
-    const val = input.value;
-    if (val === GATE_PASSWORD_RESTRICTED || val === GATE_PASSWORD_FULL){
-      applyAccessMode(val === GATE_PASSWORD_RESTRICTED);
-      $("#gate-password-form").style.display = "none";
-      $("#gate-actions-main").style.display = "flex";
-      updateGateLoadingState();
-    } else {
-      $("#gate-password-error").classList.add("show");
-      input.value = "";
-      input.focus();
-    }
-  });
 }
 
 // the library manifest fetch (see BOOT below) can take a real, visible
