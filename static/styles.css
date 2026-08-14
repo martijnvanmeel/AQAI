@@ -543,6 +543,11 @@ body.scene-hands #stage{background:linear-gradient(to top,
   background:var(--artist-color, var(--active-green));color:#000000;
   border-color:var(--artist-color, var(--active-green));
 }
+/* same persistent pressed look for the meta row's own flag toggle */
+#btn-flag-lyrics[aria-pressed="true"]{
+  background:var(--artist-color, var(--active-green));color:#000000;
+  border-color:var(--artist-color, var(--active-green));
+}
 /* a dashed outline on every sentence while lyrics-edit mode is on, so
    click-to-edit reads as an active affordance instead of a hidden one */
 #lyrics-full.lf-editing-lyrics .lyric-row{

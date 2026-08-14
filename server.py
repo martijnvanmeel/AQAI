@@ -19,6 +19,7 @@ import os
 import re
 import shutil
 import socketserver
+import time
 import urllib.parse
 
 LIBRARY_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -29,8 +30,26 @@ AUTO_LYRICS_DIR = os.path.join(os.path.dirname(__file__), "lyrics_auto")
 PANORAMA_DIR = os.path.join(LIBRARY_ROOT, "panoramas")
 PANORAMA2_DIR = os.path.join(LIBRARY_ROOT, "Panoramas2")
 SONG_NAMES_PATH = os.path.join(LIBRARY_ROOT, "song_names.json")
+# manually flagged by the owner from the player's "flag this song's lyrics"
+# button (see /api/lyrics-flag) - separate from the automatic heuristics in
+# /api/lyrics-audit, which folds these in too so there's one list to work
+# through
+LYRICS_FLAGS_PATH = os.path.join(os.path.dirname(__file__), "lyrics_flags.json")
 os.makedirs(SYNC_DIR, exist_ok=True)
 os.makedirs(AUTO_LYRICS_DIR, exist_ok=True)
+
+
+def load_lyrics_flags():
+    try:
+        with open(LYRICS_FLAGS_PATH, "r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def save_lyrics_flags(flags):
+    with open(LYRICS_FLAGS_PATH, "w", encoding="utf-8") as fh:
+        json.dump(flags, fh)
 
 SKIP_DIR_NAMES = {".claude", ".git", "player", "node_modules", "panoramas", "Panoramas2", "_deleted"}
 AUDIO_EXT_PRIORITY = ["m4a", "mp3", "wav"]
@@ -418,17 +437,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.send_error(403)
                 return
             tracks = refresh_index()
+            flags = load_lyrics_flags()
             items = []
             for t in tracks:
+                manual = t["id"] in flags
                 karaoke_path = t.get("_karaoke_path")
-                if not karaoke_path:
-                    continue
-                data = load_karaoke_file(karaoke_path)
-                if not data:
-                    continue
-                source = data.get("source") or ""
-                duration = data.get("duration") or t.get("duration") or 0
-                lines = data.get("lines") or []
+                data = load_karaoke_file(karaoke_path) if karaoke_path else None
+                source = (data or {}).get("source") or ""
+                duration = (data or {}).get("duration") or t.get("duration") or 0
+                lines = (data or {}).get("lines") or []
                 all_words = [w for ln in lines for w in (ln.get("words") or [])]
                 word_count = len(all_words)
                 density = (word_count / duration) if duration else 0
@@ -441,7 +458,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 zero_dur_frac = (zero_dur / word_count) if word_count else 0
 
                 reason = None
-                if source == "instrumental" and duration > 20:
+                if not karaoke_path:
+                    reason = "no lyrics sidecar at all"
+                elif source == "instrumental" and duration > 20:
                     reason = "marked instrumental - confirm there's really no vocals"
                 elif word_count == 0:
                     reason = "no lyric words at all"
@@ -455,17 +474,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         f"only {word_count} words over {duration:.0f}s "
                         f"({density:.2f} words/sec) - looks truncated"
                     )
+                # a manual flag always surfaces the track, even when nothing
+                # here looks automatically suspicious - the person listening
+                # noticed something (wrong words, bad sync) the heuristics
+                # above can't detect on their own
+                if manual and not reason:
+                    reason = "flagged for re-sync while listening"
+                elif manual:
+                    reason = f"flagged for re-sync while listening; also: {reason}"
                 if reason:
                     items.append({
+                        "id": t["id"],
                         "folder": t["folder"],
                         "title": t["title"],
                         "duration": round(duration, 1),
                         "wordCount": word_count,
                         "density": round(density, 2),
+                        "manual": manual,
                         "reason": reason,
                     })
-            items.sort(key=lambda it: it["density"])
+            items.sort(key=lambda it: (not it["manual"], it["density"]))
             self._send_json({"count": len(items), "items": items})
+            return
+
+        if path == "/api/lyrics-flags":
+            if self._is_public_request():
+                self.send_error(403)
+                return
+            self._send_json({"flags": load_lyrics_flags()})
             return
 
         if path == "/api/panoramas":
@@ -594,6 +630,43 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with open(sync_path, "w", encoding="utf-8") as fh:
                 json.dump(payload, fh)
             self._send_json({"ok": True})
+            return
+
+        if path == "/api/lyrics-flag":
+            # toggled from the player's per-track "flag this song's lyrics"
+            # button - just records intent (see /api/lyrics-audit, which
+            # folds these in); actually re-running Whisper on a flagged
+            # track is still a manual step, not triggered by this request
+            if self._is_public_request():
+                self.send_error(403, "Editing is only available locally")
+                return
+            length = int(self.headers.get("Content-Length", 0))
+            raw = self.rfile.read(length)
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                self.send_error(400, "Invalid JSON")
+                return
+            tid = payload.get("id", "")
+            if tid not in _track_index:
+                refresh_index()
+            track = _track_index.get(tid)
+            if not track:
+                self.send_error(404, "Track not found")
+                return
+            flags = load_lyrics_flags()
+            if tid in flags:
+                del flags[tid]
+                flagged = False
+            else:
+                flags[tid] = {
+                    "title": track["title"],
+                    "folder": track["folder"],
+                    "flaggedAt": round(time.time()),
+                }
+                flagged = True
+            save_lyrics_flags(flags)
+            self._send_json({"ok": True, "flagged": flagged})
             return
 
         if path == "/api/panoramas2/remove":

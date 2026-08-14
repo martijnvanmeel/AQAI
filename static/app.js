@@ -817,6 +817,46 @@ function renderMeta(){
   document.documentElement.style.setProperty("--artist-color", artistColor);
   WAVE_COLOR = artistColor;
   positionBgGradient();
+  updateFlagLyricsButton();
+}
+
+// per-track "flag this song's lyrics for re-syncing" toggle (owner-only,
+// see #btn-flag-lyrics/OWNER_ONLY_SELECTORS) - just records intent server-side
+// (see /api/lyrics-flag) so it shows up in the Info tab's Lyrics QA list;
+// actually re-running Whisper on it is still a manual step from there
+let lyricsFlagIds = new Set();
+function updateFlagLyricsButton(){
+  const btn = $("#btn-flag-lyrics");
+  const tr = TRACKS[cur];
+  if (!btn || !tr) return;
+  btn.setAttribute("aria-pressed", lyricsFlagIds.has(tr.id) ? "true" : "false");
+}
+function initLyricsFlagging(){
+  const btn = $("#btn-flag-lyrics");
+  if (!btn) return;
+  fetch("/api/lyrics-flags").then(r => r.json()).then(data => {
+    lyricsFlagIds = new Set(Object.keys(data.flags || {}));
+    updateFlagLyricsButton();
+  }).catch(() => {});
+  btn.onclick = async () => {
+    const tr = TRACKS[cur];
+    if (!tr) return;
+    btn.disabled = true;
+    try {
+      const res = await fetch("/api/lyrics-flag", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: tr.id }),
+      });
+      const data = await res.json();
+      if (data.flagged) lyricsFlagIds.add(tr.id); else lyricsFlagIds.delete(tr.id);
+      updateFlagLyricsButton();
+      toast(data.flagged ? "Flagged this song's lyrics for re-syncing" : "Unflagged");
+    } catch (e){
+      toast("Could not flag this song");
+    }
+    btn.disabled = false;
+  };
 }
 const PLAY_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
 const PAUSE_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>';
@@ -6181,6 +6221,7 @@ fetch("/api/tracks").then(r => r.json()).then(data => {
   EDITABLE = !!data.editable;
   updateEditControlsVisibility();
   initLyricsAudit();
+  initLyricsFlagging();
   // deep link from a shared "?t=<id>" URL (see $("#btn-share").onclick) -
   // starts the player on that track instead of the default first one
   const deepLinkId = new URLSearchParams(location.search).get("t");
@@ -6234,7 +6275,7 @@ function initLyricsAudit(){
         items.forEach(it => {
           const li = document.createElement("li");
           const strong = document.createElement("strong");
-          strong.textContent = it.title;
+          strong.textContent = (it.manual ? "📌 " : "") + it.title;
           const folder = document.createElement("span");
           folder.className = "dim";
           folder.textContent = ` (${it.folder}) `;
@@ -6390,7 +6431,7 @@ if (gateHintEl){
 const OWNER_ONLY_SELECTORS = [
   "#pano-btns", "#btn-delete", "#btn-edit-title", "#btn-edit-artist",
   "#btn-edit-lyrics", "#btn-relocate-artist", "#lf-edit-btns",
-  "#lyrics-audit-block",
+  "#lyrics-audit-block", "#btn-flag-lyrics",
 ];
 // true only when the server confirms this request never crossed the public
 // reverse proxy (see "editable" on /api/tracks and _is_public_request() in
