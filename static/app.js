@@ -66,6 +66,18 @@ function setBgVideoForTrack(track) {
   const idx = Math.floor(Math.random() * (PANORAMAS.length + 1));
   if (idx < PANORAMAS.length) loadPanoFile(PANORAMAS[idx]);
 }
+function updateFullscreenBtn(){
+  const on = !!document.fullscreenElement;
+  const btn = $("#btn-fullscreen");
+  btn.classList.toggle("on", on);
+  btn.setAttribute("aria-pressed", on ? "true" : "false");
+  btn.setAttribute("aria-label", on ? "Exit fullscreen" : "Enter fullscreen");
+}
+$("#btn-fullscreen").onclick = () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen().catch(() => toast("Fullscreen isn't available"));
+};
+document.addEventListener("fullscreenchange", updateFullscreenBtn);
 function applyTheme(idx) {
   if (idx === currentThemeIndex) return;
   currentThemeIndex = idx;
@@ -901,7 +913,31 @@ function renderVideoExportJob(job){
     }
   });
 }
+// opens static/export.html live, in the viewer's own browser (a real
+// window they can watch), separate from the actual headless recording
+// server.py runs in the background - lets them see what a render will
+// look like without waiting for one to finish
+const PREVIEW_WINDOW_SIZE = {
+  vertical: { w: 380, h: 676 },
+  horizontal: { w: 640, h: 360 },
+};
+function openVideoPreview(aspect){
+  const tr = TRACKS[cur];
+  if (!tr) return;
+  const { w, h } = PREVIEW_WINDOW_SIZE[aspect] || PREVIEW_WINDOW_SIZE.vertical;
+  const url = `/export.html?id=${tr.id}&aspect=${aspect}`;
+  window.open(url, `aqai_preview_${aspect}`, `width=${w},height=${h}`);
+}
 function initVideoExport(){
+  const previewBtn = $("#btn-preview-video");
+  if (previewBtn) previewBtn.onclick = () => {
+    const panel = $("#video-export-panel");
+    if (panel) panel.classList.add("show");
+  };
+  document.querySelectorAll(".video-export-preview").forEach(btn => {
+    btn.onclick = () => openVideoPreview(btn.closest(".video-export-row").dataset.aspect);
+  });
+
   const btn = $("#btn-make-video");
   if (!btn) return;
   btn.onclick = async () => {
@@ -6517,7 +6553,7 @@ if (gateHintEl){
 const OWNER_ONLY_SELECTORS = [
   "#pano-btns", "#btn-delete", "#btn-edit-title", "#btn-edit-artist",
   "#btn-edit-lyrics", "#btn-relocate-artist", "#lf-edit-btns",
-  "#lyrics-audit-block", "#btn-flag-lyrics", "#btn-make-video",
+  "#lyrics-audit-block", "#btn-flag-lyrics", "#btn-make-video", "#btn-preview-video",
 ];
 // true only when the server confirms this request never crossed the public
 // reverse proxy (see "editable" on /api/tracks and _is_public_request() in

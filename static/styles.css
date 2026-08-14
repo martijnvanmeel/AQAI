@@ -144,6 +144,14 @@ body.gate-active::after{display:none}
    wrapper, so #gate-logo3d keeps preserve-3d and its 50px extrusion shows) */
 /* sphere-control toggle: lit in the artist colour while the user is
    steering the sphere with the mouse (auto music-reactive drift otherwise) */
+/* fullscreen toggle, pinned top-left: shows the "enter fullscreen" icon by
+   default, swaps to "exit fullscreen" (compress) once .on - see the
+   fullscreenchange listener in app.js */
+#btn-fullscreen{position:fixed;top:10px;left:10px;z-index:3}
+#btn-fullscreen.on{background:var(--artist-color, var(--active-green));color:#000000;border-color:var(--artist-color, var(--active-green))}
+#btn-fullscreen .fs-icon-on{display:none}
+#btn-fullscreen.on .fs-icon-off{display:none}
+#btn-fullscreen.on .fs-icon-on{display:block}
 .gate-btn{
   font-family:var(--font-display);font-weight:600;font-size:13px;letter-spacing:.2em;
   color:var(--bg);background:var(--object);
@@ -728,6 +736,12 @@ body.scene-hands #stage{background:linear-gradient(to top,
   font-family:var(--font-body);font-size:11px;color:var(--fg-soft);
 }
 .video-export-label{width:92px;flex:none}
+.video-export-preview{
+  flex:none;font-family:var(--font-body);font-weight:700;font-size:10px;
+  color:var(--fg-soft);background:transparent;border:1px solid var(--fg-soft);
+  border-radius:999px;padding:3px 8px;cursor:pointer;
+}
+.video-export-preview:hover{color:var(--artist-color, var(--active-green));border-color:var(--artist-color, var(--active-green))}
 .video-export-bar{
   flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden;
 }
