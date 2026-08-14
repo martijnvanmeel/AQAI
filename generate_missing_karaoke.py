@@ -64,7 +64,10 @@ def main():
             continue
 
         print(f"[{i}/{len(TARGETS)}] transcribing: {folder}/{title}")
-        segments, info = model.transcribe(audio_path, word_timestamps=True, vad_filter=True)
+        # vad_filter=True has misfired on a few tracks here - misreading a
+        # full song with plenty of audible vocals as speech-free and
+        # dropping every word (see retry_missing_karaoke.py) - so it's off
+        segments, info = model.transcribe(audio_path, word_timestamps=True, vad_filter=False)
 
         words = []
         for seg in segments:

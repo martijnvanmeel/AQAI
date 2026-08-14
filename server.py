@@ -269,10 +269,18 @@ def scan_library():
             tid = track_id(audio_path)
 
             lyrics, section_breaks = clean_lyrics(metadata.get("prompt", ""))
-            karaoke_path = karaoke_by_norm.get(norm(base)) or karaoke_by_norm.get(norm(title))
+            # only mark whichever norm actually resolved the match as
+            # consumed - marking both unconditionally could exclude an
+            # unrelated song in loop 2 whose own filename norm happens to
+            # equal this track's *title* norm (distinct song, same title)
+            karaoke_path = karaoke_by_norm.get(norm(base))
             if karaoke_path:
                 matched_karaoke_norms.add(norm(base))
-                matched_karaoke_norms.add(norm(title))
+            else:
+                karaoke_path = karaoke_by_norm.get(norm(title))
+                if karaoke_path:
+                    matched_karaoke_norms.add(norm(title))
+            if karaoke_path:
                 karaoke_data = load_karaoke_file(karaoke_path)
                 if karaoke_data:
                     official_lyrics = karaoke_lyrics_text(karaoke_data)
