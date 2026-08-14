@@ -81,7 +81,22 @@
           <button class="util-btn" id="btn-flag-lyrics" aria-label="Flag this song's lyrics for re-syncing" aria-pressed="false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4"/><path d="M4 4h14l-2.5 4L18 12H4"/></svg>
           </button>
+          <button class="util-btn" id="btn-make-video" aria-label="Make a video from this song">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m23 7-7 5 7 5V7Z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+          </button>
           <div class="lf-artist-picker" id="artist-picker"></div>
+        </div>
+      </div>
+      <div id="video-export-panel" aria-hidden="true">
+        <div class="video-export-row" data-aspect="vertical">
+          <span class="video-export-label">Vertical (9:16)</span>
+          <div class="video-export-bar"><div class="video-export-fill"></div></div>
+          <a class="video-export-link" download>Download</a>
+        </div>
+        <div class="video-export-row" data-aspect="horizontal">
+          <span class="video-export-label">Horizontal (16:9)</span>
+          <div class="video-export-bar"><div class="video-export-fill"></div></div>
+          <a class="video-export-link" download>Download</a>
         </div>
       </div>
       <div class="controls-row">

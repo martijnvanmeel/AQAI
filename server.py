@@ -19,8 +19,12 @@ import os
 import re
 import shutil
 import socketserver
+import threading
 import time
+import traceback
 import urllib.parse
+
+import video_export
 
 LIBRARY_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
@@ -35,8 +39,16 @@ SONG_NAMES_PATH = os.path.join(LIBRARY_ROOT, "song_names.json")
 # /api/lyrics-audit, which folds these in too so there's one list to work
 # through
 LYRICS_FLAGS_PATH = os.path.join(os.path.dirname(__file__), "lyrics_flags.json")
+EXPORTS_DIR = os.path.join(os.path.dirname(__file__), "exports")
 os.makedirs(SYNC_DIR, exist_ok=True)
 os.makedirs(AUTO_LYRICS_DIR, exist_ok=True)
+os.makedirs(EXPORTS_DIR, exist_ok=True)
+
+# in-memory only (a render is a one-off, on-demand action, not something
+# that needs to survive a server restart) - keyed by track id, one entry
+# per track's most recent export attempt across both aspect ratios
+_video_jobs = {}
+_video_jobs_lock = threading.Lock()
 
 
 def load_lyrics_flags():
@@ -235,7 +247,16 @@ def karaoke_lyrics_text(data):
 def karaoke_to_sync_payload(data):
     out = []
     for line in merge_wrapped_karaoke_lines(data.get("lines")):
-        words = [{"w": w["w"], "t": w.get("s", 0)} for w in (line.get("words") or [])]
+        words = []
+        for w in (line.get("words") or []):
+            word = {"w": w["w"], "t": w.get("s", 0)}
+            # real end time, when the source has one (karaoke.json always
+            # does) - lets the frontend size a word's own highlight off its
+            # actual sung length instead of only guessing from the next
+            # word/line's start (see computeDisplayLines/startActiveLineFade)
+            if w.get("e") is not None:
+                word["e"] = w["e"]
+            words.append(word)
         if words:
             out.append({"words": words})
     return {"lines": out}
@@ -381,6 +402,36 @@ def refresh_index():
     tracks = scan_library()
     _track_index = {t["id"]: t for t in tracks}
     return tracks
+
+
+def _set_job_state(track_id, aspect, **fields):
+    with _video_jobs_lock:
+        job = _video_jobs.setdefault(track_id, {})
+        job.setdefault(aspect, {}).update(fields)
+
+
+def _run_video_exports(track):
+    tid = track["id"]
+    karaoke_path = track.get("_karaoke_path")
+    karaoke_data = load_karaoke_file(karaoke_path) if karaoke_path else None
+    for aspect in ("vertical", "horizontal"):
+        _set_job_state(tid, aspect, status="running", progress=0, url=None, error=None)
+        try:
+            out_name = f"{tid}_{aspect}.mp4"
+            out_path = os.path.join(EXPORTS_DIR, out_name)
+
+            def progress_cb(p, aspect=aspect):
+                _set_job_state(tid, aspect, progress=round(p, 3))
+
+            video_export.render(
+                track, karaoke_data, aspect, out_path,
+                panorama_dir=PANORAMA2_DIR, static_dir=STATIC_DIR,
+                progress_cb=progress_cb,
+            )
+            _set_job_state(tid, aspect, status="done", progress=1, url=f"/exports/{out_name}")
+        except Exception as e:
+            traceback.print_exc()
+            _set_job_state(tid, aspect, status="error", error=str(e))
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -608,6 +659,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._serve_audio(track["_path"])
             return
 
+        if path.startswith("/exports/"):
+            if self._is_public_request():
+                self.send_error(403)
+                return
+            name = os.path.basename(path[len("/exports/"):])
+            filepath = os.path.join(EXPORTS_DIR, name)
+            if not os.path.isfile(filepath):
+                self.send_error(404, "Export not found")
+                return
+            self._serve_audio(filepath)
+            return
+
+        if path.startswith("/api/video-status/"):
+            if self._is_public_request():
+                self.send_error(403)
+                return
+            tid = path[len("/api/video-status/"):]
+            with _video_jobs_lock:
+                job = dict(_video_jobs.get(tid, {}))
+            self._send_json({"job": job})
+            return
+
         self._serve_static(path)
 
     def do_POST(self):
@@ -629,6 +702,37 @@ class Handler(http.server.BaseHTTPRequestHandler):
             sync_path = os.path.join(SYNC_DIR, f"{tid}.json")
             with open(sync_path, "w", encoding="utf-8") as fh:
                 json.dump(payload, fh)
+            self._send_json({"ok": True})
+            return
+
+        if path == "/api/make-video":
+            # kicks off both aspect ratios in one background thread and
+            # returns immediately - the frontend polls GET
+            # /api/video-status/<id> for progress (see _run_video_exports)
+            if self._is_public_request():
+                self.send_error(403, "Editing is only available locally")
+                return
+            length = int(self.headers.get("Content-Length", 0))
+            raw = self.rfile.read(length)
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                self.send_error(400, "Invalid JSON")
+                return
+            tid = payload.get("id", "")
+            if tid not in _track_index:
+                refresh_index()
+            track = _track_index.get(tid)
+            if not track:
+                self.send_error(404, "Track not found")
+                return
+            with _video_jobs_lock:
+                already_running = any(
+                    _video_jobs.get(tid, {}).get(a, {}).get("status") == "running"
+                    for a in ("vertical", "horizontal")
+                )
+            if not already_running:
+                threading.Thread(target=_run_video_exports, args=(track,), daemon=True).start()
             self._send_json({"ok": True})
             return
 

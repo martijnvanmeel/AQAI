@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 bin/
 sync/*.json
+exports/

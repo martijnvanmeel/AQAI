@@ -370,7 +370,12 @@ function computeDisplayLines(tr, maxChars){
     const start = words[0].t;
     if (lines.length){
       const prev = lines[lines.length - 1];
-      const prevEnd = prev.words.length ? prev.words[prev.words.length - 1].t : prev.t0;
+      // real end time when we have one (karaoke.json-sourced tracks always
+      // do) - using only the last word's START here used to let a silence
+      // gap get "detected" while that word was still being sung, which cut
+      // its own highlight animation short (see startActiveLineFade)
+      const prevLastWord = prev.words[prev.words.length - 1];
+      const prevEnd = prevLastWord ? (prevLastWord.e ?? prevLastWord.t) : prev.t0;
       if (start - prevEnd > LYRIC_GAP_BLANK) lines.push({ words: [], t0: prevEnd });
     }
     lines.push({ words, t0: start });
@@ -549,7 +554,13 @@ function startActiveLineFade(dl, li){
   // sentence takes over (no scaling - color fade only)
   for (let i = 0; i < spans.length; i++){
     const wordStart = words[i].t - start;
-    const wordEnd = (i < words.length - 1 ? words[i + 1].t : end) - start;
+    let wordEndAbs = i < words.length - 1 ? words[i + 1].t : end;
+    // the last word's fallback boundary (the next sentence, or the gap
+    // placeholder right after it) can land at/before this word's own
+    // start once a silence gap follows - floor it at the word's real sung
+    // end so it always gets to actually show as active
+    if (i === words.length - 1 && words[i].e != null) wordEndAbs = Math.max(wordEndAbs, words[i].e);
+    const wordEnd = wordEndAbs - start;
     const fadeDuration = Math.max(0.15, wordEnd - wordStart);
     spans[i].style.animation = `wordActiveWhite ${fadeDuration}s linear ${wordStart}s forwards`;
   }
@@ -858,6 +869,80 @@ function initLyricsFlagging(){
     btn.disabled = false;
   };
 }
+
+// per-track "make a video" button (owner-only, see #btn-make-video/
+// OWNER_ONLY_SELECTORS) - kicks off a server-side ffmpeg render (the
+// karaoke lyrics, background, photo, waveform and logo baked into an
+// actual .mp4, see player/video_export/) for both a 9:16 and a 16:9 cut,
+// then polls for progress until each is ready to download
+let videoExportPollTimer = null;
+function stopVideoExportPoll(){
+  if (videoExportPollTimer){ clearTimeout(videoExportPollTimer); videoExportPollTimer = null; }
+}
+function renderVideoExportJob(job){
+  const panel = $("#video-export-panel");
+  if (!panel) return;
+  panel.classList.add("show");
+  panel.querySelectorAll(".video-export-row").forEach(row => {
+    const aspect = row.dataset.aspect;
+    const info = (job || {})[aspect] || {};
+    row.classList.remove("done", "error");
+    const fill = row.querySelector(".video-export-fill");
+    const link = row.querySelector(".video-export-link");
+    if (info.status === "done"){
+      row.classList.add("done");
+      link.href = info.url;
+      link.download = "";
+    } else if (info.status === "error"){
+      row.classList.add("error");
+      fill.style.width = "0%";
+    } else {
+      fill.style.width = `${Math.round((info.progress || 0) * 100)}%`;
+    }
+  });
+}
+function initVideoExport(){
+  const btn = $("#btn-make-video");
+  if (!btn) return;
+  btn.onclick = async () => {
+    const tr = TRACKS[cur];
+    if (!tr) return;
+    stopVideoExportPoll();
+    const panel = $("#video-export-panel");
+    if (panel){
+      panel.classList.add("show");
+      panel.querySelectorAll(".video-export-row").forEach(row => {
+        row.classList.remove("done", "error");
+        row.querySelector(".video-export-fill").style.width = "0%";
+      });
+    }
+    try {
+      await fetch("/api/make-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: tr.id }),
+      });
+    } catch (e){
+      toast("Could not start the video render");
+      return;
+    }
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/video-status/${tr.id}`);
+        const data = await res.json();
+        renderVideoExportJob(data.job);
+        const statuses = Object.values(data.job || {}).map(j => j.status);
+        const stillGoing = statuses.some(s => s === "running") || statuses.length < 2;
+        if (stillGoing) videoExportPollTimer = setTimeout(poll, 1500);
+        else toast("Video render finished");
+      } catch (e){
+        videoExportPollTimer = setTimeout(poll, 3000);
+      }
+    };
+    poll();
+  };
+}
+
 const PLAY_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
 const PAUSE_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>';
 const SOUND_ON_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 8a5 5 0 0 1 0 8"/><path d="M17.7 5a9 9 0 0 1 0 14"/><path d="M6 15H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h2l3.5-4.5A.8.8 0 0 1 11 5v14a.8.8 0 0 1-1.5.5z"/></svg>';
@@ -6222,6 +6307,7 @@ fetch("/api/tracks").then(r => r.json()).then(data => {
   updateEditControlsVisibility();
   initLyricsAudit();
   initLyricsFlagging();
+  initVideoExport();
   // deep link from a shared "?t=<id>" URL (see $("#btn-share").onclick) -
   // starts the player on that track instead of the default first one
   const deepLinkId = new URLSearchParams(location.search).get("t");
@@ -6431,7 +6517,7 @@ if (gateHintEl){
 const OWNER_ONLY_SELECTORS = [
   "#pano-btns", "#btn-delete", "#btn-edit-title", "#btn-edit-artist",
   "#btn-edit-lyrics", "#btn-relocate-artist", "#lf-edit-btns",
-  "#lyrics-audit-block", "#btn-flag-lyrics",
+  "#lyrics-audit-block", "#btn-flag-lyrics", "#btn-make-video",
 ];
 // true only when the server confirms this request never crossed the public
 // reverse proxy (see "editable" on /api/tracks and _is_public_request() in

@@ -709,6 +709,31 @@ body.scene-hands #stage{background:linear-gradient(to top,
   box-shadow:0 3px 8px rgba(0,0,0,.35);
   background:#eeeeee;
 }
+#video-export-panel{
+  display:none;flex-direction:column;gap:6px;
+  width:min(320px,86vw);margin:8px auto 0;
+}
+#video-export-panel.show{display:flex}
+.video-export-row{
+  display:flex;align-items:center;gap:8px;
+  font-family:var(--font-body);font-size:11px;color:var(--fg-soft);
+}
+.video-export-label{width:92px;flex:none}
+.video-export-bar{
+  flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden;
+}
+.video-export-fill{
+  height:100%;width:0%;border-radius:3px;
+  background:var(--artist-color, var(--active-green));
+  transition:width .25s ease;
+}
+.video-export-link{
+  flex:none;display:none;font-weight:700;color:var(--artist-color, var(--active-green));
+  text-decoration:none;font-size:11px;
+}
+.video-export-row.done .video-export-link{display:inline}
+.video-export-row.done .video-export-bar{display:none}
+.video-export-row.error .video-export-label{color:#FF5C5C}
 /* same artist-color <-> 20%-brighter cycle as the logo, just on
    background-color instead of text color */
 @keyframes bgArtistBrightCycle{
