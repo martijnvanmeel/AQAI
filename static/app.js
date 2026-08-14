@@ -913,20 +913,19 @@ function renderVideoExportJob(job){
     }
   });
 }
-// opens static/export.html live, in the viewer's own browser (a real
-// window they can watch), separate from the actual headless recording
-// server.py runs in the background - lets them see what a render will
-// look like without waiting for one to finish
-const PREVIEW_WINDOW_SIZE = {
-  vertical: { w: 380, h: 676 },
-  horizontal: { w: 640, h: 360 },
-};
+// opens static/export.html live, in the viewer's own browser (a real,
+// normal tab they can watch), separate from the actual headless
+// recording server.py runs in the background - lets them see what a
+// render will look like without waiting for one to finish. No size
+// features passed to window.open() on purpose - that's what makes a
+// browser treat it as a small popup window instead of a regular tab;
+// the shared per-aspect target name still means a second click reuses
+// the same tab instead of piling up new ones.
 function openVideoPreview(aspect){
   const tr = TRACKS[cur];
   if (!tr) return;
-  const { w, h } = PREVIEW_WINDOW_SIZE[aspect] || PREVIEW_WINDOW_SIZE.vertical;
   const url = `/export.html?id=${tr.id}&aspect=${aspect}`;
-  window.open(url, `aqai_preview_${aspect}`, `width=${w},height=${h}`);
+  window.open(url, `aqai_preview_${aspect}`);
 }
 function initVideoExport(){
   const previewBtn = $("#btn-preview-video");
@@ -1754,57 +1753,6 @@ function waveIntensityAtU(u){
     display[i] = waveCur[i] * env;
   }
   return Math.min(1, Math.abs(waveCurveAt(display, u)) * 1.6);
-}
-// 8 vertical bars along the top of the photo's edge (a stroke divided into
-// bars rather than the previous full ring). Each sits at its own
-// x-position on the photo, fixed thickness, and its LENGTH (10px resting,
-// 20px max) tracks the linear wave visualiser's intensity at that same
-// x-position, converted from this local SVG space to the page and back to
-// the wave canvas's own normalized coordinate each frame.
-const BAR_COUNT = 24;
-const BAR_MIN_LEN = 8, BAR_MAX_LEN = 15; // viewBox units = css px
-const RING_CX = 94.53125, RING_CY = 76.0706; // ellipse centre (viewBox units = css px)
-const RING_RX = 83.53125, RING_RY = 65.0706; // photo's own edge
-const artistBarEls = [];
-(function buildArtistBars(){
-  const g = $("#artist-bars");
-  if (!g) return;
-  for (let i = 0; i < BAR_COUNT; i++){
-    const xFrac = (i + 0.5) / BAR_COUNT; // 0..1 across the photo's width, centred within 8 equal slices
-    const xOffset = (xFrac - 0.5) * 2 * RING_RX;
-    const baseX = RING_CX + xOffset;
-    const baseY = RING_CY - RING_RY * Math.sqrt(Math.max(0, 1 - (xOffset / RING_RX) ** 2));
-    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-    line.setAttribute("class", "artist-bar");
-    line.setAttribute("x1", baseX.toFixed(2));
-    line.setAttribute("y1", baseY.toFixed(2));
-    line.setAttribute("x2", baseX.toFixed(2));
-    line.setAttribute("y2", (baseY - BAR_MIN_LEN).toFixed(2));
-    line.setAttribute("stroke-width", "3");
-    g.appendChild(line);
-    artistBarEls.push({ el: line, baseX, baseY });
-  }
-})();
-function updateArtistRingVisualiser(){
-  if (!artistBarEls.length) return;
-  const svg = $("#artist-photo-ring");
-  const canvas = $("#wave-canvas");
-  if (!svg || !canvas) return;
-  if (!freqData || !playing){
-    artistBarEls.forEach(b => b.el.setAttribute("y2", (b.baseY - BAR_MIN_LEN).toFixed(2)));
-    return;
-  }
-  const svgRect = svg.getBoundingClientRect();
-  const canvasRect = canvas.getBoundingClientRect();
-  if (!svgRect.width || !canvasRect.width) return;
-  const viewBoxW = 189.0625;
-  artistBarEls.forEach(b => {
-    const absoluteX = svgRect.left + (b.baseX / viewBoxW) * svgRect.width;
-    const u = (absoluteX - canvasRect.left) / canvasRect.width;
-    const intensity = waveIntensityAtU(u);
-    const len = BAR_MIN_LEN + intensity * (BAR_MAX_LEN - BAR_MIN_LEN);
-    b.el.setAttribute("y2", (b.baseY - len).toFixed(2));
-  });
 }
 function positionLogo(){
   const logo = document.querySelector(".home-top .logo-text");
@@ -5452,7 +5400,6 @@ function animate(t){
   updateWaveSamples();
   drawWaveCanvas();
   panoUniforms.uIntensity.value += (audioIntensity() - panoUniforms.uIntensity.value) * 0.15;
-  updateArtistRingVisualiser();
   // flight controls: advance the shared scroll clock by the (smoothed)
   // speed factor, and integrate the steered scene roll
   const dtSec = lastAnimT === null ? 0.016 : Math.min(0.1, ((t || 0) - lastAnimT) * 0.001);

@@ -661,20 +661,6 @@ body.scene-hands #stage{background:linear-gradient(to top,
   -webkit-mask-image:url('assets/profilepic.png');-webkit-mask-size:100% 100%;-webkit-mask-repeat:no-repeat;-webkit-mask-position:center;
   mask-image:url('assets/profilepic.png');mask-size:100% 100%;mask-repeat:no-repeat;mask-position:center;
 }
-/* 8 vertical bars along the top of the photo's edge, evenly spaced by
-   x-position. Each one's thickness (not length) grows from 2px to 8px,
-   driven by the linear wave visualiser's own intensity at the matching
-   x-position - see buildArtistBars()/updateArtistRingVisualiser() in
-   app.js, which also removed the previous full-ring visualiser here. */
-.artist-photo-ring{
-  position:absolute;inset:-11px;z-index:0;pointer-events:none;
-  width:calc(100% + 22px);height:calc(100% + 22px);
-  overflow:visible;
-}
-.artist-bar{
-  stroke:var(--artist-color, var(--active-green));
-  stroke-linecap:round;
-}
 .artist-photo{
   display:block;width:100%;height:auto;position:relative;z-index:1;
 }
