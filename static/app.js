@@ -460,7 +460,11 @@ let dlActiveIdx = -1; // last display-line index actually rendered active (see f
 function renderLyricRows(li, dl){
   dlActiveIdx = li;
   const wrap = $("#lyric-rows");
-  const { before, after } = realNeighbors(dl, li, LYRIC_ROW_REACH);
+  // upcoming sentences are never shown ahead of time - a line only ever
+  // appears once the song actually reaches it (only past ones stay
+  // visible, scrolled up above the active line, for context)
+  const { before } = realNeighbors(dl, li, LYRIC_ROW_REACH);
+  const after = [];
   const keep = new Set([li, ...before, ...after]);
   Object.keys(lyricRowEls).forEach(k => {
     const idx = +k;
@@ -5244,7 +5248,7 @@ function audioIntensity(){
 
 const gateLogoTiltEl = $("#gate-logo-tilt");
 let camYaw = 0, camPitch = 0;
-let sphereSpinYaw = 0; // SPHERE scene's own continuous clockwise turn (see animate())
+let sphereSpinRoll = 0; // SPHERE scene's own continuous clockwise turn (see animate())
 // timestamp the automatic motion (re)starts from; null forces a fresh
 // "centred, then ease in" ramp the next time auto-drift takes over
 let autoMotionStartT = null;
@@ -5320,6 +5324,12 @@ function animate(t){
   // and on the music screen that drift also reacts to the audio: louder
   // passages add a faster, wider sway on top (uIntensity is ~0 on the
   // silent intro, so there it stays the pure elegant drift).
+  // SPHERE scene's own steady, continuous clockwise turn - one full 360
+  // every 30s, forever - as a camera ROLL (rotation.z), applied further
+  // down where the sphere screen sets its position sway, not here (this
+  // block only ever drives yaw/pitch - see camera.rotation.z below)
+  if (document.body.classList.contains("scene-sphere")) sphereSpinRoll += dtSec * (Math.PI * 2 / 30);
+
   let targetYaw, targetPitch, camSmooth;
   if (sphereUserControl && !document.body.classList.contains("gate-active")){
     targetYaw = -mouseNX * 0.5;
@@ -5327,14 +5337,11 @@ function animate(t){
     camSmooth = 0.04335; // slow trailing follow for mouse-look
     autoMotionStartT = null; // restart the centred ramp when auto resumes
   } else if (document.body.classList.contains("scene-sphere")){
-    // SPHERE scene only: a steady, continuous clockwise turn - one full
-    // 360 every 30s, forever. No easing target to chase (that's what made
-    // the other scenes' drift feel organic but would make a full spin look
-    // like it hitches) - sphereSpinYaw itself already advances smoothly.
-    sphereSpinYaw -= dtSec * (Math.PI * 2 / 30); // negative = clockwise seen from above
-    targetYaw = sphereSpinYaw;
+    // no yaw/pitch drift for SPHERE any more - the roll above is the only
+    // motion, so ease straight back to dead-centre and stay there
+    targetYaw = 0;
     targetPitch = 0;
-    camSmooth = 1;
+    camSmooth = 0.05;
     autoMotionStartT = null; // restart the centred ramp for when the gate returns
   } else {
     if (autoMotionStartT === null) autoMotionStartT = t || 0;
@@ -6123,11 +6130,13 @@ function animate(t){
     donutDirFill.position.copy(donutDirLight.position);
   } else if (!tunnelGroup.visible){
     // the sphere (auto) screen: a drone-style glide in the Polaroid
-    // spirit - slow translational sweeps and a gentle bank layered over
-    // the existing Lissajous look-drift, floating above the glossy floor
+    // spirit - slow translational sweeps, floating above the glossy floor.
+    // Roll comes straight from sphereSpinYaw's steady turn (see the top of
+    // this function) rather than the small bank sway every other scene
+    // uses here - this line used to overwrite that turn every frame.
     camera.position.x = Math.sin(swayT * 0.021) * 3.2;
     camera.position.y = Math.sin(swayT * 0.017 + 1) * 2.2;
-    camera.rotation.z = Math.sin(swayT * 0.019 + 4) * 0.05 + cameraRollOffset;
+    camera.rotation.z = sphereSpinRoll + cameraRollOffset;
   } else {
     // intro tunnel: keep its fixed lowered viewpoint; only the steered
     // flight roll applies
@@ -6171,6 +6180,7 @@ fetch("/api/tracks").then(r => r.json()).then(data => {
   $("#info-count").textContent = TRACKS.length;
   EDITABLE = !!data.editable;
   updateEditControlsVisibility();
+  initLyricsAudit();
   // deep link from a shared "?t=<id>" URL (see $("#btn-share").onclick) -
   // starts the player on that track instead of the default first one
   const deepLinkId = new URLSearchParams(location.search).get("t");
@@ -6194,6 +6204,56 @@ fetch("/api/tracks").then(r => r.json()).then(data => {
   if (btn){ btn.textContent = "COULD NOT LOAD - TAP TO RETRY"; btn.disabled = false; btn.classList.remove("loading"); }
   if (btn) btn.onclick = () => location.reload();
 });
+
+// owner-only QA button (see #lyrics-audit-block/OWNER_ONLY_SELECTORS): asks
+// the server which tracks' lyrics look missing, empty, or suspiciously
+// sparse for their length, and lists them out so they can be re-run
+function initLyricsAudit(){
+  const btn = $("#btn-lyrics-audit");
+  const out = $("#lyrics-audit-results");
+  if (!btn || !out) return;
+  btn.onclick = async () => {
+    btn.disabled = true;
+    const label = btn.textContent;
+    btn.textContent = "Scanning…";
+    out.innerHTML = "";
+    try {
+      const res = await fetch("/api/lyrics-audit");
+      const data = await res.json();
+      const items = data.items || [];
+      if (!items.length){
+        const p = document.createElement("p");
+        p.className = "dim";
+        p.textContent = "Nothing flagged - every track's lyrics look complete.";
+        out.appendChild(p);
+      } else {
+        const p = document.createElement("p");
+        p.textContent = `${items.length} track${items.length === 1 ? "" : "s"} flagged:`;
+        out.appendChild(p);
+        const ul = document.createElement("ul");
+        items.forEach(it => {
+          const li = document.createElement("li");
+          const strong = document.createElement("strong");
+          strong.textContent = it.title;
+          const folder = document.createElement("span");
+          folder.className = "dim";
+          folder.textContent = ` (${it.folder}) `;
+          const reason = document.createTextNode(`— ${it.reason}`);
+          li.append(strong, folder, reason);
+          ul.appendChild(li);
+        });
+        out.appendChild(ul);
+      }
+    } catch (e){
+      const p = document.createElement("p");
+      p.className = "dim";
+      p.textContent = "Scan failed - is the server running?";
+      out.appendChild(p);
+    }
+    btn.disabled = false;
+    btn.textContent = label;
+  };
+}
 
 // builds the extruded-logo illusion: stacked copies of the same "AQAI"
 // text (set via Brice, the same font the home screen's wordmark uses)
@@ -6330,6 +6390,7 @@ if (gateHintEl){
 const OWNER_ONLY_SELECTORS = [
   "#pano-btns", "#btn-delete", "#btn-edit-title", "#btn-edit-artist",
   "#btn-edit-lyrics", "#btn-relocate-artist", "#lf-edit-btns",
+  "#lyrics-audit-block",
 ];
 // true only when the server confirms this request never crossed the public
 // reverse proxy (see "editable" on /api/tracks and _is_public_request() in

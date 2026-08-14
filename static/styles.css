@@ -1025,6 +1025,9 @@ body.scene-hands #stage{background:linear-gradient(to top,
   display:inline-block;background:var(--object);color:var(--bg);padding:5px 10px;border-radius:6px}
 .info-block p{font-size:14px;line-height:1.7}
 .info-block p.dim{color:var(--fg-soft);font-size:12px}
+#lyrics-audit-results{margin-top:10px}
+#lyrics-audit-results ul{list-style:none;margin-top:6px;display:flex;flex-direction:column;gap:6px}
+#lyrics-audit-results li{font-size:13px;line-height:1.5;padding:8px 10px;border:1px solid var(--line);border-radius:8px}
 
 /* ============================ SYNC STUDIO ============================ */
 #view-sync{padding:calc(env(safe-area-inset-top) + 18px) 22px 0;overflow-y:auto}

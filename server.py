@@ -407,6 +407,67 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send_json({"tracks": public, "editable": not self._is_public_request()})
             return
 
+        if path == "/api/lyrics-audit":
+            # owner-only QA tool: flag tracks whose karaoke sidecar looks
+            # missing, empty, or suspiciously sparse for its duration - the
+            # same shape of bug a misfiring VAD filter produced during a
+            # batch Whisper run (a full song read as speech-free, dropping
+            # every word). Not a guarantee anything's actually wrong, just
+            # worth a human's eyes.
+            if self._is_public_request():
+                self.send_error(403)
+                return
+            tracks = refresh_index()
+            items = []
+            for t in tracks:
+                karaoke_path = t.get("_karaoke_path")
+                if not karaoke_path:
+                    continue
+                data = load_karaoke_file(karaoke_path)
+                if not data:
+                    continue
+                source = data.get("source") or ""
+                duration = data.get("duration") or t.get("duration") or 0
+                lines = data.get("lines") or []
+                all_words = [w for ln in lines for w in (ln.get("words") or [])]
+                word_count = len(all_words)
+                density = (word_count / duration) if duration else 0
+                # a real sung/spoken word has some non-zero duration; a run of
+                # words all stamped at the exact same instant is Whisper
+                # hallucinating a stock phrase ("thanks for watching", "see
+                # you next time"...) over an instrumental/silent passage -
+                # a real failure mode seen firsthand generating this library
+                zero_dur = sum(1 for w in all_words if (w.get("e", 0) - w.get("s", 0)) < 0.05)
+                zero_dur_frac = (zero_dur / word_count) if word_count else 0
+
+                reason = None
+                if source == "instrumental" and duration > 20:
+                    reason = "marked instrumental - confirm there's really no vocals"
+                elif word_count == 0:
+                    reason = "no lyric words at all"
+                elif zero_dur_frac > 0.15:
+                    reason = (
+                        f"{zero_dur}/{word_count} words with no real duration - "
+                        "looks like a hallucinated line over silence/instrumental"
+                    )
+                elif duration > 30 and density < 0.5:
+                    reason = (
+                        f"only {word_count} words over {duration:.0f}s "
+                        f"({density:.2f} words/sec) - looks truncated"
+                    )
+                if reason:
+                    items.append({
+                        "folder": t["folder"],
+                        "title": t["title"],
+                        "duration": round(duration, 1),
+                        "wordCount": word_count,
+                        "density": round(density, 2),
+                        "reason": reason,
+                    })
+            items.sort(key=lambda it: it["density"])
+            self._send_json({"count": len(items), "items": items})
+            return
+
         if path == "/api/panoramas":
             files = []
             if os.path.isdir(PANORAMA_DIR):
