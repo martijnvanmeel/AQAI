@@ -366,9 +366,17 @@ function renderMeta(tr){
 function positionWaveCanvas(){
   const canvas = $("#wave-canvas");
   const photoWrap = $(".artist-photo-wrap");
-  if (!canvas || !photoWrap) return;
+  const root = $("#export-root");
+  if (!canvas || !photoWrap || !root) return;
   const rect = photoWrap.getBoundingClientRect();
-  const photoCenterY = rect.top + rect.height / 2;
+  const rootRect = root.getBoundingClientRect();
+  // #wave-canvas is position:absolute inside #export-root, so its own
+  // "top" needs to be relative to that ancestor's box, not the viewport -
+  // getBoundingClientRect() is always viewport-relative, and in the real
+  // recording #export-root fills the whole viewport so this was a no-op
+  // there, but in a browser-tab preview #export-root is letterboxed and
+  // centered (see export.css), so it isn't at viewport (0,0) any more
+  const photoCenterY = rect.top + rect.height / 2 - rootRect.top;
   const canvasH = canvas.clientHeight || parseFloat(getComputedStyle(canvas).height) || 0;
   canvas.style.top = (photoCenterY - canvasH / 2) + "px";
 }

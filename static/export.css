@@ -2,10 +2,22 @@
    for fonts/colors/lyric+wave/logo styling (so it's pixel-identical to the
    live player), this file only handles the two fixed-canvas aspect ratios
    video_export/__init__.py records at. */
-html, body{margin:0;padding:0;background:#000;overflow:hidden}
+/* Previewed in a normal browser tab, which can be any shape - #export-root
+   is letterboxed to the EXACT 9:16 or 16:9 the real export records at
+   (video_export/__init__.py's ASPECTS dict), centered within whatever
+   window it's actually opened in, rather than stretching to fill it. */
+html, body{margin:0;padding:0;background:#000;overflow:hidden;height:100%}
+body{display:flex;align-items:center;justify-content:center}
 #export-root{
-  position:relative;width:100%;height:100%;overflow:hidden;
-  background:#000;
+  position:relative;overflow:hidden;background:#000;
+}
+body.aspect-vertical #export-root{
+  width:min(100vw, calc(100vh * 9 / 16));
+  height:min(100vh, calc(100vw * 16 / 9));
+}
+body.aspect-horizontal #export-root{
+  width:min(100vw, calc(100vh * 16 / 9));
+  height:min(100vh, calc(100vw * 9 / 16));
 }
 #bg-video{
   position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;
