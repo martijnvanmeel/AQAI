@@ -40,6 +40,7 @@ SONG_NAMES_PATH = os.path.join(LIBRARY_ROOT, "song_names.json")
 # through
 LYRICS_FLAGS_PATH = os.path.join(os.path.dirname(__file__), "lyrics_flags.json")
 EXPORTS_DIR = os.path.join(os.path.dirname(__file__), "exports")
+SERVER_PORT = 8420  # overwritten in __main__ with whatever port was actually chosen
 os.makedirs(SYNC_DIR, exist_ok=True)
 os.makedirs(AUTO_LYRICS_DIR, exist_ok=True)
 os.makedirs(EXPORTS_DIR, exist_ok=True)
@@ -426,7 +427,7 @@ def _run_video_exports(track):
             video_export.render(
                 track, karaoke_data, aspect, out_path,
                 panorama_dir=PANORAMA2_DIR, static_dir=STATIC_DIR,
-                progress_cb=progress_cb,
+                server_port=SERVER_PORT, progress_cb=progress_cb,
             )
             _set_job_state(tid, aspect, status="done", progress=1, url=f"/exports/{out_name}")
         except Exception as e:
@@ -546,6 +547,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     })
             items.sort(key=lambda it: (not it["manual"], it["density"]))
             self._send_json({"count": len(items), "items": items})
+            return
+
+        if path.startswith("/api/export-background/"):
+            # picks the same deterministic-per-track panorama clip the
+            # video export's background layer uses (see
+            # video_export.pick_background) - exposed so export.html can
+            # set its own <video> src to match exactly what the render
+            # will actually use
+            tid = path[len("/api/export-background/"):]
+            bg_path = video_export.pick_background(tid, PANORAMA2_DIR)
+            self._send_json({"file": os.path.basename(bg_path) if bg_path else None})
             return
 
         if path == "/api/lyrics-flags":
@@ -1070,6 +1082,7 @@ if __name__ == "__main__":
         port = int(os.environ["PORT"])
     else:
         port = 8420
+    SERVER_PORT = port  # video_export needs this to hit /export.html on itself
     refresh_index()
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     print(f"AQAI Music player serving on http://127.0.0.1:{port}")

@@ -711,9 +711,18 @@ body.scene-hands #stage{background:linear-gradient(to top,
 }
 #video-export-panel{
   display:none;flex-direction:column;gap:6px;
-  width:min(320px,86vw);margin:8px auto 0;
+  position:fixed;z-index:20;
+  top:calc(env(safe-area-inset-top) + 14px);right:14px;
+  width:min(260px,72vw);
+  padding:10px 12px;border-radius:12px;
+  background:rgba(10,10,10,.72);backdrop-filter:blur(10px);
+  box-shadow:0 4px 16px rgba(0,0,0,.4);
 }
 #video-export-panel.show{display:flex}
+.video-export-title{
+  font-family:var(--font-title);font-weight:700;font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--fg-soft);
+}
 .video-export-row{
   display:flex;align-items:center;gap:8px;
   font-family:var(--font-body);font-size:11px;color:var(--fg-soft);

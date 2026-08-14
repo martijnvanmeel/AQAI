@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AQAI — Export</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="export.css">
+</head>
+<body>
+
+<div id="export-root">
+  <video id="bg-video" autoplay muted loop playsinline></video>
+  <div id="export-dim"></div>
+
+  <canvas id="wave-canvas" aria-hidden="true"></canvas>
+  <div id="lyrics"><div id="lyric-rows" aria-live="polite"></div></div>
+
+  <div class="home-top"><div class="logo-text">AQAI</div></div>
+
+  <div class="player">
+    <div class="artist-photo-wrap">
+      <img class="artist-photo" id="artist-photo" src="assets/profilepic.png" alt="">
+    </div>
+    <div class="meta-row">
+      <div class="meta">
+        <span class="title" id="m-title">—</span>
+        <span class="by">BY</span>
+        <span class="sub" id="m-folder">—</span>
+      </div>
+    </div>
+  </div>
+
+  <audio id="audio" preload="auto" crossorigin="anonymous"></audio>
+</div>
+
+<script src="export.js"></script>
+</body>
+</html>

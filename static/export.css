@@ -1,0 +1,34 @@
+/* Layout for the headless-recorded video export - reuses styles.css as-is
+   for fonts/colors/lyric+wave/logo styling (so it's pixel-identical to the
+   live player), this file only handles the two fixed-canvas aspect ratios
+   video_export/__init__.py records at. */
+html, body{margin:0;padding:0;background:#000;overflow:hidden}
+#export-root{
+  position:relative;width:100%;height:100%;overflow:hidden;
+  background:#000;
+}
+#bg-video{
+  position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;
+}
+#export-dim{
+  position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(to bottom, rgba(0,0,0,.15) 0%, rgba(0,0,0,.15) 40%, rgba(0,0,0,.75) 100%);
+}
+.home-top{position:absolute;top:0;left:0;right:0;height:1px}
+.home-top .logo-text{top:64px}
+
+body.aspect-vertical .player{position:absolute;left:0;right:0;bottom:9%;z-index:2}
+body.aspect-vertical .artist-photo-wrap{width:240px}
+body.aspect-vertical #wave-canvas{height:120px}
+body.aspect-vertical #lyrics{position:absolute;left:6%;right:6%;top:14%;height:40%}
+body.aspect-vertical .home-top .logo-text{font-size:64px}
+
+body.aspect-horizontal .player{position:absolute;left:0;right:0;bottom:10%;z-index:2}
+body.aspect-horizontal .artist-photo-wrap{width:180px}
+body.aspect-horizontal #wave-canvas{height:140px}
+body.aspect-horizontal #lyrics{position:absolute;left:10%;right:10%;top:12%;height:40%}
+body.aspect-horizontal .home-top .logo-text{font-size:52px}
+
+#wave-canvas{position:absolute;left:-10px;width:calc(100% + 20px);z-index:2;pointer-events:none}
+#lyrics{z-index:2}
+.player{width:100%}
