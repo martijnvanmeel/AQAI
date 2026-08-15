@@ -1,0 +1,5 @@
+faster-whisper
+fonttools
+brotli
+imageio-ffmpeg
+playwright
