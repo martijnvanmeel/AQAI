@@ -48,8 +48,14 @@ body.aspect-horizontal .home-top .logo-text{font-size:26px}
 
 /* artist photo at 60% of its previous size, placed between the lyrics
    band below it and the logo above it */
-body.aspect-vertical .artist-photo-wrap{width:144px;top:58%;transform:translateX(-50%)}
-body.aspect-horizontal .artist-photo-wrap{width:108px;top:56%;transform:translateX(-50%)}
+/* explicit height (from profilepic.png's fixed 638:497 oval ratio) rather
+   than leaving it to the <img>'s natural size once loaded - the wrap used
+   to sit at 0 height until the photo actually finished loading, so
+   positionWaveCanvas() (and everything anchored off it: the visualiser,
+   the title/artist row) measured a collapsed box for the first few
+   frames of every render and visibly jumped once the image arrived */
+body.aspect-vertical .artist-photo-wrap{width:144px;height:112px;top:58%;transform:translateX(-50%)}
+body.aspect-horizontal .artist-photo-wrap{width:108px;height:84px;top:56%;transform:translateX(-50%)}
 
 /* wave visualiser at 5x (500% taller) its previous height - vertically
    re-centred on the (now smaller/repositioned) photo by positionWaveCanvas()

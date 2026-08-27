@@ -5437,11 +5437,14 @@ function animate(t){
   let targetYaw, targetPitch, camSmooth;
   if (document.body.classList.contains("scene-sphere")){
     // the sphere background reacts to the mouse again - yaw/pitch follow
-    // the cursor (roll keeps spinning independently, set above) - same
-    // sensitivity/smoothing as the old dedicated mouse-look mode had
-    targetYaw = -mouseNX * 0.5;
-    targetPitch = -mouseNY * 0.35;
-    camSmooth = 0.04335;
+    // the cursor (roll keeps spinning independently, set above), reversed
+    // from the old mouse-look mode's own mapping (the view now turns
+    // *toward* the side the cursor is on rather than away from it), and
+    // with a longer trailing lag so it visibly trails behind instead of
+    // tracking tightly
+    targetYaw = mouseNX * 1.1;
+    targetPitch = mouseNY * 0.7;
+    camSmooth = 0.015;
     autoMotionStartT = null; // restart the centred ramp for when the gate returns
   } else {
     if (autoMotionStartT === null) autoMotionStartT = t || 0;
