@@ -29,18 +29,48 @@ body.aspect-horizontal #export-root{
 .home-top{position:absolute;top:0;left:0;right:0;height:1px}
 .home-top .logo-text{top:64px}
 
-body.aspect-vertical .player{position:absolute;left:0;right:0;bottom:9%;z-index:2}
-body.aspect-vertical .artist-photo-wrap{width:240px}
-body.aspect-vertical #wave-canvas{height:120px}
-body.aspect-vertical #lyrics{position:absolute;left:6%;right:6%;top:14%;height:40%}
-body.aspect-vertical .home-top .logo-text{font-size:64px}
+/* stacking order top -> bottom: logo, karaoke lyrics, artist photo, then
+   title/artist pinned near the bottom - photo and meta are each their own
+   independently-positioned element now (no longer grouped in one .player
+   block), so this order can be set explicitly rather than following
+   normal document flow */
+.artist-photo-wrap{position:absolute;left:50%;z-index:2}
+/* styles.css's own .meta-row is built for the live player (position:fixed,
+   top:0, transform:translateY(-50%) to center it up there) - reset every
+   one of those so bottom:10% is the only thing controlling its position;
+   left/right:0 + top:auto is what makes height come from its own content
+   instead of stretching to fill top:0..bottom:10% */
+.meta-row{position:absolute;left:0;right:0;top:auto;bottom:10%;transform:none;z-index:2;display:flex;justify-content:center}
 
-body.aspect-horizontal .player{position:absolute;left:0;right:0;bottom:10%;z-index:2}
-body.aspect-horizontal .artist-photo-wrap{width:180px}
-body.aspect-horizontal #wave-canvas{height:140px}
-body.aspect-horizontal #lyrics{position:absolute;left:10%;right:10%;top:12%;height:40%}
-body.aspect-horizontal .home-top .logo-text{font-size:52px}
+/* logo at 50% of its previous size */
+body.aspect-vertical .home-top .logo-text{font-size:32px}
+body.aspect-horizontal .home-top .logo-text{font-size:26px}
 
-#wave-canvas{position:absolute;left:-10px;width:calc(100% + 20px);z-index:2;pointer-events:none}
+/* artist photo at 60% of its previous size, placed between the lyrics
+   band below it and the logo above it */
+body.aspect-vertical .artist-photo-wrap{width:144px;top:58%;transform:translateX(-50%)}
+body.aspect-horizontal .artist-photo-wrap{width:108px;top:56%;transform:translateX(-50%)}
+
+/* wave visualiser at 5x (500% taller) its previous height - vertically
+   re-centred on the (now smaller/repositioned) photo by positionWaveCanvas()
+   in export.js, same as before */
+body.aspect-vertical #wave-canvas, body.aspect-vertical #wave-canvas-2{height:600px}
+body.aspect-horizontal #wave-canvas, body.aspect-horizontal #wave-canvas-2{height:700px}
+
+/* karaoke lyrics sit in the band between the logo and the photo -
+   styles.css's own #lyrics carries a transform (translateY + scale) built
+   for the live player's different layout; reset it so top/height alone
+   place this band */
+body.aspect-vertical #lyrics{position:absolute;left:6%;right:6%;top:12%;height:42%;transform:none}
+body.aspect-horizontal #lyrics{position:absolute;left:10%;right:10%;top:10%;height:42%;transform:none}
+
+#wave-canvas{position:absolute;left:-10px;width:calc(100% + 20px);z-index:1;pointer-events:none}
+/* duplicate of the same waveform, mirrored left-right and shifted right by
+   the photo's own width (see positionWaveCanvas() in export.js) so it
+   reads as a flipped echo sitting behind the photo's right side, rather
+   than exactly overlapping the original */
+#wave-canvas-2{
+  position:absolute;left:-10px;width:calc(100% + 20px);z-index:1;pointer-events:none;
+  transform:scaleX(-1);
+}
 #lyrics{z-index:2}
-.player{width:100%}

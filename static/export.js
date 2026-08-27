@@ -65,8 +65,7 @@ function mixWithWhite(hex, frac){
   const mix = c => Math.round(c + (255 - c) * frac);
   return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
 }
-function drawWaveCanvas(){
-  const canvas = $("#wave-canvas");
+function drawWaveCanvas(canvas){
   if (!canvas) return;
   const w = canvas.clientWidth, h = canvas.clientHeight;
   if (!w || !h) return;
@@ -365,9 +364,10 @@ function renderMeta(tr){
 // the loaded image's aspect ratio
 function positionWaveCanvas(){
   const canvas = $("#wave-canvas");
+  const canvas2 = $("#wave-canvas-2");
   const photoWrap = $(".artist-photo-wrap");
   const root = $("#export-root");
-  if (!canvas || !photoWrap || !root) return;
+  if (!canvas || !canvas2 || !photoWrap || !root) return;
   const rect = photoWrap.getBoundingClientRect();
   const rootRect = root.getBoundingClientRect();
   // #wave-canvas is position:absolute inside #export-root, so its own
@@ -378,7 +378,26 @@ function positionWaveCanvas(){
   // centered (see export.css), so it isn't at viewport (0,0) any more
   const photoCenterY = rect.top + rect.height / 2 - rootRect.top;
   const canvasH = canvas.clientHeight || parseFloat(getComputedStyle(canvas).height) || 0;
-  canvas.style.top = (photoCenterY - canvasH / 2) + "px";
+  const top = (photoCenterY - canvasH / 2) + "px";
+  canvas.style.top = top;
+  // the duplicate is the exact same strip, mirrored (see export.css'
+  // transform:scaleX(-1)) and shifted right by the photo's own width, so
+  // it reads as a flipped echo sitting behind the photo's right side
+  // rather than exactly retracing the original
+  canvas2.style.top = top;
+  canvas2.style.left = (-10 + rect.width) + "px";
+  // a <canvas> element's actual pixel buffer (canvas.width/height) is NOT
+  // the same thing as its CSS-styled size, and defaults to a fixed 300x150
+  // regardless of layout - drawWaveCanvas() draws using clientWidth/
+  // clientHeight math, so without this the strokes land far outside the
+  // real 300x150 buffer and nothing visible ever gets drawn. Matches the
+  // live app's own positionWaveCanvas() in app.js.
+  const dpr = window.devicePixelRatio || 1;
+  [canvas, canvas2].forEach(c => {
+    c.width = Math.round(c.clientWidth * dpr);
+    c.height = Math.round(canvasH * dpr);
+    c.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);
+  });
 }
 
 async function boot(){
@@ -415,7 +434,8 @@ async function boot(){
 
   function loop(){
     updateWaveSamples();
-    drawWaveCanvas();
+    drawWaveCanvas($("#wave-canvas"));
+    drawWaveCanvas($("#wave-canvas-2"));
     updateLyrics(audio.currentTime);
     if (!audio.ended) requestAnimationFrame(loop);
   }
