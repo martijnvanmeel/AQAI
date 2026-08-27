@@ -353,6 +353,13 @@ function renderMeta(tr){
     photo.src = "assets/profilepic.png";
     photo.classList.remove("masked");
   }
+  // a cached image's 'load' event fires as part of assigning .src above,
+  // which happens synchronously before the listener attached this same
+  // tick would normally be able to react to it in a later microtask - so
+  // by the time we get here img.complete may already be true with the
+  // listener never actually firing. Check it directly rather than only
+  // trusting 'load', now that .src is definitely set to the right image.
+  if (photo.complete) positionWaveCanvas();
   const artistColor = boostColor(tr.artistColor);
   document.documentElement.style.setProperty("--artist-color", artistColor);
   WAVE_COLOR = artistColor;
@@ -398,6 +405,26 @@ function positionWaveCanvas(){
     c.height = Math.round(canvasH * dpr);
     c.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);
   });
+  // title/artist sits right under the visualiser's own bottom edge (the
+  // canvas is centred on the photo, so its bottom = centre + half its
+  // height) rather than at a fixed distance from the screen edge, so it
+  // tracks the visualiser wherever it ends up. On the horizontal aspect
+  // especially, a canvas this tall centred on the photo can reach past
+  // #export-root's own bottom edge (it's short and wide, unlike the
+  // vertical aspect) - #export-root clips overflow, so anything placed
+  // past it would silently vanish rather than just look a bit off;
+  // clamped to the frame's real bottom (minus a margin) so it always
+  // stays on screen, "at the bottom of the visualiser" or as close to it
+  // as this frame's shape allows.
+  const metaRow = $(".meta-row");
+  if (metaRow){
+    const waveBottom = photoCenterY + canvasH / 2;
+    const margin = rootRect.height * 0.04;
+    const metaH = metaRow.getBoundingClientRect().height || 0;
+    const maxTop = rootRect.height - metaH - margin;
+    metaRow.style.top = Math.min(waveBottom + 24, maxTop) + "px";
+    metaRow.style.bottom = "auto";
+  }
 }
 
 async function boot(){
