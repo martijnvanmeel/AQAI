@@ -5298,10 +5298,6 @@ function loadPanoFile(file, base = "/panorama2/"){
   }
 }
 
-// manual sphere control is retired (button removed) - the sphere always
-// drifts on its own and reacts to the music (see animate())
-const sphereUserControl = false;
-
 // the intro/gate screen shows this specific clip (reserved via
 // INTRO_PANO_FILE, excluded from regular playback rotation) on the shared
 // panorama sphere until the listener taps in, at which point load() picks
@@ -5439,17 +5435,13 @@ function animate(t){
   if (document.body.classList.contains("scene-sphere")) sphereSpinRoll += dtSec * (Math.PI * 2 / 30);
 
   let targetYaw, targetPitch, camSmooth;
-  if (sphereUserControl && !document.body.classList.contains("gate-active")){
+  if (document.body.classList.contains("scene-sphere")){
+    // the sphere background reacts to the mouse again - yaw/pitch follow
+    // the cursor (roll keeps spinning independently, set above) - same
+    // sensitivity/smoothing as the old dedicated mouse-look mode had
     targetYaw = -mouseNX * 0.5;
     targetPitch = -mouseNY * 0.35;
-    camSmooth = 0.04335; // slow trailing follow for mouse-look
-    autoMotionStartT = null; // restart the centred ramp when auto resumes
-  } else if (document.body.classList.contains("scene-sphere")){
-    // no yaw/pitch drift for SPHERE any more - the roll above is the only
-    // motion, so ease straight back to dead-centre and stay there
-    targetYaw = 0;
-    targetPitch = 0;
-    camSmooth = 0.05;
+    camSmooth = 0.04335;
     autoMotionStartT = null; // restart the centred ramp for when the gate returns
   } else {
     if (autoMotionStartT === null) autoMotionStartT = t || 0;
