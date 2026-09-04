@@ -57,11 +57,26 @@ const INTRO_PANO_FILE = "From Klickpin.com- 68749462254-pin-id-68749462254.mp4";
 fetch("/api/panoramas2").then(r => r.json()).then(data => {
   PANORAMAS = (data.files || []).filter(f => f !== INTRO_PANO_FILE);
 }).catch(() => {});
+// every 5th background pick swaps the video-panorama sphere for a random
+// fully-3D environment instead (see sceneChoice / updateArtistBackground
+// further down) - the other 4 out of 5 keep picking a random panorama clip
+const ENVIRONMENT_SCENES = ["road", "mist", "maze", "tiles", "beams", "prism", "rings", "check", "cube", "portal", "domino"];
+let bgPickCount = 0;
+let sceneChoice = "sphere";
+
 // every song picks a genuinely random background (not tied to the track's
 // own identity) - the plain sphere (no video swap this time) counts as
 // one extra equally-weighted outcome alongside each individual clip, so
 // there's a 1-in-(N+1) chance the background just stays as it was
 function setBgVideoForTrack(track) {
+  bgPickCount++;
+  if (bgPickCount % 5 === 0) {
+    // the panorama sphere is hidden while a 3D environment is showing, so
+    // there's no point swapping in a video clip nobody will see
+    sceneChoice = ENVIRONMENT_SCENES[Math.floor(Math.random() * ENVIRONMENT_SCENES.length)];
+    return;
+  }
+  sceneChoice = "sphere";
   if (!PANORAMAS.length || typeof panoVideoEl === "undefined") return;
   const idx = Math.floor(Math.random() * (PANORAMAS.length + 1));
   if (idx < PANORAMAS.length) loadPanoFile(PANORAMAS[idx]);
@@ -5026,27 +5041,19 @@ orbsGroup.visible = false;
 scene.add(orbsGroup);
 let orbsCamYaw = 0;
 
-// scene-type navigation (SPHERE/ROAD/PRISM/etc) has been retired - the
-// sphere is always the active world now. AUTO, EYES, HANDS, and ORBS were
-// already inactive before that; all of their scene code is left in place,
-// just never selected
-const sceneOverride = "sphere";
-
-// swaps the sphere for a per-artist 3D scene: Polaroid gets the synthwave
-// road, Aveluna gets the mist world. Called on every track load (see
-// load()) and once more from the gate handoff, since the very first
-// "current" track is only known then. Also drives the renderer clear
-// color + scene fog to match whichever scene is up.
+// scene-type navigation (SPHERE/ROAD/PRISM/etc) has been retired - which
+// world is active is now driven by sceneChoice (see setBgVideoForTrack:
+// the sphere/video-panorama every 4 picks out of 5, a random 3D
+// environment on the 5th). EYES, HANDS, and ORBS were already inactive
+// before that retirement; all of their scene code is left in place, just
+// never selected
+// swaps the sphere for whichever world sceneChoice currently holds.
+// Called on every track load (see load()) and once more from the gate
+// handoff, since the very first "current" track is only known then. Also
+// drives the renderer clear color + scene fog to match whichever scene is up.
 function updateArtistBackground(tr){
   const gateActive = document.body.classList.contains("gate-active");
-  // AUTO keeps the original per-artist picks; any other navigator choice
-  // forces that world for every track (colors still follow the artist)
-  const byArtist = !tr ? "sphere"
-    : tr.artist === ROAD_ARTIST_NAME ? "road"
-    : tr.artist === MIST_ARTIST_NAME ? "mist"
-    : tr.artist === DT_ARTIST_NAME ? "maze"
-    : "sphere";
-  const sceneId = sceneOverride === "auto" ? byArtist : sceneOverride;
+  const sceneId = sceneChoice;
   const wantRoad = !gateActive && sceneId === "road";
   const wantMist = !gateActive && sceneId === "mist";
   const wantMaze = !gateActive && sceneId === "maze";
