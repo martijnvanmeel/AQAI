@@ -642,7 +642,14 @@ body.scene-hands #stage{background:linear-gradient(to top,
    z-index:0 (lower than .meta-row's 3) keeps it behind the song-title
    pill if the two ever overlap; top is set dynamically in JS by
    positionArtistPhoto() - 60px above the controls row */
-.artist-photo-wrap{position:relative;z-index:0;width:167.0625px;margin:0 auto -5px;transform:translateY(-43px) scale(1.32)}
+/* explicit aspect-ratio (profilepic.png/artist_N.png's fixed 638:497 oval
+   shape) instead of leaving the height to the <img>'s own natural size -
+   the wrap used to sit at 0 height until the photo actually finished
+   loading, so positionArtistPhoto()/positionWaveCanvas() measured a
+   collapsed box on the very first track (pinning the title/artist pill
+   down near the controls row - it only "reset" to its right place once
+   the image loaded before the *next* track's positioning pass) */
+.artist-photo-wrap{position:relative;z-index:0;width:167.0625px;aspect-ratio:638/497;margin:0 auto -5px;transform:translateY(-43px) scale(1.32)}
 /* soft glow behind the photo, tinted the current track's artist colour */
 .artist-photo-wrap::before{
   content:"";position:absolute;inset:-16%;z-index:0;

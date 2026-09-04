@@ -1924,8 +1924,14 @@ function buildPanoGeometry(aspect){
   const vFovHalf = camera.fov * Math.PI / 360;
   const hFovHalf = Math.atan(Math.tan(vFovHalf) * camera.aspect);
   const margin = 0.15;
-  const minPhi = (hFovHalf + 0.5 + margin) * 2;
-  const minTheta = (vFovHalf + 0.35 + margin) * 2;
+  // must cover the camera's full mouse-driven look-around range on the
+  // sphere scene - kept in sync with the targetYaw/targetPitch multipliers
+  // in animate() (currently 1.1 / 0.7); falling behind those (as happened
+  // when the look-around range was widened but this wasn't) exposes this
+  // patch's own edges - the "openings" - at the extremes of mouse movement
+  const maxLookYaw = 1.1, maxLookPitch = 0.7;
+  const minPhi = (hFovHalf + maxLookYaw + margin) * 2;
+  const minTheta = (vFovHalf + maxLookPitch + margin) * 2;
   let thetaLength = minTheta, phiLength = thetaLength * aspect;
   if (phiLength < minPhi){ phiLength = minPhi; thetaLength = phiLength / aspect; }
   phiLength = Math.min(phiLength, Math.PI * 1.9);
