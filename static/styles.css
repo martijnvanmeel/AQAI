@@ -882,8 +882,19 @@ body.scene-hands #stage{background:linear-gradient(to top,
   .transport{width:100%;justify-content:space-between;gap:0}
   #c-random{transform:scale(.9)}
   .mobile-more-btn{display:flex}
-  .side-btns{display:none;order:4;flex-basis:100%;width:100%;margin:10px 0 0;justify-content:center}
+  /* popover anchored above the "..." button (bottom edge of .controls-row,
+     which is where the button itself sits, right:0 lining up with its
+     right edge) instead of reflowing into its own row below the bar-row -
+     that used to land it two rows down from the button that opened it */
+  .side-btns{
+    display:none;position:absolute;right:0;bottom:calc(100% + 10px);z-index:5;
+    background:var(--nav-bg);backdrop-filter:blur(10px);
+    padding:8px;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.4);
+  }
   .side-btns.open{display:flex}
+  /* white pill while its popover is open, matching the "active" look the
+     other toggle-style controls (fullscreen, playing) use elsewhere */
+  .mobile-more-btn.active{background:#ffffff;color:#000000;border-color:#ffffff}
 }
 
 #vu-meter{

@@ -1407,8 +1407,13 @@ $("#c-volume").oninput = e => {
 };
 paintVolumeFill($("#c-volume"));
 
-/* mobile "more" menu (Lyrics/Download/Share collapse under 600px) */
-$("#btn-more").onclick = () => $("#side-btns").classList.toggle("open");
+/* mobile "more" menu (Lyrics/Download/Share collapse under 600px) - the
+   trigger button itself lights up (see .mobile-more-btn.active) while the
+   popover it opens (see .side-btns.open) is showing */
+$("#btn-more").onclick = () => {
+  const open = $("#side-btns").classList.toggle("open");
+  $("#btn-more").classList.toggle("active", open);
+};
 
 /* ================================================================
    SYNC STUDIO — tap once per word (or per line), exports word-timed lines
