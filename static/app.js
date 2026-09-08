@@ -1070,6 +1070,13 @@ function updateUI(){
 function showView(name){
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "view-" + name));
   document.querySelectorAll(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.view === name));
+  // #view-home (and everything anchored off it - the title/artist pill,
+  // the wave visualiser) is display:none while another tab is active, so a
+  // track change that happens off-tab (e.g. a song auto-advancing to the
+  // next one via the "ended" listener while browsing the track list) leaves
+  // positionWaveCanvas() measuring zero-size rects - redo it now that home
+  // is visible again, the same fix the gate handoff already needed
+  if (name === "home") positionWaveCanvas();
 }
 document.querySelectorAll(".nav-btn").forEach(b => b.onclick = () => showView(b.dataset.view));
 
