@@ -1191,7 +1191,7 @@ nav{
    with the svg first in markup, so no extra layout is needed here */
 /* 50% of the shared 23px .nav-btn svg size - needs to out-specificity the
    general ".nav-btn svg" rule above (a single class alone won't beat it) */
-.nav-btn svg.nav-icon-list{width:27px;height:16px}
+.nav-btn svg.nav-icon-list{width:17px;height:18px}
 
 /* toast */
 #toast{
