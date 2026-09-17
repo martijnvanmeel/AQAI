@@ -897,22 +897,6 @@ body.scene-hands #stage{background:linear-gradient(to top,
   .mobile-more-btn.active{background:#ffffff;color:#000000;border-color:#ffffff}
 }
 
-#vu-meter{
-  display:flex;align-items:flex-end;justify-content:center;gap:2px;
-  height:20px;flex:0 0 auto;
-  /* the flex row centers this against the 23px home icon by default;
-     nudge down by half the height difference so their bottoms line up
-     instead of their centers */
-  position:relative;top:1.5px;
-}
-#vu-meter span{
-  width:3px;min-height:0;border-radius:1.5px;
-  background:#ffffff;
-  transition:height .08s linear;
-}
-/* the Home tab is filled green while active, so its bars switch to
-   black there for contrast - same convention as the tab's own icon */
-.nav-btn.active #vu-meter span{background:#000000}
 .ctl{
   flex:0 0 auto;width:33.6px;height:33.6px;border-radius:11.2px;position:relative;
   display:flex;align-items:center;justify-content:center;
@@ -1195,7 +1179,6 @@ nav{
 }
 .nav-btn svg{width:23px;height:23px;position:relative;z-index:1}
 .nav-btn-word{position:relative;z-index:1}
-#vu-meter{position:relative;z-index:1}
 .nav-btn:active{background:var(--artist-color, var(--active-green));color:#000000;border-color:var(--artist-color, var(--active-green))}
 .nav-btn.active{background:var(--artist-color, var(--active-green));color:#000000;border-color:var(--artist-color, var(--active-green))}
 .nav-btn.hidden{display:none}

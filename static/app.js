@@ -1567,33 +1567,6 @@ if (location.hash.includes("sync")){
 }
 
 /* ================================================================
-   VU METER — 10-bar equalizer strip, glowing, reacts to the same
-   frequency data driving the 3D visualizer
-   ================================================================ */
-const VU_BARS = 10;
-const vuMeterEl = $("#vu-meter");
-const vuBarEls = Array.from({ length: VU_BARS }, () => {
-  const s = document.createElement("span");
-  s.style.height = "0px";
-  vuMeterEl.appendChild(s);
-  return s;
-});
-function updateVuMeter(hasAudio){
-  // bars swing from a flat 0px up to the meter's own height (matched to
-  // the home icon's height in CSS), so silence reads as fully flat
-  const maxH = vuMeterEl.clientHeight || 20;
-  for (let i = 0; i < VU_BARS; i++){
-    if (!hasAudio){ vuBarEls[i].style.height = "0px"; continue; }
-    const start = 2 + i * 10;
-    let sum = 0;
-    for (let j = 0; j < 8; j++) sum += freqData[start + j] || 0;
-    const raw = sum / 8 / 255;
-    const v = Math.min(1, Math.pow(raw, 0.7) * 1.3);
-    vuBarEls[i].style.height = `${v * maxH}px`;
-  }
-}
-
-/* ================================================================
    3D VISUALIZER (three.js — audio-reactive icosahedron, forest on mint)
    ================================================================ */
 const stage = $("#stage");
@@ -5417,7 +5390,6 @@ addEventListener("keyup", e => {
 function animate(t){
   requestAnimationFrame(animate);
   if (analyser && playing) analyser.getByteFrequencyData(freqData);
-  updateVuMeter(analyser && playing);
   updateWaveSamples();
   drawWaveCanvas();
   panoUniforms.uIntensity.value += (audioIntensity() - panoUniforms.uIntensity.value) * 0.15;
