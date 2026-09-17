@@ -1187,8 +1187,6 @@ nav{
    panel: Brice Regular, 20.41pt (taken 1:1 as px), -40 tracking (Adobe/
    Photoshop tracking is in 1/1000 em, so -40 -> -.04em) */
 .nav-label{position:relative;z-index:1;font-family:var(--font-display);font-weight:400;font-size:20.41px;letter-spacing:-.04em}
-/* nudged up 5px to sit level with the play-triangle icon beside it */
-.nav-label-player{top:-5px}
 /* icon sits left of the label for free - .nav-btn is already a flex row
    with the svg first in markup, so no extra layout is needed here */
 /* 50% of the shared 23px .nav-btn svg size - needs to out-specificity the
