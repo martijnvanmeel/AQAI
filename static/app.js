@@ -843,6 +843,7 @@ function renderMeta(){
     photo.src = "assets/profilepic.png";
     photo.classList.remove("masked");
   }
+  loadCreatureForTrack(tr);
   // --artist-color drives the logo fill, the title/artist color-cycle
   // animation, and the background overlay tint (see styles.css); the
   // wave visualizer reads it separately into WAVE_COLOR below since
@@ -1601,21 +1602,37 @@ camera.position.z = document.body.classList.contains("gate-active") ? -8 : 8;
 // re-derives the per-scene zoom on every track/gate change after this)
 camera.zoom = document.body.classList.contains("gate-active") ? 1.3 : 1;
 
-/* ---------- per-artist 3D creature (fox for now, more to follow) - its
-   own small scene/camera/renderer, entirely separate from the main
-   background scene above, painted into #fox-3d-canvas which sits behind
-   the artist photo (see positionFoxCanvas() / #fox-3d-canvas in
-   styles.css). Slow continuous spin, same spirit as the intro logo's. */
+/* ---------- per-artist 3D creature - one low-poly animated animal per
+   band, its own small scene/camera/renderer, entirely separate from the
+   main background scene above, painted into #fox-3d-canvas which sits
+   over the artist-colour disc but behind the title pill (see
+   positionFoxCanvas() / #fox-3d-canvas in styles.css). Static (no spin),
+   same rig/rotation/shadow treatment shared by every creature. */
+const CREATURE_BY_FOLDER = {
+  "1975": "phoenix",
+  "AirBreath": "jellyfish",
+  "BOBS PLACE": "fox",
+  "BeatlesBeltolf": "bird",
+  "Collective": "chameleon",
+  "ElectronicPulse": "bug",
+  "FrontLinie": "heron",
+  "Instrumental": "snake",
+  "NOT RIGHT": "platypus",
+  "SilkyRustSoul Woman": "cat",
+  "SmoothFemaleSinger": "parrot",
+  "SmoothSinger": "rabbit",
+  "Volux by AQAI": "deer",
+};
 const foxCanvasEl = $("#fox-3d-canvas");
 const foxScene = new THREE.Scene();
 const foxCamera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
 foxCamera.position.set(0, 0, 6);
-let foxRenderer = null, foxRoot = null, foxMixer = null;
+let foxRenderer = null, foxRoot = null, foxMixer = null, currentCreatureName = null;
 if (foxCanvasEl){
   foxRenderer = new THREE.WebGLRenderer({ canvas: foxCanvasEl, antialias: true, alpha: true });
   foxRenderer.setClearColor(0x000000, 0);
-  // soft shadow the fox casts onto foxShadowCatcher (a shadow-only plane
-  // right behind it), which reads as the fox shadowing the artist-colour
+  // soft shadow each creature casts onto foxShadowCatcher (a shadow-only
+  // plane right behind it), which reads as it shadowing the artist-colour
   // disc sitting behind/under this whole canvas in the DOM
   foxRenderer.shadowMap.enabled = true;
   foxRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -1644,20 +1661,42 @@ if (foxCanvasEl){
   foxShadowCatcher.position.z = -3;
   foxShadowCatcher.receiveShadow = true;
   foxScene.add(foxShadowCatcher);
-  new THREE.GLTFLoader().load("assets/models/fox.glb", gltf => {
+}
+// swaps in the creature for the given track's band (see
+// CREATURE_BY_FOLDER) - a no-op if it's already the one loaded, so
+// flipping between tracks by the same band doesn't reload the model.
+// Called from renderMeta() on every track change.
+function loadCreatureForTrack(tr){
+  if (!foxRenderer) return;
+  const name = CREATURE_BY_FOLDER[tr.folder];
+  if (!name || name === currentCreatureName) return;
+  currentCreatureName = name;
+  // dispose the outgoing model's GPU resources (geometry/textures) before
+  // dropping it - same convention rebuildPanoMesh() uses for the pano mesh
+  foxRoot.traverse(o => {
+    if (!o.isMesh) return;
+    o.geometry.dispose();
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    mats.forEach(m => { if (m.map) m.map.dispose(); m.dispose(); });
+  });
+  while (foxRoot.children.length) foxRoot.remove(foxRoot.children[0]);
+  foxMixer = null;
+  new THREE.GLTFLoader().load(`assets/models/${name}.glb`, gltf => {
+    if (currentCreatureName !== name) return; // a newer track loaded first
     const model = gltf.scene;
     model.traverse(o => { if (o.isMesh) o.castShadow = true; });
     // normalize whatever real-world scale/origin the model was exported
     // at - center it on its own bounding-box middle, then scale so its
     // longest side fills a consistent span regardless of source. That
-    // box is measured at bind pose though, and the "idle" clip curls the
-    // fox up noticeably smaller than bind pose - 11.52 (9.6 x 1.2, not a
-    // "clean" number) is that target span re-tuned empirically against
-    // the actual curled pose so it reads as a comparable size on screen
+    // box is measured at bind pose though, and the "idle" clip curls
+    // every one of these up noticeably smaller than bind pose - 13.824
+    // (9.6 x 1.2 x 1.2, not a "clean" number) is that target span
+    // re-tuned empirically against the fox's actual curled pose so it
+    // reads as a comparable size on screen
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
-    const scale = 11.52 / Math.max(size.x, size.y, size.z, 0.0001);
+    const scale = 13.824 / Math.max(size.x, size.y, size.z, 0.0001);
     model.position.sub(center);
     const inner = new THREE.Group();
     inner.add(model);
