@@ -776,6 +776,27 @@ body.scene-hands #stage{background:linear-gradient(to top,
 .video-export-row.done .video-export-link{display:inline}
 .video-export-row.done .video-export-bar{display:none}
 .video-export-row.error .video-export-label{color:#FF5C5C}
+/* owner-only 3D creature tuner - same floating-panel look as
+   #video-export-panel, pinned to the opposite (top-left) corner so the
+   two never overlap */
+#creature-tune-panel{
+  display:none;flex-direction:column;gap:8px;
+  position:fixed;z-index:20;
+  top:calc(env(safe-area-inset-top) + 14px);left:14px;
+  width:min(240px,72vw);
+  padding:10px 12px;border-radius:12px;
+  background:rgba(10,10,10,.72);backdrop-filter:blur(10px);
+  box-shadow:0 4px 16px rgba(0,0,0,.4);
+}
+#creature-tune-panel.show{display:flex}
+.ct-row{
+  display:grid;grid-template-columns:64px 1fr 38px;align-items:center;gap:6px;
+  font-family:var(--font-body);font-size:11px;color:var(--fg-soft);
+}
+.ct-label{flex:none}
+.ct-val{text-align:right;font-variant-numeric:tabular-nums}
+.ct-actions{display:flex;gap:8px;margin-top:2px}
+.ct-actions .video-export-preview{flex:1;text-align:center}
 /* same artist-color <-> 20%-brighter cycle as the logo, just on
    background-color instead of text color */
 @keyframes bgArtistBrightCycle{

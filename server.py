@@ -39,6 +39,12 @@ SONG_NAMES_PATH = os.path.join(LIBRARY_ROOT, "song_names.json")
 # /api/lyrics-audit, which folds these in too so there's one list to work
 # through
 LYRICS_FLAGS_PATH = os.path.join(os.path.dirname(__file__), "lyrics_flags.json")
+# per-creature-name (fox, cat, jellyfish, ...) 3D transform overrides -
+# scale/rotation/position tweaked live in the player's owner-only creature
+# tuner panel (see #btn-creature-tune / /api/creature-transforms) and saved
+# here so every visitor's browser renders the same tuned values, not just
+# the tuner's own session
+CREATURE_TRANSFORMS_PATH = os.path.join(os.path.dirname(__file__), "creature_transforms.json")
 EXPORTS_DIR = os.path.join(os.path.dirname(__file__), "exports")
 SERVER_PORT = 8420  # overwritten in __main__ with whatever port was actually chosen
 os.makedirs(SYNC_DIR, exist_ok=True)
@@ -63,6 +69,19 @@ def load_lyrics_flags():
 def save_lyrics_flags(flags):
     with open(LYRICS_FLAGS_PATH, "w", encoding="utf-8") as fh:
         json.dump(flags, fh)
+
+
+def load_creature_transforms():
+    try:
+        with open(CREATURE_TRANSFORMS_PATH, "r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def save_creature_transforms(transforms):
+    with open(CREATURE_TRANSFORMS_PATH, "w", encoding="utf-8") as fh:
+        json.dump(transforms, fh)
 
 SKIP_DIR_NAMES = {".claude", ".git", "player", "node_modules", "panoramas", "Panoramas2", "_deleted"}
 AUDIO_EXT_PRIORITY = ["m4a", "mp3", "wav"]
@@ -567,6 +586,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send_json({"flags": load_lyrics_flags()})
             return
 
+        if path == "/api/creature-transforms":
+            # public (no _is_public_request() gate) - every visitor's
+            # browser needs these values to render the creatures the same
+            # way the owner tuned them, not just the owner's own session
+            self._send_json({"transforms": load_creature_transforms()})
+            return
+
         if path == "/api/panoramas":
             files = []
             if os.path.isdir(PANORAMA_DIR):
@@ -783,6 +809,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 flagged = True
             save_lyrics_flags(flags)
             self._send_json({"ok": True, "flagged": flagged})
+            return
+
+        if path == "/api/creature-transforms":
+            # full-payload replace from the player's owner-only creature
+            # tuner panel - the client always sends the whole
+            # {name: {scale, rotationY, offsetX, offsetY, offsetZ}} map,
+            # not a per-field patch
+            if self._is_public_request():
+                self.send_error(403, "Editing is only available locally")
+                return
+            length = int(self.headers.get("Content-Length", 0))
+            raw = self.rfile.read(length)
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                self.send_error(400, "Invalid JSON")
+                return
+            if not isinstance(payload, dict):
+                self.send_error(400, "Expected an object")
+                return
+            save_creature_transforms(payload)
+            self._send_json({"ok": True})
             return
 
         if path == "/api/panoramas2/remove":

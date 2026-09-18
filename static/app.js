@@ -943,6 +943,74 @@ function openVideoPreview(aspect){
   const url = `/export.html?id=${tr.id}&aspect=${aspect}`;
   window.open(url, `aqai_preview_${aspect}`);
 }
+// owner-only 3D creature tuner (see #btn-creature-tune/OWNER_ONLY_SELECTORS,
+// #creature-tune-panel) - live-edits creatureTransforms[currentCreatureName]
+// as the sliders move, and POSTs the whole map to /api/creature-transforms
+// on Save so every visitor's browser picks up the tuned values, not just
+// this session's
+function initCreatureTune(){
+  const btn = $("#btn-creature-tune");
+  const panel = $("#creature-tune-panel");
+  if (!btn || !panel) return;
+  const fields = ["scale", "rotationY", "offsetX", "offsetY", "offsetZ"];
+  const sliders = {
+    scale: $("#ct-scale"), rotationY: $("#ct-rotation"),
+    offsetX: $("#ct-offx"), offsetY: $("#ct-offy"), offsetZ: $("#ct-offz"),
+  };
+  const vals = {
+    scale: $("#ct-scale-val"), rotationY: $("#ct-rotation-val"),
+    offsetX: $("#ct-offx-val"), offsetY: $("#ct-offy-val"), offsetZ: $("#ct-offz-val"),
+  };
+  function fmt(key, v){ return key === "rotationY" ? Math.round(v) + "°" : v.toFixed(2); }
+  function refresh(){
+    $("#ct-name").textContent = currentCreatureName || "—";
+    const t = getCreatureTransform(currentCreatureName);
+    fields.forEach(key => {
+      sliders[key].value = t[key];
+      vals[key].textContent = fmt(key, t[key]);
+    });
+  }
+  refreshCreatureTunePanel = () => { if (panel.classList.contains("show")) refresh(); };
+  btn.onclick = () => {
+    const open = panel.classList.toggle("show");
+    btn.classList.toggle("active", open);
+    btn.setAttribute("aria-pressed", open ? "true" : "false");
+    if (open) refresh();
+  };
+  fields.forEach(key => {
+    sliders[key].oninput = () => {
+      if (!currentCreatureName) return;
+      const v = parseFloat(sliders[key].value);
+      creatureTransforms[currentCreatureName] = Object.assign({}, creatureTransforms[currentCreatureName], { [key]: v });
+      vals[key].textContent = fmt(key, v);
+      applyCreatureTransform(getCreatureTransform(currentCreatureName));
+    };
+  });
+  $("#ct-reset").onclick = () => {
+    if (!currentCreatureName) return;
+    delete creatureTransforms[currentCreatureName];
+    applyCreatureTransform(getCreatureTransform(currentCreatureName));
+    refresh();
+  };
+  $("#ct-save").onclick = async () => {
+    const saveBtn = $("#ct-save");
+    saveBtn.disabled = true;
+    try {
+      const res = await fetch("/api/creature-transforms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(creatureTransforms),
+      });
+      const data = await res.json();
+      toast(data.ok ? "Creature transform saved" : (data.error || "Could not save"));
+    } catch (e) {
+      toast("Could not save creature transform");
+    } finally {
+      saveBtn.disabled = false;
+    }
+  };
+}
+
 function initVideoExport(){
   const previewBtn = $("#btn-preview-video");
   if (previewBtn) previewBtn.onclick = () => {
@@ -1623,11 +1691,28 @@ const CREATURE_BY_FOLDER = {
   "SmoothSinger": "rabbit",
   "Volux by AQAI": "deer",
 };
+// shared starting point for every creature - overridden per creature-name
+// by creatureTransforms (fetched from /api/creature-transforms at boot,
+// edited live by the owner-only tuner panel - see initCreatureTune())
+const CREATURE_TRANSFORM_DEFAULT = { scale: 13.824, rotationY: 180, offsetX: 0, offsetY: 0, offsetZ: 0 };
+let creatureTransforms = {};
+fetch("/api/creature-transforms").then(r => r.json()).then(data => {
+  creatureTransforms = data.transforms || {};
+  applyCreatureTransform(getCreatureTransform(currentCreatureName));
+}).catch(() => {});
+function getCreatureTransform(name){
+  return Object.assign({}, CREATURE_TRANSFORM_DEFAULT, creatureTransforms[name] || {});
+}
+// reassigned by initCreatureTune() once the panel exists - keeps its
+// sliders in sync whenever the loaded creature changes out from under it
+let refreshCreatureTunePanel = () => {};
+
 const foxCanvasEl = $("#fox-3d-canvas");
 const foxScene = new THREE.Scene();
 const foxCamera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
 foxCamera.position.set(0, 0, 6);
 let foxRenderer = null, foxRoot = null, foxMixer = null, currentCreatureName = null;
+let currentInnerGroup = null, currentRawSize = null;
 if (foxCanvasEl){
   foxRenderer = new THREE.WebGLRenderer({ canvas: foxCanvasEl, antialias: true, alpha: true });
   foxRenderer.setClearColor(0x000000, 0);
@@ -1638,7 +1723,7 @@ if (foxCanvasEl){
   foxRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
   foxScene.add(new THREE.AmbientLight(0xffffff, 1.0));
   const foxKeyLight = new THREE.DirectionalLight(0xffffff, 1.1);
-  foxKeyLight.position.set(2, 3, 4);
+  foxKeyLight.position.set(-3, 4, 3); // upper-left
   foxKeyLight.castShadow = true;
   foxKeyLight.shadow.mapSize.set(512, 512);
   foxKeyLight.shadow.camera.left = -8; foxKeyLight.shadow.camera.right = 8;
@@ -1649,18 +1734,31 @@ if (foxCanvasEl){
   foxRimLight.position.set(-3, -1, -2);
   foxScene.add(foxRimLight);
   foxRoot = new THREE.Group();
-  foxRoot.rotation.y = Math.PI; // faces the opposite way round, static (no more spin)
   foxScene.add(foxRoot);
-  // added to foxScene directly, NOT foxRoot - foxRoot is rotated 180deg
-  // to face the fox the other way, which would also flip a child plane's
-  // local -z to world +z (in front of the camera-facing fox, not behind)
+  // a shadow-only plane right behind wherever the creature sits. Oval,
+  // not a big flat rectangle - scaled to the same 638:497 ratio as the
+  // artist-colour disc/profilepic.png mask, and sized to roughly match
+  // the disc's own visible extent at this depth, so the shadow only
+  // ever falls within the disc and never spills onto the background
+  // beyond it
   const foxShadowCatcher = new THREE.Mesh(
-    new THREE.PlaneGeometry(20, 20),
-    new THREE.ShadowMaterial({ opacity: 0.4 })
+    new THREE.CircleGeometry(1.55, 48),
+    new THREE.ShadowMaterial({ opacity: 0.45 })
   );
+  foxShadowCatcher.scale.x = 638 / 497;
   foxShadowCatcher.position.z = -3;
   foxShadowCatcher.receiveShadow = true;
   foxScene.add(foxShadowCatcher);
+}
+// applies a {scale, rotationY (deg), offsetX/Y/Z} transform to whichever
+// creature is currently loaded - used right after loading and live while
+// the tuner panel's sliders are being dragged (see initCreatureTune())
+function applyCreatureTransform(t){
+  if (!currentInnerGroup || !currentRawSize || !t) return;
+  const scale = t.scale / Math.max(currentRawSize.x, currentRawSize.y, currentRawSize.z, 0.0001);
+  currentInnerGroup.scale.setScalar(scale);
+  currentInnerGroup.rotation.y = t.rotationY * Math.PI / 180;
+  currentInnerGroup.position.set(t.offsetX, t.offsetY, t.offsetZ);
 }
 // swaps in the creature for the given track's band (see
 // CREATURE_BY_FOLDER) - a no-op if it's already the one loaded, so
@@ -1671,6 +1769,8 @@ function loadCreatureForTrack(tr){
   const name = CREATURE_BY_FOLDER[tr.folder];
   if (!name || name === currentCreatureName) return;
   currentCreatureName = name;
+  currentInnerGroup = null;
+  currentRawSize = null;
   // dispose the outgoing model's GPU resources (geometry/textures) before
   // dropping it - same convention rebuildPanoMesh() uses for the pano mesh
   foxRoot.traverse(o => {
@@ -1686,27 +1786,24 @@ function loadCreatureForTrack(tr){
     const model = gltf.scene;
     model.traverse(o => { if (o.isMesh) o.castShadow = true; });
     // normalize whatever real-world scale/origin the model was exported
-    // at - center it on its own bounding-box middle, then scale so its
-    // longest side fills a consistent span regardless of source. That
-    // box is measured at bind pose though, and the "idle" clip curls
-    // every one of these up noticeably smaller than bind pose - 13.824
-    // (9.6 x 1.2 x 1.2, not a "clean" number) is that target span
-    // re-tuned empirically against the fox's actual curled pose so it
-    // reads as a comparable size on screen
+    // at - center it on its own bounding-box middle; the actual scale
+    // factor (box-diagonal -> target span) is applied by
+    // applyCreatureTransform() below, since that target span is now a
+    // per-creature, owner-tunable value instead of a hardcoded constant
     const box = new THREE.Box3().setFromObject(model);
-    const size = box.getSize(new THREE.Vector3());
+    currentRawSize = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
-    const scale = 13.824 / Math.max(size.x, size.y, size.z, 0.0001);
     model.position.sub(center);
-    const inner = new THREE.Group();
-    inner.add(model);
-    inner.scale.setScalar(scale);
-    foxRoot.add(inner);
+    currentInnerGroup = new THREE.Group();
+    currentInnerGroup.add(model);
+    foxRoot.add(currentInnerGroup);
+    applyCreatureTransform(getCreatureTransform(name));
     if (gltf.animations && gltf.animations.length){
       foxMixer = new THREE.AnimationMixer(model);
       const idleClip = gltf.animations.find(a => a.name === "idle") || gltf.animations[0];
       foxMixer.clipAction(idleClip).play();
     }
+    refreshCreatureTunePanel();
   });
 }
 // sized off the photo's own box (bigger, so the model peeks out around
@@ -1722,12 +1819,15 @@ function positionFoxCanvas(){
   const photoRect = photo.getBoundingClientRect();
   const metaRect = metaRow.getBoundingClientRect();
   const playerRect = player.getBoundingClientRect();
-  const w = photoRect.width * 1.7, h = photoRect.height * 1.7;
+  // much taller than the photo's own box (width more modestly so) - and
+  // anchored so most of that extra height grows downward (only 30% of it
+  // sits above the pill's centre, 70% below) rather than symmetrically
+  const w = photoRect.width * 2.3, h = photoRect.height * 2.6;
   const centerY = metaRect.top + metaRect.height / 2;
   foxCanvasEl.style.width = w + "px";
   foxCanvasEl.style.height = h + "px";
   // 100px higher than the pill's own centre, then 25px back down
-  foxCanvasEl.style.top = (centerY - playerRect.top - h / 2 - 75) + "px";
+  foxCanvasEl.style.top = (centerY - playerRect.top - h * 0.3 - 75) + "px";
   const dpr = Math.min(devicePixelRatio, 2);
   if (foxRenderer){
     foxRenderer.setPixelRatio(dpr);
@@ -6427,6 +6527,7 @@ fetch("/api/tracks").then(r => r.json()).then(data => {
   initLyricsAudit();
   initLyricsFlagging();
   initVideoExport();
+  initCreatureTune();
   // deep link from a shared "?t=<id>" URL (see $("#btn-share").onclick) -
   // starts the player on that track instead of the default first one
   const deepLinkId = new URLSearchParams(location.search).get("t");
@@ -6637,6 +6738,7 @@ const OWNER_ONLY_SELECTORS = [
   "#pano-btns", "#btn-delete", "#btn-edit-title", "#btn-edit-artist",
   "#btn-edit-lyrics", "#btn-relocate-artist", "#lf-edit-btns",
   "#lyrics-audit-block", "#btn-flag-lyrics", "#btn-make-video", "#btn-preview-video",
+  "#btn-creature-tune",
 ];
 // true only when the server confirms this request never crossed the public
 // reverse proxy (see "editable" on /api/tracks and _is_public_request() in
