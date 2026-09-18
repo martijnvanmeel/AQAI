@@ -1665,7 +1665,8 @@ function positionFoxCanvas(){
   const centerY = metaRect.top + metaRect.height / 2;
   foxCanvasEl.style.width = w + "px";
   foxCanvasEl.style.height = h + "px";
-  foxCanvasEl.style.top = (centerY - playerRect.top - h / 2) + "px";
+  // 100px higher than the pill's own centre
+  foxCanvasEl.style.top = (centerY - playerRect.top - h / 2 - 100) + "px";
   const dpr = Math.min(devicePixelRatio, 2);
   if (foxRenderer){
     foxRenderer.setPixelRatio(dpr);
@@ -6334,8 +6335,6 @@ function animate(t){
 
   if (foxRenderer){
     if (foxMixer) foxMixer.update(dtSec);
-    // same slow, continuous spin as the intro logo (10.8s/rotation)
-    if (foxRoot) foxRoot.rotation.y += dtSec * (Math.PI * 2 / 10.8);
     foxRenderer.render(foxScene, foxCamera);
   }
 }
