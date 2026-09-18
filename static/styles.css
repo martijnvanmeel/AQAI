@@ -654,6 +654,12 @@ body.scene-hands #stage{background:linear-gradient(to top,
    collapsed box on the very first track (pinning the title/artist pill
    down near the controls row - it only "reset" to its right place once
    the image loaded before the *next* track's positioning pass) */
+/* per-artist 3D creature (fox for now) - sits on TOP of the solid-colour
+   photo disc (z-index:1, above the photo's 0) but stays under the title
+   pill (.meta-row's z-index:3). Sized/positioned in JS by
+   positionFoxCanvas(), vertically centred on .meta-row rather than the
+   photo (see positionWaveCanvas) */
+#fox-3d-canvas{position:absolute;left:50%;z-index:1;pointer-events:none;transform:translateX(-50%)}
 .artist-photo-wrap{position:relative;z-index:0;width:167.0625px;aspect-ratio:638/497;margin:0 auto -5px;transform:translateY(-43px) scale(1.32)}
 /* soft glow behind the photo, tinted the current track's artist colour */
 .artist-photo-wrap::before{
@@ -675,6 +681,16 @@ body.scene-hands #stage{background:linear-gradient(to top,
 }
 .artist-photo{
   display:block;width:100%;height:auto;position:relative;z-index:1;
+}
+/* replaces the actual photo with a solid disc in the artist's own colour
+   (same profilepic.png oval mask as the rim stroke above, just filling
+   the whole shape instead of a thin outline) - the fox now reads as the
+   "face" here instead of a person, this is just its colour backdrop */
+.artist-photo-fill{
+  position:absolute;inset:0;z-index:2;pointer-events:none;
+  background:var(--artist-color, var(--active-green));
+  -webkit-mask-image:url('assets/profilepic.png');-webkit-mask-size:100% 100%;-webkit-mask-repeat:no-repeat;-webkit-mask-position:center;
+  mask-image:url('assets/profilepic.png');mask-size:100% 100%;mask-repeat:no-repeat;mask-position:center;
 }
 /* artist_N.png photos are plain rectangular RGB images (no alpha of
    their own) - clipped into profilepic.png's oval shape via mask so they

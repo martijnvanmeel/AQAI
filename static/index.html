@@ -75,7 +75,9 @@
     <div class="player">
       <div class="artist-photo-wrap">
         <img class="artist-photo" id="artist-photo" src="assets/profilepic.png" alt="">
+        <div class="artist-photo-fill" aria-hidden="true"></div>
       </div>
+      <canvas id="fox-3d-canvas" aria-hidden="true"></canvas>
       <div class="meta-row">
         <div class="meta">
           <span class="title" id="m-title">—</span>
@@ -284,6 +286,7 @@
 <div id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="themes.js"></script>
 <script src="app.js"></script>
 </body>

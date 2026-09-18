@@ -1601,6 +1601,80 @@ camera.position.z = document.body.classList.contains("gate-active") ? -8 : 8;
 // re-derives the per-scene zoom on every track/gate change after this)
 camera.zoom = document.body.classList.contains("gate-active") ? 1.3 : 1;
 
+/* ---------- per-artist 3D creature (fox for now, more to follow) - its
+   own small scene/camera/renderer, entirely separate from the main
+   background scene above, painted into #fox-3d-canvas which sits behind
+   the artist photo (see positionFoxCanvas() / #fox-3d-canvas in
+   styles.css). Slow continuous spin, same spirit as the intro logo's. */
+const foxCanvasEl = $("#fox-3d-canvas");
+const foxScene = new THREE.Scene();
+const foxCamera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+foxCamera.position.set(0, 0, 6);
+let foxRenderer = null, foxRoot = null, foxMixer = null;
+if (foxCanvasEl){
+  foxRenderer = new THREE.WebGLRenderer({ canvas: foxCanvasEl, antialias: true, alpha: true });
+  foxRenderer.setClearColor(0x000000, 0);
+  foxScene.add(new THREE.AmbientLight(0xffffff, 1.0));
+  const foxKeyLight = new THREE.DirectionalLight(0xffffff, 1.1);
+  foxKeyLight.position.set(2, 3, 4);
+  foxScene.add(foxKeyLight);
+  const foxRimLight = new THREE.DirectionalLight(0xffffff, 0.4);
+  foxRimLight.position.set(-3, -1, -2);
+  foxScene.add(foxRimLight);
+  foxRoot = new THREE.Group();
+  foxScene.add(foxRoot);
+  new THREE.GLTFLoader().load("assets/models/fox.glb", gltf => {
+    const model = gltf.scene;
+    // normalize whatever real-world scale/origin the model was exported
+    // at - center it on its own bounding-box middle, then scale so its
+    // longest side fills a consistent span regardless of source. That
+    // box is measured at bind pose though, and the "idle" clip curls the
+    // fox up noticeably smaller than bind pose - 9.6 (not a "clean" 3.2)
+    // is that target span re-tuned empirically against the actual curled
+    // pose so it reads as a comparable size on screen
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const scale = 9.6 / Math.max(size.x, size.y, size.z, 0.0001);
+    model.position.sub(center);
+    const inner = new THREE.Group();
+    inner.add(model);
+    inner.scale.setScalar(scale);
+    foxRoot.add(inner);
+    if (gltf.animations && gltf.animations.length){
+      foxMixer = new THREE.AnimationMixer(model);
+      const idleClip = gltf.animations.find(a => a.name === "idle") || gltf.animations[0];
+      foxMixer.clipAction(idleClip).play();
+    }
+  });
+}
+// sized off the photo's own box (bigger, so the model peeks out around
+// its oval edge) but vertically centred on the title/artist pill's own
+// middle instead of the photo's - called alongside positionArtistPhoto()
+// from positionWaveCanvas(), after the pill has already been positioned
+function positionFoxCanvas(){
+  if (!foxCanvasEl) return;
+  const photo = document.querySelector(".artist-photo-wrap");
+  const metaRow = document.querySelector(".meta-row");
+  const player = document.querySelector(".player");
+  if (!photo || !metaRow || !player) return;
+  const photoRect = photo.getBoundingClientRect();
+  const metaRect = metaRow.getBoundingClientRect();
+  const playerRect = player.getBoundingClientRect();
+  const w = photoRect.width * 1.7, h = photoRect.height * 1.7;
+  const centerY = metaRect.top + metaRect.height / 2;
+  foxCanvasEl.style.width = w + "px";
+  foxCanvasEl.style.height = h + "px";
+  foxCanvasEl.style.top = (centerY - playerRect.top - h / 2) + "px";
+  const dpr = Math.min(devicePixelRatio, 2);
+  if (foxRenderer){
+    foxRenderer.setPixelRatio(dpr);
+    foxRenderer.setSize(w, h, true);
+  }
+  foxCamera.aspect = w / h;
+  foxCamera.updateProjectionMatrix();
+}
+
 /* ---------- background panorama: the selected clip mapped onto a curved
    patch centered in front of the camera - sized to the video's own aspect
    ratio so it fills the screen height without stretching/zooming, and the
@@ -1813,6 +1887,9 @@ function positionWaveCanvas(){
   canvas.width = Math.round(canvas.clientWidth * dpr);
   canvas.height = Math.round(height * dpr);
   canvas.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);
+  // needs metaRow's own top already settled (it centres on the pill, not
+  // the photo), so this runs last
+  positionFoxCanvas();
 }
 
 const panoMat = new THREE.MeshBasicMaterial({ map: panoTexture, transparent: true, opacity: 1.0 });
@@ -6254,6 +6331,13 @@ function animate(t){
 
   if (TRACKS.length) updateUI();
   renderer.render(scene, camera);
+
+  if (foxRenderer){
+    if (foxMixer) foxMixer.update(dtSec);
+    // same slow, continuous spin as the intro logo (10.8s/rotation)
+    if (foxRoot) foxRoot.rotation.y += dtSec * (Math.PI * 2 / 10.8);
+    foxRenderer.render(foxScene, foxCamera);
+  }
 }
 requestAnimationFrame(animate);
 
