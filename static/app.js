@@ -1622,6 +1622,7 @@ if (foxCanvasEl){
   foxRimLight.position.set(-3, -1, -2);
   foxScene.add(foxRimLight);
   foxRoot = new THREE.Group();
+  foxRoot.rotation.y = Math.PI; // faces the opposite way round, static (no more spin)
   foxScene.add(foxRoot);
   new THREE.GLTFLoader().load("assets/models/fox.glb", gltf => {
     const model = gltf.scene;
@@ -1665,8 +1666,8 @@ function positionFoxCanvas(){
   const centerY = metaRect.top + metaRect.height / 2;
   foxCanvasEl.style.width = w + "px";
   foxCanvasEl.style.height = h + "px";
-  // 100px higher than the pill's own centre
-  foxCanvasEl.style.top = (centerY - playerRect.top - h / 2 - 100) + "px";
+  // 100px higher than the pill's own centre, then 25px back down
+  foxCanvasEl.style.top = (centerY - playerRect.top - h / 2 - 75) + "px";
   const dpr = Math.min(devicePixelRatio, 2);
   if (foxRenderer){
     foxRenderer.setPixelRatio(dpr);
