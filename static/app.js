@@ -1614,9 +1614,19 @@ let foxRenderer = null, foxRoot = null, foxMixer = null;
 if (foxCanvasEl){
   foxRenderer = new THREE.WebGLRenderer({ canvas: foxCanvasEl, antialias: true, alpha: true });
   foxRenderer.setClearColor(0x000000, 0);
+  // soft shadow the fox casts onto foxShadowCatcher (a shadow-only plane
+  // right behind it), which reads as the fox shadowing the artist-colour
+  // disc sitting behind/under this whole canvas in the DOM
+  foxRenderer.shadowMap.enabled = true;
+  foxRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
   foxScene.add(new THREE.AmbientLight(0xffffff, 1.0));
   const foxKeyLight = new THREE.DirectionalLight(0xffffff, 1.1);
   foxKeyLight.position.set(2, 3, 4);
+  foxKeyLight.castShadow = true;
+  foxKeyLight.shadow.mapSize.set(512, 512);
+  foxKeyLight.shadow.camera.left = -8; foxKeyLight.shadow.camera.right = 8;
+  foxKeyLight.shadow.camera.top = 8; foxKeyLight.shadow.camera.bottom = -8;
+  foxKeyLight.shadow.camera.near = 0.5; foxKeyLight.shadow.camera.far = 20;
   foxScene.add(foxKeyLight);
   const foxRimLight = new THREE.DirectionalLight(0xffffff, 0.4);
   foxRimLight.position.set(-3, -1, -2);
@@ -1624,19 +1634,30 @@ if (foxCanvasEl){
   foxRoot = new THREE.Group();
   foxRoot.rotation.y = Math.PI; // faces the opposite way round, static (no more spin)
   foxScene.add(foxRoot);
+  // added to foxScene directly, NOT foxRoot - foxRoot is rotated 180deg
+  // to face the fox the other way, which would also flip a child plane's
+  // local -z to world +z (in front of the camera-facing fox, not behind)
+  const foxShadowCatcher = new THREE.Mesh(
+    new THREE.PlaneGeometry(20, 20),
+    new THREE.ShadowMaterial({ opacity: 0.4 })
+  );
+  foxShadowCatcher.position.z = -3;
+  foxShadowCatcher.receiveShadow = true;
+  foxScene.add(foxShadowCatcher);
   new THREE.GLTFLoader().load("assets/models/fox.glb", gltf => {
     const model = gltf.scene;
+    model.traverse(o => { if (o.isMesh) o.castShadow = true; });
     // normalize whatever real-world scale/origin the model was exported
     // at - center it on its own bounding-box middle, then scale so its
     // longest side fills a consistent span regardless of source. That
     // box is measured at bind pose though, and the "idle" clip curls the
-    // fox up noticeably smaller than bind pose - 9.6 (not a "clean" 3.2)
-    // is that target span re-tuned empirically against the actual curled
-    // pose so it reads as a comparable size on screen
+    // fox up noticeably smaller than bind pose - 11.52 (9.6 x 1.2, not a
+    // "clean" number) is that target span re-tuned empirically against
+    // the actual curled pose so it reads as a comparable size on screen
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
-    const scale = 9.6 / Math.max(size.x, size.y, size.z, 0.0001);
+    const scale = 11.52 / Math.max(size.x, size.y, size.z, 0.0001);
     model.position.sub(center);
     const inner = new THREE.Group();
     inner.add(model);

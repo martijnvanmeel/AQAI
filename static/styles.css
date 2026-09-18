@@ -687,7 +687,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
    the whole shape instead of a thin outline) - the fox now reads as the
    "face" here instead of a person, this is just its colour backdrop */
 .artist-photo-fill{
-  position:absolute;inset:0;z-index:2;pointer-events:none;
+  position:absolute;inset:0;z-index:2;pointer-events:none;opacity:.1;
   background:var(--artist-color, var(--active-green));
   -webkit-mask-image:url('assets/profilepic.png');-webkit-mask-size:100% 100%;-webkit-mask-repeat:no-repeat;-webkit-mask-position:center;
   mask-image:url('assets/profilepic.png');mask-size:100% 100%;mask-repeat:no-repeat;mask-position:center;
