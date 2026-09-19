@@ -790,13 +790,39 @@ body.scene-hands #stage{background:linear-gradient(to top,
 }
 #creature-tune-panel.show{display:flex}
 .ct-row{
-  display:grid;grid-template-columns:64px 1fr 38px;align-items:center;gap:6px;
+  display:grid;grid-template-columns:64px 1fr;align-items:center;gap:6px;
   font-family:var(--font-body);font-size:11px;color:var(--fg-soft);
 }
 .ct-label{flex:none}
-.ct-val{text-align:right;font-variant-numeric:tabular-nums}
+.ct-row-select select{
+  width:100%;background:rgba(255,255,255,.08);color:var(--fg);
+  border:1px solid var(--fg-soft);border-radius:6px;padding:3px 4px;
+  font-family:var(--font-body);font-size:11px;
+}
+.ct-hint{
+  font-family:var(--font-body);font-size:10px;color:var(--fg-faint);
+  line-height:1.4;margin:0;
+}
+.ct-readout{
+  font-family:var(--font-body);font-size:11px;color:var(--fg-soft);
+  font-variant-numeric:tabular-nums;line-height:1.5;margin:0;
+  white-space:pre-line;
+}
 .ct-actions{display:flex;gap:8px;margin-top:2px}
 .ct-actions .video-export-preview{flex:1;text-align:center}
+/* while the tuner is open, the creature canvas jumps from its normal
+   small in-line spot (behind the photo disc) to a big, clearly separate
+   viewport near the top of the screen - large enough that dragging the
+   creature around with the mouse never runs it off the visible canvas
+   the way the small live-position box would */
+#fox-3d-canvas.tuning{
+  position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 70px);
+  transform:translateX(-50%);
+  width:min(90vw,520px);height:min(50vh,520px);
+  z-index:15;pointer-events:auto;cursor:grab;
+  background:rgba(0,0,0,.25);border-radius:16px;
+}
+#fox-3d-canvas.tuning:active{cursor:grabbing}
 /* same artist-color <-> 20%-brighter cycle as the logo, just on
    background-color instead of text color */
 @keyframes bgArtistBrightCycle{

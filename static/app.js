@@ -948,49 +948,124 @@ function openVideoPreview(aspect){
 // as the sliders move, and POSTs the whole map to /api/creature-transforms
 // on Save so every visitor's browser picks up the tuned values, not just
 // this session's
+// switches #fox-3d-canvas from its normal small in-line spot into the
+// big centered editing viewport (see #fox-3d-canvas.tuning) - clears the
+// inline width/height/top that positionFoxCanvas() sets (inline styles
+// always beat a class selector, so the .tuning CSS rule couldn't apply
+// otherwise) and resizes the renderer/camera to match on the next frame
+// (after the browser's actually applied the new CSS layout)
+function enterCreatureTuneView(){
+  creatureTuning = true;
+  foxCanvasEl.classList.add("tuning");
+  foxCanvasEl.style.width = foxCanvasEl.style.height = "";
+  foxCanvasEl.style.top = foxCanvasEl.style.left = foxCanvasEl.style.transform = "";
+  requestAnimationFrame(() => {
+    const rect = foxCanvasEl.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    foxRenderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    foxRenderer.setSize(rect.width, rect.height, true);
+    foxCamera.aspect = rect.width / rect.height;
+    foxCamera.updateProjectionMatrix();
+  });
+  if (currentCreatureName) applyCreatureTransform(currentDraftPose);
+}
+// restores normal playback layout - the picker may have swapped in a
+// creature that doesn't match the actual current track, so that's
+// reloaded here too
+function exitCreatureTuneView(){
+  creatureTuning = false;
+  foxCanvasEl.classList.remove("tuning");
+  positionFoxCanvas();
+  const tr = TRACKS[cur];
+  const wantName = tr && CREATURE_BY_FOLDER[tr.folder];
+  if (wantName && wantName !== currentCreatureName) loadCreatureModel(wantName);
+  else if (currentCreatureName) applyCreatureTransform(getCreaturePoses(currentCreatureName).pos1);
+}
+// owner-only 3D creature tuner - only "settings" here are the character
+// picker and the Set/Reset/Save buttons; scale/rotation/position are all
+// set by dragging directly on the 3D creature itself (see the pointer/
+// wheel handlers below), not sliders
 function initCreatureTune(){
   const btn = $("#btn-creature-tune");
   const panel = $("#creature-tune-panel");
-  if (!btn || !panel) return;
-  const fields = ["scale", "rotationY", "offsetX", "offsetY", "offsetZ"];
-  const sliders = {
-    scale: $("#ct-scale"), rotationY: $("#ct-rotation"),
-    offsetX: $("#ct-offx"), offsetY: $("#ct-offy"), offsetZ: $("#ct-offz"),
-  };
-  const vals = {
-    scale: $("#ct-scale-val"), rotationY: $("#ct-rotation-val"),
-    offsetX: $("#ct-offx-val"), offsetY: $("#ct-offy-val"), offsetZ: $("#ct-offz-val"),
-  };
-  function fmt(key, v){ return key === "rotationY" ? Math.round(v) + "°" : v.toFixed(2); }
+  const charSelect = $("#ct-character");
+  const readout = $("#ct-readout");
+  if (!btn || !panel || !charSelect || !foxCanvasEl) return;
+  const creatureNames = [...new Set(Object.values(CREATURE_BY_FOLDER))].sort();
+  charSelect.innerHTML = creatureNames.map(n => `<option value="${n}">${n}</option>`).join("");
+  function refreshReadout(){
+    const t = currentDraftPose;
+    readout.textContent = `scale ${t.scale.toFixed(2)}   rotation ${Math.round(t.rotationY)}°\n`
+      + `x ${t.offsetX.toFixed(2)}   y ${t.offsetY.toFixed(2)}   z ${t.offsetZ.toFixed(2)}`;
+  }
   function refresh(){
-    $("#ct-name").textContent = currentCreatureName || "—";
-    const t = getCreatureTransform(currentCreatureName);
-    fields.forEach(key => {
-      sliders[key].value = t[key];
-      vals[key].textContent = fmt(key, t[key]);
-    });
+    if (currentCreatureName) charSelect.value = currentCreatureName;
+    refreshReadout();
   }
   refreshCreatureTunePanel = () => { if (panel.classList.contains("show")) refresh(); };
   btn.onclick = () => {
-    const open = panel.classList.toggle("show");
+    const open = !panel.classList.contains("show");
+    panel.classList.toggle("show", open);
     btn.classList.toggle("active", open);
     btn.setAttribute("aria-pressed", open ? "true" : "false");
-    if (open) refresh();
+    if (open){ enterCreatureTuneView(); refresh(); }
+    else exitCreatureTuneView();
   };
-  fields.forEach(key => {
-    sliders[key].oninput = () => {
-      if (!currentCreatureName) return;
-      const v = parseFloat(sliders[key].value);
-      creatureTransforms[currentCreatureName] = Object.assign({}, creatureTransforms[currentCreatureName], { [key]: v });
-      vals[key].textContent = fmt(key, v);
-      applyCreatureTransform(getCreatureTransform(currentCreatureName));
+  charSelect.onchange = () => {
+    if (charSelect.value && charSelect.value !== currentCreatureName) loadCreatureModel(charSelect.value);
+  };
+  // drag to move (offset X/Y), shift-drag to rotate (Y), scroll to scale
+  let ctDrag = null;
+  foxCanvasEl.addEventListener("pointerdown", e => {
+    if (!creatureTuning) return;
+    ctDrag = {
+      x: e.clientX, y: e.clientY,
+      offsetX: currentDraftPose.offsetX, offsetY: currentDraftPose.offsetY,
+      rotationY: currentDraftPose.rotationY,
+      rotate: e.shiftKey,
     };
+    foxCanvasEl.setPointerCapture(e.pointerId);
+    e.preventDefault();
   });
+  foxCanvasEl.addEventListener("pointermove", e => {
+    if (!ctDrag) return;
+    const dx = e.clientX - ctDrag.x, dy = e.clientY - ctDrag.y;
+    if (ctDrag.rotate){
+      currentDraftPose.rotationY = ((ctDrag.rotationY + dx * 0.5) % 360 + 360) % 360;
+    } else {
+      currentDraftPose.offsetX = ctDrag.offsetX + dx * 0.01;
+      currentDraftPose.offsetY = ctDrag.offsetY - dy * 0.01; // screen down = world up
+    }
+    applyCreatureTransform(currentDraftPose);
+    refreshReadout();
+  });
+  foxCanvasEl.addEventListener("pointerup", () => { ctDrag = null; });
+  foxCanvasEl.addEventListener("pointercancel", () => { ctDrag = null; });
+  foxCanvasEl.addEventListener("wheel", e => {
+    if (!creatureTuning) return;
+    e.preventDefault();
+    currentDraftPose.scale = Math.max(2, Math.min(40, currentDraftPose.scale - e.deltaY * 0.02));
+    applyCreatureTransform(currentDraftPose);
+    refreshReadout();
+  }, { passive: false });
+  $("#ct-pos1").onclick = () => {
+    if (!currentCreatureName) return;
+    creatureTransforms[currentCreatureName] = Object.assign({}, creatureTransforms[currentCreatureName], { pos1: Object.assign({}, currentDraftPose) });
+    toast("Position 1 set");
+  };
+  $("#ct-pos2").onclick = () => {
+    if (!currentCreatureName) return;
+    creatureTransforms[currentCreatureName] = Object.assign({}, creatureTransforms[currentCreatureName], { pos2: Object.assign({}, currentDraftPose) });
+    toast("Position 2 set");
+  };
   $("#ct-reset").onclick = () => {
     if (!currentCreatureName) return;
     delete creatureTransforms[currentCreatureName];
-    applyCreatureTransform(getCreatureTransform(currentCreatureName));
-    refresh();
+    currentDraftPose = Object.assign({}, CREATURE_TRANSFORM_DEFAULT);
+    foxAnimPhase = 0;
+    applyCreatureTransform(currentDraftPose);
+    refreshReadout();
+    toast("Reset to default");
   };
   $("#ct-save").onclick = async () => {
     const saveBtn = $("#ct-save");
@@ -1693,18 +1768,52 @@ const CREATURE_BY_FOLDER = {
 };
 // shared starting point for every creature - overridden per creature-name
 // by creatureTransforms (fetched from /api/creature-transforms at boot,
-// edited live by the owner-only tuner panel - see initCreatureTune())
+// edited live by the owner-only tuner panel - see initCreatureTune()).
+// Each creature can have a "pos1" and an optional "pos2" - with both set,
+// the live player continuously eases the creature back and forth between
+// them (see the animate() hook below); with only pos1 (or neither saved),
+// it just sits still there.
 const CREATURE_TRANSFORM_DEFAULT = { scale: 13.824, rotationY: 180, offsetX: 0, offsetY: 0, offsetZ: 0 };
 let creatureTransforms = {};
 fetch("/api/creature-transforms").then(r => r.json()).then(data => {
   creatureTransforms = data.transforms || {};
-  applyCreatureTransform(getCreatureTransform(currentCreatureName));
+  if (currentCreatureName) currentDraftPose = Object.assign({}, getCreaturePoses(currentCreatureName).pos1);
+  refreshCreatureTunePanel();
 }).catch(() => {});
-function getCreatureTransform(name){
-  return Object.assign({}, CREATURE_TRANSFORM_DEFAULT, creatureTransforms[name] || {});
+function getCreaturePoses(name){
+  const saved = creatureTransforms[name] || {};
+  // pre-pos1/pos2 saves stored a single flat {scale, rotationY, offsetX/Y/Z}
+  // directly on the creature, not nested under "pos1" - treat that as pos1
+  // rather than silently losing it once this shape changed
+  const legacyPos1 = ("scale" in saved || "rotationY" in saved) ? saved : null;
+  return {
+    pos1: Object.assign({}, CREATURE_TRANSFORM_DEFAULT, saved.pos1 || legacyPos1 || {}),
+    pos2: saved.pos2 ? Object.assign({}, CREATURE_TRANSFORM_DEFAULT, saved.pos2) : null,
+  };
 }
+function lerpPose(a, b, t){
+  return {
+    scale: a.scale + (b.scale - a.scale) * t,
+    rotationY: a.rotationY + (b.rotationY - a.rotationY) * t,
+    offsetX: a.offsetX + (b.offsetX - a.offsetX) * t,
+    offsetY: a.offsetY + (b.offsetY - a.offsetY) * t,
+    offsetZ: a.offsetZ + (b.offsetZ - a.offsetZ) * t,
+  };
+}
+function easeInOutCubic(t){ return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+// the pose the mouse controls are currently editing (see initCreatureTune)
+// - separate from creatureTransforms itself, which only gets a given pose
+// once "Set position 1/2" snapshots this into it
+let currentDraftPose = Object.assign({}, CREATURE_TRANSFORM_DEFAULT);
+// true while the tuner panel is open - pauses the live pos1<->pos2
+// idle animation (below) so it doesn't fight the mouse controls, and
+// switches the canvas into its big/centered editing layout (see
+// #fox-3d-canvas.tuning in styles.css)
+let creatureTuning = false;
+let foxAnimPhase = 0; // 0..2, ping-ponged into a 0..1..0 triangle wave below
+const FOX_ANIM_HALF_PERIOD = 3.5; // seconds pos1 -> pos2 (and the same back)
 // reassigned by initCreatureTune() once the panel exists - keeps its
-// sliders in sync whenever the loaded creature changes out from under it
+// readout in sync whenever the loaded creature changes out from under it
 let refreshCreatureTunePanel = () => {};
 
 const foxCanvasEl = $("#fox-3d-canvas");
@@ -1760,14 +1869,12 @@ function applyCreatureTransform(t){
   currentInnerGroup.rotation.y = t.rotationY * Math.PI / 180;
   currentInnerGroup.position.set(t.offsetX, t.offsetY, t.offsetZ);
 }
-// swaps in the creature for the given track's band (see
-// CREATURE_BY_FOLDER) - a no-op if it's already the one loaded, so
-// flipping between tracks by the same band doesn't reload the model.
-// Called from renderMeta() on every track change.
-function loadCreatureForTrack(tr){
-  if (!foxRenderer) return;
-  const name = CREATURE_BY_FOLDER[tr.folder];
-  if (!name || name === currentCreatureName) return;
+// loads whichever creature by name - shared by loadCreatureForTrack()
+// (driven by the current track's band) and the tuner panel's own
+// character picker (driven directly by name, regardless of what's
+// playing)
+function loadCreatureModel(name){
+  if (!foxRenderer || !name) return;
   currentCreatureName = name;
   currentInnerGroup = null;
   currentRawSize = null;
@@ -1782,7 +1889,7 @@ function loadCreatureForTrack(tr){
   while (foxRoot.children.length) foxRoot.remove(foxRoot.children[0]);
   foxMixer = null;
   new THREE.GLTFLoader().load(`assets/models/${name}.glb`, gltf => {
-    if (currentCreatureName !== name) return; // a newer track loaded first
+    if (currentCreatureName !== name) return; // a newer pick/track loaded first
     const model = gltf.scene;
     model.traverse(o => { if (o.isMesh) o.castShadow = true; });
     // normalize whatever real-world scale/origin the model was exported
@@ -1797,7 +1904,9 @@ function loadCreatureForTrack(tr){
     currentInnerGroup = new THREE.Group();
     currentInnerGroup.add(model);
     foxRoot.add(currentInnerGroup);
-    applyCreatureTransform(getCreatureTransform(name));
+    currentDraftPose = Object.assign({}, getCreaturePoses(name).pos1);
+    foxAnimPhase = 0;
+    applyCreatureTransform(creatureTuning ? currentDraftPose : getCreaturePoses(name).pos1);
     if (gltf.animations && gltf.animations.length){
       foxMixer = new THREE.AnimationMixer(model);
       const idleClip = gltf.animations.find(a => a.name === "idle") || gltf.animations[0];
@@ -1805,6 +1914,16 @@ function loadCreatureForTrack(tr){
     }
     refreshCreatureTunePanel();
   });
+}
+// swaps in the creature for the given track's band (see
+// CREATURE_BY_FOLDER) - a no-op if it's already the one loaded, so
+// flipping between tracks by the same band doesn't reload the model.
+// Called from renderMeta() on every track change.
+function loadCreatureForTrack(tr){
+  if (!foxRenderer) return;
+  const name = CREATURE_BY_FOLDER[tr.folder];
+  if (!name || name === currentCreatureName) return;
+  loadCreatureModel(name);
 }
 // sized off the photo's own box (bigger, so the model peeks out around
 // its oval edge) but vertically centred on the title/artist pill's own
@@ -6496,6 +6615,19 @@ function animate(t){
 
   if (foxRenderer){
     if (foxMixer) foxMixer.update(dtSec);
+    // idle sway between pos1/pos2 (see the tuner's "Set position 1/2")
+    // - paused while the tuner panel is open so it doesn't fight the
+    // mouse controls, and only runs at all once pos2 is actually set
+    if (!creatureTuning && currentCreatureName){
+      const { pos1, pos2 } = getCreaturePoses(currentCreatureName);
+      if (pos2){
+        foxAnimPhase = (foxAnimPhase + dtSec / FOX_ANIM_HALF_PERIOD) % 2;
+        const raw = foxAnimPhase <= 1 ? foxAnimPhase : 2 - foxAnimPhase; // 0->1->0 triangle wave
+        applyCreatureTransform(lerpPose(pos1, pos2, easeInOutCubic(raw)));
+      } else {
+        applyCreatureTransform(pos1);
+      }
+    }
     foxRenderer.render(foxScene, foxCamera);
   }
 }
