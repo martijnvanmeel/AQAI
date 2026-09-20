@@ -126,11 +126,11 @@ body.gate-active::after{display:none}
      relative; pinned to the values they already capped out at on desktop
      (375px / 108px) so the logo now renders the same physical size on
      every screen instead of scaling down on mobile */
-  width:375px;aspect-ratio:8/3;
+  width:487.5px;aspect-ratio:8/3;
   position:relative;transform-style:preserve-3d;
   animation:logo3dSpin 10.8s linear infinite; /* 20% heavier/slower spin */
   font-family:var(--font-display);font-weight:900;letter-spacing:-.02em;
-  font-size:108px;line-height:1;white-space:nowrap;
+  font-size:140.4px;line-height:1;white-space:nowrap;
 }
 @keyframes logo3dSpin{ to { transform:rotateY(360deg); } }
 /* every face (front/back end caps + side walls) is a canvas-rendered
@@ -463,6 +463,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   white-space:nowrap;
   font-family:var(--font-title);font-weight:700;text-transform:uppercase;
   font-size:clamp(18px,calc(14vw - 10px),70px);line-height:calc(1.4em - 20px);
+  letter-spacing:-2px;
   transition:transform .3s ease-in-out;
 }
 .lyric-row .w{
@@ -659,7 +660,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
    pill (.meta-row's z-index:3). Sized/positioned in JS by
    positionFoxCanvas(), vertically centred on .meta-row rather than the
    photo (see positionWaveCanvas) */
-#fox-3d-canvas{position:absolute;left:50%;z-index:1;pointer-events:none;transform:translateX(-50%)}
+#fox-3d-canvas{position:fixed;left:50%;z-index:1;pointer-events:none;transform:translateX(-50%)}
 .artist-photo-wrap{position:relative;z-index:0;width:167.0625px;aspect-ratio:638/497;margin:0 auto -5px;transform:translateY(-43px) scale(1.32)}
 /* soft glow behind the photo, tinted the current track's artist colour */
 .artist-photo-wrap::before{
@@ -670,15 +671,6 @@ body.scene-hands #stage{background:linear-gradient(to top,
     transparent 68%);
   filter:blur(16px);
 }
-/* 2px stroke around the photo, from outside: the same profilepic.png
-   silhouette, filled solid and sized 2px larger on every side, sitting
-   just behind the photo so only a 2px rim of it shows around the edge */
-.artist-photo-wrap::after{
-  content:"";position:absolute;inset:-5px;z-index:0;pointer-events:none;
-  background:var(--artist-color, var(--active-green));
-  -webkit-mask-image:url('assets/profilepic.png');-webkit-mask-size:100% 100%;-webkit-mask-repeat:no-repeat;-webkit-mask-position:center;
-  mask-image:url('assets/profilepic.png');mask-size:100% 100%;mask-repeat:no-repeat;mask-position:center;
-}
 .artist-photo{
   display:block;width:100%;height:auto;position:relative;z-index:1;
 }
@@ -688,7 +680,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
    "face" here instead of a person, this is just its colour backdrop */
 .artist-photo-fill{
   position:absolute;inset:0;z-index:2;pointer-events:none;
-  background:var(--artist-color, var(--active-green));
+  background:linear-gradient(180deg, #000000 0%, color-mix(in srgb, var(--artist-color, var(--active-green)) 50%, #000000) 100%);
   -webkit-mask-image:url('assets/profilepic.png');-webkit-mask-size:100% 100%;-webkit-mask-repeat:no-repeat;-webkit-mask-position:center;
   mask-image:url('assets/profilepic.png');mask-size:100% 100%;mask-repeat:no-repeat;mask-position:center;
 }
@@ -729,12 +721,12 @@ body.scene-hands #stage{background:linear-gradient(to top,
   position:relative;z-index:1;
   min-width:0;max-width:100%;
   display:flex;align-items:center;justify-content:center;gap:8px;
-  border-radius:13px;
-  padding:5.5px 12px 5.5px 10px; /* another 20px narrower (10px each side) */
+  border-radius:200px;
+  padding:6.05px 13.2px 6.05px 11px; /* +10% */
   color:#000000;
-  transform:scale(.8625); /* 115% of the former .75 */
+  transform:scale(1.035); /* 20% bigger than the former .8625 */
   box-shadow:0 3px 8px rgba(0,0,0,.35);
-  background:#eeeeee;
+  background:#ffffff;
 }
 #video-export-panel{
   display:none;flex-direction:column;gap:6px;
@@ -810,17 +802,33 @@ body.scene-hands #stage{background:linear-gradient(to top,
 }
 .ct-actions{display:flex;gap:8px;margin-top:2px}
 .ct-actions .video-export-preview{flex:1;text-align:center}
-/* while the tuner is open, the creature canvas jumps from its normal
-   small in-line spot (behind the photo disc) to a big, clearly separate
-   viewport near the top of the screen - large enough that dragging the
-   creature around with the mouse never runs it off the visible canvas
-   the way the small live-position box would */
+/* owner-only artist color picker - same floating-panel look as the other
+   two, offset further down the right edge so it doesn't stack on top of
+   #video-export-panel (also right-anchored, top) */
+#color-tune-panel{
+  display:none;flex-direction:column;gap:8px;
+  position:fixed;z-index:20;
+  top:calc(env(safe-area-inset-top) + 230px);right:14px;
+  width:min(240px,72vw);
+  padding:10px 12px;border-radius:12px;
+  background:rgba(10,10,10,.72);backdrop-filter:blur(10px);
+  box-shadow:0 4px 16px rgba(0,0,0,.4);
+}
+#color-tune-panel.show{display:flex}
+#cp-swatch{
+  flex:none;width:32px;height:32px;border-radius:8px;
+  border:1px solid rgba(255,255,255,.3);
+  background:var(--cp-color, var(--artist-color, var(--active-green)));
+}
+#color-tune-panel #cp-input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+/* while the tuner is open, the creature stays exactly where it's
+   normally positioned in the live layout (positionFoxCanvas()) - the
+   canvas just becomes interactive (drag/scroll/shift-drag) in place,
+   with a faint outline so it's clear it's now editable */
 #fox-3d-canvas.tuning{
-  position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 70px);
-  transform:translateX(-50%);
-  width:min(90vw,520px);height:min(50vh,520px);
   z-index:15;pointer-events:auto;cursor:grab;
-  background:rgba(0,0,0,.25);border-radius:16px;
+  outline:2px dashed rgba(255,255,255,.35);outline-offset:-2px;
+  border-radius:16px;
 }
 #fox-3d-canvas.tuning:active{cursor:grabbing}
 /* same artist-color <-> 20%-brighter cycle as the logo, just on
@@ -832,20 +840,22 @@ body.scene-hands #stage{background:linear-gradient(to top,
 }
 .meta > *{vertical-align:middle;position:relative;top:3px}
 .meta .title{
-  font-family:var(--font-title);font-weight:700;font-size:clamp(17.00595px,5.314359375vw,29.7604125px);
+  font-family:var(--font-title);font-weight:700;font-size:clamp(12.7544625px,3.98576953125vw,22.320309375px);
   word-spacing:.15em;min-width:0;text-transform:uppercase;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  color:color-mix(in srgb, var(--artist-color, var(--active-green)) 60%, black); /* artist colour, 40% darker */
+  color:#000000;
+  padding:0 0 0 10px;
 }
 .meta .by{
-  flex:0 0 auto;font-family:var(--font-title);font-weight:400;font-size:clamp(8.83215px,2.7594vw,15.4536px);
+  flex:0 0 auto;font-family:var(--font-title);font-weight:400;font-size:clamp(6.6241125px,2.06955vw,11.5902px);
   text-transform:uppercase;color:#000000;
 }
 .meta .sub{
-  flex:0 0 auto;font-family:var(--font-title);font-weight:400;font-size:clamp(17.00595px,5.314359375vw,29.7604125px);
+  flex:0 0 auto;font-family:var(--font-title);font-weight:400;font-size:clamp(12.7544625px,3.98576953125vw,22.320309375px);
   word-spacing:.15em;text-transform:uppercase;
   white-space:nowrap;
-  color:color-mix(in srgb, var(--artist-color, var(--active-green)) 60%, black); /* artist colour, 40% darker */
+  color:#000000;
+  padding:0 10px 0 0;
 }
 /* song title/artist: artist color -> white -> artist color, looping */
 @keyframes metaGreenWhiteCycle{

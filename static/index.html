@@ -77,13 +77,28 @@
       <p class="ct-hint">Drag to move &middot; scroll to scale &middot; shift-drag to rotate</p>
       <p class="ct-readout" id="ct-readout"></p>
       <div class="ct-actions">
-        <button type="button" class="video-export-preview" id="ct-pos1">Set position 1</button>
-        <button type="button" class="video-export-preview" id="ct-pos2">Set position 2</button>
+        <button type="button" class="video-export-preview" id="ct-set">Set position</button>
+        <button type="button" class="video-export-preview" id="ct-reset">Reset</button>
       </div>
       <div class="ct-actions">
-        <button type="button" class="video-export-preview" id="ct-reset">Reset</button>
         <button type="button" class="video-export-preview" id="ct-save">Save</button>
       </div>
+    </div>
+
+    <div id="color-tune-panel" aria-hidden="true">
+      <div class="video-export-title">Artist color</div>
+      <div class="ct-row">
+        <span class="ct-label">Folder</span>
+        <span class="ct-readout" id="cp-folder"></span>
+      </div>
+      <div class="ct-actions">
+        <button type="button" class="video-export-preview" id="cp-pick">Pick color</button>
+        <span id="cp-swatch" aria-hidden="true"></span>
+      </div>
+      <div class="ct-actions">
+        <button type="button" class="video-export-preview" id="cp-save" disabled>Save</button>
+      </div>
+      <input type="color" id="cp-input" aria-hidden="true">
     </div>
 
     <canvas id="wave-canvas" aria-hidden="true"></canvas>
@@ -126,6 +141,9 @@
           </button>
           <button class="util-btn" id="btn-creature-tune" aria-label="Tune this band's 3D creature" aria-pressed="false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
+          </button>
+          <button class="util-btn" id="btn-color-picker" aria-label="Pick this band's color" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 22 1-4 12.5-12.5a2.12 2.12 0 0 1 3 3L6 21l-4 1Z"/><path d="m14.5 6.5 3 3"/></svg>
           </button>
           <div class="lf-artist-picker" id="artist-picker"></div>
         </div>

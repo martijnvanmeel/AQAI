@@ -45,6 +45,12 @@ LYRICS_FLAGS_PATH = os.path.join(os.path.dirname(__file__), "lyrics_flags.json")
 # here so every visitor's browser renders the same tuned values, not just
 # the tuner's own session
 CREATURE_TRANSFORMS_PATH = os.path.join(os.path.dirname(__file__), "creature_transforms.json")
+# per-folder artist color overrides, picked live in the player's owner-only
+# color picker (see #btn-color-picker / /api/folder-colors) - layered on
+# top of the FOLDER_COLORS defaults below, so this is also how a folder
+# left out of FOLDER_COLORS (no scanned tracks yet when that list was
+# written) can get a real color for the first time
+FOLDER_COLORS_PATH = os.path.join(os.path.dirname(__file__), "folder_colors.json")
 EXPORTS_DIR = os.path.join(os.path.dirname(__file__), "exports")
 SERVER_PORT = 8420  # overwritten in __main__ with whatever port was actually chosen
 os.makedirs(SYNC_DIR, exist_ok=True)
@@ -82,6 +88,19 @@ def load_creature_transforms():
 def save_creature_transforms(transforms):
     with open(CREATURE_TRANSFORMS_PATH, "w", encoding="utf-8") as fh:
         json.dump(transforms, fh)
+
+
+def load_folder_color_overrides():
+    try:
+        with open(FOLDER_COLORS_PATH, "r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def save_folder_color_overrides(overrides):
+    with open(FOLDER_COLORS_PATH, "w", encoding="utf-8") as fh:
+        json.dump(overrides, fh)
 
 SKIP_DIR_NAMES = {".claude", ".git", "player", "node_modules", "panoramas", "Panoramas2", "_deleted"}
 AUDIO_EXT_PRIORITY = ["m4a", "mp3", "wav"]
@@ -131,30 +150,34 @@ def load_folder_photo_map(real_folders):
     return photo_map
 
 
-# one accent color per artist, assigned by the same alphabetically-sorted
-# folder index as load_folder_photo_map - 12 colors picked from the
-# swatch the user provided, plus a 13th (grey) for the one folder left over
-ARTIST_COLORS = [
-    # third entry (sorted folder "BOBS PLACE" = Downtown): the red variant
-    # of Instrumental's #1E90FF blue - same saturation/brightness, hue
-    # rotated to red (was #FF8FDB pink)
-    "#7ED957", "#FF8A73", "#FF1E1E", "#7FD6FF", "#FFC27A", "#9B72FF",
-    "#1E90FF", "#FF7F27", "#8C6FFF", "#52C41A", "#FFD700", "#CBA378",
-    "#AAAAAA",
-]
+# one accent color per artist folder - fixed per folder (via the 3D
+# creature each one is mapped to, see CREATURE_BY_FOLDER in app.js) rather
+# than assigned by alphabetical index among whichever folders currently
+# have scanned tracks, so a color never shifts to a different artist just
+# because some other folder gained or lost its first valid track.
+# ElectronicPulse (bug) and NOT RIGHT (platypus) are intentionally left
+# out - they get no color yet (client falls back to the default green).
+FOLDER_COLORS = {
+    "1975": "#7ED957",                 # phoenix
+    "AirBreath": "#FF8A73",            # jellyfish
+    "BOBS PLACE": "#FF1E1E",           # fox
+    "BeatlesBeltolf": "#7FD6FF",       # bird
+    "Collective": "#FFC27A",           # chameleon
+    "FrontLinie": "#9B72FF",           # heron
+    "Instrumental": "#1E90FF",         # snake
+    "SilkyRustSoul Woman": "#FF7F27",  # cat
+    "SmoothFemaleSinger": "#8C6FFF",   # parrot
+    "SmoothSinger": "#52C41A",         # rabbit
+    "Volux by AQAI": "#FFD700",        # deer
+}
 
 
 def load_folder_color_map(real_folders):
-    """Same alphabetically-sorted folder index as load_folder_photo_map,
-    but mapped against a fixed color list instead of files on disk - folders
-    past the end of ARTIST_COLORS just get no color (client falls back to
-    the default green) rather than wrapping back to someone else's color.
-    """
-    folder_names = sorted(real_folders)
-    color_map = {}
-    for i, folder in enumerate(folder_names):
-        if i < len(ARTIST_COLORS):
-            color_map[folder] = ARTIST_COLORS[i]
+    color_map = {folder: FOLDER_COLORS[folder] for folder in real_folders if folder in FOLDER_COLORS}
+    overrides = load_folder_color_overrides()
+    for folder in real_folders:
+        if folder in overrides:
+            color_map[folder] = overrides[folder]
     return color_map
 
 
@@ -830,6 +853,32 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.send_error(400, "Expected an object")
                 return
             save_creature_transforms(payload)
+            self._send_json({"ok": True})
+            return
+
+        if path == "/api/folder-colors":
+            # one folder's color at a time, from the player's owner-only
+            # color picker panel - merges into the saved overrides rather
+            # than replacing the whole map (unlike /api/creature-transforms,
+            # which always gets the client's full in-memory copy anyway)
+            if self._is_public_request():
+                self.send_error(403, "Editing is only available locally")
+                return
+            length = int(self.headers.get("Content-Length", 0))
+            raw = self.rfile.read(length)
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                self.send_error(400, "Invalid JSON")
+                return
+            folder = payload.get("folder") if isinstance(payload, dict) else None
+            color = payload.get("color") if isinstance(payload, dict) else None
+            if not folder or not isinstance(color, str) or not re.match(r"^#[0-9a-fA-F]{6}$", color):
+                self._send_json({"ok": False, "error": "Missing folder or invalid color"})
+                return
+            overrides = load_folder_color_overrides()
+            overrides[folder] = color
+            save_folder_color_overrides(overrides)
             self._send_json({"ok": True})
             return
 

@@ -855,8 +855,10 @@ function renderMeta(){
   const artistColor = "#" + new THREE.Color(tr.artistColor || "#7CFF9E").offsetHSL(0, 0.12, 0.02).getHexString();
   document.documentElement.style.setProperty("--artist-color", artistColor);
   WAVE_COLOR = artistColor;
+  panoUniforms.uArtistColor.value.set(artistColor);
   positionBgGradient();
   updateFlagLyricsButton();
+  refreshColorTunePanel();
 }
 
 // per-track "flag this song's lyrics for re-syncing" toggle (owner-only,
@@ -948,25 +950,13 @@ function openVideoPreview(aspect){
 // as the sliders move, and POSTs the whole map to /api/creature-transforms
 // on Save so every visitor's browser picks up the tuned values, not just
 // this session's
-// switches #fox-3d-canvas from its normal small in-line spot into the
-// big centered editing viewport (see #fox-3d-canvas.tuning) - clears the
-// inline width/height/top that positionFoxCanvas() sets (inline styles
-// always beat a class selector, so the .tuning CSS rule couldn't apply
-// otherwise) and resizes the renderer/camera to match on the next frame
-// (after the browser's actually applied the new CSS layout)
+// makes #fox-3d-canvas interactive right where it's already sitting in
+// the live layout (see #fox-3d-canvas.tuning) - no repositioning, so the
+// dragging/scaling/rotating the owner does is exactly what every visitor
+// already sees
 function enterCreatureTuneView(){
   creatureTuning = true;
   foxCanvasEl.classList.add("tuning");
-  foxCanvasEl.style.width = foxCanvasEl.style.height = "";
-  foxCanvasEl.style.top = foxCanvasEl.style.left = foxCanvasEl.style.transform = "";
-  requestAnimationFrame(() => {
-    const rect = foxCanvasEl.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-    foxRenderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    foxRenderer.setSize(rect.width, rect.height, true);
-    foxCamera.aspect = rect.width / rect.height;
-    foxCamera.updateProjectionMatrix();
-  });
   if (currentCreatureName) applyCreatureTransform(currentDraftPose);
 }
 // restores normal playback layout - the picker may have swapped in a
@@ -979,7 +969,7 @@ function exitCreatureTuneView(){
   const tr = TRACKS[cur];
   const wantName = tr && CREATURE_BY_FOLDER[tr.folder];
   if (wantName && wantName !== currentCreatureName) loadCreatureModel(wantName);
-  else if (currentCreatureName) applyCreatureTransform(getCreaturePoses(currentCreatureName).pos1);
+  else if (currentCreatureName) applyCreatureTransform(getCreaturePose(currentCreatureName));
 }
 // owner-only 3D creature tuner - only "settings" here are the character
 // picker and the Set/Reset/Save buttons; scale/rotation/position are all
@@ -1048,21 +1038,15 @@ function initCreatureTune(){
     applyCreatureTransform(currentDraftPose);
     refreshReadout();
   }, { passive: false });
-  $("#ct-pos1").onclick = () => {
+  $("#ct-set").onclick = () => {
     if (!currentCreatureName) return;
-    creatureTransforms[currentCreatureName] = Object.assign({}, creatureTransforms[currentCreatureName], { pos1: Object.assign({}, currentDraftPose) });
-    toast("Position 1 set");
-  };
-  $("#ct-pos2").onclick = () => {
-    if (!currentCreatureName) return;
-    creatureTransforms[currentCreatureName] = Object.assign({}, creatureTransforms[currentCreatureName], { pos2: Object.assign({}, currentDraftPose) });
-    toast("Position 2 set");
+    creatureTransforms[currentCreatureName] = Object.assign({}, currentDraftPose);
+    toast("Position set");
   };
   $("#ct-reset").onclick = () => {
     if (!currentCreatureName) return;
     delete creatureTransforms[currentCreatureName];
     currentDraftPose = Object.assign({}, CREATURE_TRANSFORM_DEFAULT);
-    foxAnimPhase = 0;
     applyCreatureTransform(currentDraftPose);
     refreshReadout();
     toast("Reset to default");
@@ -1082,6 +1066,85 @@ function initCreatureTune(){
       toast("Could not save creature transform");
     } finally {
       saveBtn.disabled = false;
+    }
+  };
+}
+
+// owner-only artist color picker (see #btn-color-picker/OWNER_ONLY_SELECTORS,
+// #color-tune-panel) - "Pick color" samples a color from anywhere on the
+// screen via the browser's EyeDropper API where available (Chrome/Edge),
+// falling back to a plain <input type=color> (whose native OS panel has
+// its own eyedropper on macOS/Windows) elsewhere. Applies live to every
+// track sharing the current one's folder as soon as picked; "Save" POSTs
+// that folder's color to the server so it sticks for every visitor.
+function initColorPicker(){
+  const btn = $("#btn-color-picker");
+  const panel = $("#color-tune-panel");
+  const folderEl = $("#cp-folder");
+  const swatchEl = $("#cp-swatch");
+  const pickBtn = $("#cp-pick");
+  const saveBtn = $("#cp-save");
+  const colorInput = $("#cp-input");
+  if (!btn || !panel || !folderEl || !swatchEl || !pickBtn || !saveBtn || !colorInput) return;
+  let pendingFolder = null, pendingHex = null;
+
+  function refresh(){
+    const tr = TRACKS[cur];
+    if (!tr) return;
+    folderEl.textContent = tr.folder;
+    const hex = pendingFolder === tr.folder ? pendingHex : (tr.artistColor || "#7ED957");
+    swatchEl.style.setProperty("--cp-color", hex);
+    saveBtn.disabled = pendingFolder !== tr.folder;
+  }
+  refreshColorTunePanel = () => { if (panel.classList.contains("show")) refresh(); };
+
+  btn.onclick = () => {
+    const open = !panel.classList.contains("show");
+    panel.classList.toggle("show", open);
+    btn.classList.toggle("active", open);
+    btn.setAttribute("aria-pressed", open ? "true" : "false");
+    if (open) refresh();
+  };
+
+  function applyLive(hex){
+    const tr = TRACKS[cur];
+    if (!tr || !hex) return;
+    pendingFolder = tr.folder;
+    pendingHex = hex;
+    TRACKS.forEach(t => { if (t.folder === tr.folder) t.artistColor = hex; });
+    renderMeta();
+    renderList();
+  }
+
+  pickBtn.onclick = async () => {
+    if (window.EyeDropper){
+      try {
+        const result = await new EyeDropper().open();
+        applyLive(result.sRGBHex);
+      } catch (e) { /* user backed out of the picker - leave things as they are */ }
+    } else {
+      colorInput.value = (TRACKS[cur] && TRACKS[cur].artistColor) || "#7ed957";
+      colorInput.click();
+    }
+  };
+  colorInput.addEventListener("input", () => applyLive(colorInput.value));
+
+  saveBtn.onclick = async () => {
+    if (!pendingFolder) return;
+    saveBtn.disabled = true;
+    try {
+      const res = await fetch("/api/folder-colors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folder: pendingFolder, color: pendingHex }),
+      });
+      const data = await res.json();
+      toast(data.ok ? "Color saved" : (data.error || "Could not save"));
+      if (data.ok){ pendingFolder = null; pendingHex = null; }
+    } catch (e) {
+      toast("Could not save color");
+    } finally {
+      refresh();
     }
   };
 }
@@ -1769,52 +1832,41 @@ const CREATURE_BY_FOLDER = {
 // shared starting point for every creature - overridden per creature-name
 // by creatureTransforms (fetched from /api/creature-transforms at boot,
 // edited live by the owner-only tuner panel - see initCreatureTune()).
-// Each creature can have a "pos1" and an optional "pos2" - with both set,
-// the live player continuously eases the creature back and forth between
-// them (see the animate() hook below); with only pos1 (or neither saved),
-// it just sits still there.
+// Each creature has a single tuned pose (scale/offset/facing); the live
+// player keeps that pose but continuously spins it a slow 360 (see the
+// animate() hook below), rather than easing between two saved positions.
 const CREATURE_TRANSFORM_DEFAULT = { scale: 13.824, rotationY: 180, offsetX: 0, offsetY: 0, offsetZ: 0 };
 let creatureTransforms = {};
 fetch("/api/creature-transforms").then(r => r.json()).then(data => {
   creatureTransforms = data.transforms || {};
-  if (currentCreatureName) currentDraftPose = Object.assign({}, getCreaturePoses(currentCreatureName).pos1);
+  if (currentCreatureName) currentDraftPose = Object.assign({}, getCreaturePose(currentCreatureName));
   refreshCreatureTunePanel();
 }).catch(() => {});
-function getCreaturePoses(name){
+function getCreaturePose(name){
   const saved = creatureTransforms[name] || {};
-  // pre-pos1/pos2 saves stored a single flat {scale, rotationY, offsetX/Y/Z}
-  // directly on the creature, not nested under "pos1" - treat that as pos1
-  // rather than silently losing it once this shape changed
-  const legacyPos1 = ("scale" in saved || "rotationY" in saved) ? saved : null;
-  return {
-    pos1: Object.assign({}, CREATURE_TRANSFORM_DEFAULT, saved.pos1 || legacyPos1 || {}),
-    pos2: saved.pos2 ? Object.assign({}, CREATURE_TRANSFORM_DEFAULT, saved.pos2) : null,
-  };
+  // older saves nested the tuned pose under "pos1" (plus an unused "pos2")
+  // from a since-removed two-position easing system - still read from
+  // there so that data isn't silently lost
+  return Object.assign({}, CREATURE_TRANSFORM_DEFAULT, saved.pos1 || saved);
 }
-function lerpPose(a, b, t){
-  return {
-    scale: a.scale + (b.scale - a.scale) * t,
-    rotationY: a.rotationY + (b.rotationY - a.rotationY) * t,
-    offsetX: a.offsetX + (b.offsetX - a.offsetX) * t,
-    offsetY: a.offsetY + (b.offsetY - a.offsetY) * t,
-    offsetZ: a.offsetZ + (b.offsetZ - a.offsetZ) * t,
-  };
-}
-function easeInOutCubic(t){ return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
 // the pose the mouse controls are currently editing (see initCreatureTune)
 // - separate from creatureTransforms itself, which only gets a given pose
-// once "Set position 1/2" snapshots this into it
+// once "Set position" snapshots this into it
 let currentDraftPose = Object.assign({}, CREATURE_TRANSFORM_DEFAULT);
-// true while the tuner panel is open - pauses the live pos1<->pos2
-// idle animation (below) so it doesn't fight the mouse controls, and
-// switches the canvas into its big/centered editing layout (see
-// #fox-3d-canvas.tuning in styles.css)
+// true while the tuner panel is open - pauses the live slow-spin idle
+// animation (below) so it doesn't fight the mouse controls, and switches
+// the canvas into its interactive outline (see #fox-3d-canvas.tuning in
+// styles.css)
 let creatureTuning = false;
-let foxAnimPhase = 0; // 0..2, ping-ponged into a 0..1..0 triangle wave below
-const FOX_ANIM_HALF_PERIOD = 3.5; // seconds pos1 -> pos2 (and the same back)
+let creatureWobblePhase = 0; // 0..2, ping-ponged into a 0..1..0 triangle wave - see animate()
+const CREATURE_WOBBLE_HALF_PERIOD = 5.4; // seconds -20deg -> +20deg (and the same back)
+function easeInOutCubic(t){ return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
 // reassigned by initCreatureTune() once the panel exists - keeps its
 // readout in sync whenever the loaded creature changes out from under it
 let refreshCreatureTunePanel = () => {};
+// reassigned by initColorPicker() once the panel exists - same idea,
+// keeps the folder name/swatch in sync as the track changes
+let refreshColorTunePanel = () => {};
 
 const foxCanvasEl = $("#fox-3d-canvas");
 const foxScene = new THREE.Scene();
@@ -1904,9 +1956,8 @@ function loadCreatureModel(name){
     currentInnerGroup = new THREE.Group();
     currentInnerGroup.add(model);
     foxRoot.add(currentInnerGroup);
-    currentDraftPose = Object.assign({}, getCreaturePoses(name).pos1);
-    foxAnimPhase = 0;
-    applyCreatureTransform(creatureTuning ? currentDraftPose : getCreaturePoses(name).pos1);
+    currentDraftPose = Object.assign({}, getCreaturePose(name));
+    applyCreatureTransform(creatureTuning ? currentDraftPose : getCreaturePose(name));
     if (gltf.animations && gltf.animations.length){
       foxMixer = new THREE.AnimationMixer(model);
       const idleClip = gltf.animations.find(a => a.name === "idle") || gltf.animations[0];
@@ -1925,32 +1976,36 @@ function loadCreatureForTrack(tr){
   if (!name || name === currentCreatureName) return;
   loadCreatureModel(name);
 }
-// sized off the photo's own box (bigger, so the model peeks out around
-// its oval edge) but vertically centred on the title/artist pill's own
-// middle instead of the photo's - called alongside positionArtistPhoto()
-// from positionWaveCanvas(), after the pill has already been positioned
+// covers the entire viewport (position:fixed, see styles.css) so the
+// creature has the whole screen's worth of room to be dragged/scaled
+// into - the UI (nav, logo, title pill, controls) all sit at a higher
+// z-index and stays on top, since this canvas only ever paints the
+// creature itself (transparent elsewhere), never a background.
+// The creature's own local transform still keeps it near the origin, so
+// with the camera looking straight down -Z a full-screen canvas would
+// otherwise project it to dead-center screen, off its colour disc -
+// foxCamera is panned (position shifted, not rotated, so no keystoning)
+// by just enough to re-land the origin back on the disc's own on-screen
+// position instead.
 function positionFoxCanvas(){
   if (!foxCanvasEl) return;
-  const photo = document.querySelector(".artist-photo-wrap");
-  const metaRow = document.querySelector(".meta-row");
-  const player = document.querySelector(".player");
-  if (!photo || !metaRow || !player) return;
-  const photoRect = photo.getBoundingClientRect();
-  const metaRect = metaRow.getBoundingClientRect();
-  const playerRect = player.getBoundingClientRect();
-  // much taller than the photo's own box (width more modestly so) - and
-  // anchored so most of that extra height grows downward (only 30% of it
-  // sits above the pill's centre, 70% below) rather than symmetrically
-  const w = photoRect.width * 2.3, h = photoRect.height * 2.6;
-  const centerY = metaRect.top + metaRect.height / 2;
+  const w = window.innerWidth, h = window.innerHeight;
   foxCanvasEl.style.width = w + "px";
   foxCanvasEl.style.height = h + "px";
-  // 100px higher than the pill's own centre, then 25px back down
-  foxCanvasEl.style.top = (centerY - playerRect.top - h * 0.3 - 75) + "px";
+  foxCanvasEl.style.top = "0px";
   const dpr = Math.min(devicePixelRatio, 2);
   if (foxRenderer){
     foxRenderer.setPixelRatio(dpr);
     foxRenderer.setSize(w, h, true);
+  }
+  const photo = document.querySelector(".artist-photo-wrap");
+  if (photo && foxCamera){
+    const r = photo.getBoundingClientRect();
+    const targetX = r.left + r.width / 2, targetY = r.top + r.height / 2;
+    const halfH = foxCamera.position.z * Math.tan(foxCamera.fov * Math.PI / 360);
+    const k = (2 * halfH) / h;
+    foxCamera.position.x = (w / 2 - targetX) * k;
+    foxCamera.position.y = (targetY - h / 2) * k;
   }
   foxCamera.aspect = w / h;
   foxCamera.updateProjectionMatrix();
@@ -2185,17 +2240,21 @@ const panoUniforms = {
   // 1 while the intro gate is up (starts on gate-active), 0 once dismissed;
   // neutralizes every post-effect below so the intro sphere shows raw
   uGate: { value: 1 },
+  // current track's artist color, kept live by renderMeta() - the
+  // background grid (see uFx-gated grid block below) glows at half this
+  uArtistColor: { value: new THREE.Color(0x7ED957) },
 };
 panoMat.onBeforeCompile = shader => {
   shader.uniforms.uIntensity = panoUniforms.uIntensity;
   shader.uniforms.uMinDist = panoUniforms.uMinDist;
   shader.uniforms.uMaxDist = panoUniforms.uMaxDist;
   shader.uniforms.uGate = panoUniforms.uGate;
+  shader.uniforms.uArtistColor = panoUniforms.uArtistColor;
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', '#include <common>\nvarying vec3 vPanoWorldPos;')
     .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPanoWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
   shader.fragmentShader = shader.fragmentShader
-    .replace('#include <common>', '#include <common>\nvarying vec3 vPanoWorldPos;\nuniform float uIntensity;\nuniform float uMinDist;\nuniform float uMaxDist;\nuniform float uGate;')
+    .replace('#include <common>', '#include <common>\nvarying vec3 vPanoWorldPos;\nuniform float uIntensity;\nuniform float uMinDist;\nuniform float uMaxDist;\nuniform float uGate;\nuniform vec3 uArtistColor;')
     // option B: counter-warp the video's UVs before sampling, pulling the
     // pre-bulged edges back toward the center (a radial pincushion
     // correction) so the patch reads closer to the undistorted footage
@@ -2235,7 +2294,16 @@ panoMat.onBeforeCompile = shader => {
       // heavily dimmed than before (was 0.49) so the video reads clearly
       // instead of muddy; the intro sphere is unused now (see tunnelGroup)
       // but its 0.2 dim is kept as-is in case uGate is ever driven again
-      gl_FragColor.rgb *= mix(0.78, 0.2, uGate);`);
+      gl_FragColor.rgb *= mix(0.78, 0.2, uGate);
+      // background grid: thin glowing horizontal lines baked onto the
+      // curved surface itself (patch UV, like the scanlines above),
+      // tinted half the current artist color and added on top rather
+      // than mixed in, so it reads as a light glow over the footage
+      // instead of dark bars
+      float aqaiGridFreq = 120.0;
+      float aqaiGridLineW = 0.015;
+      float aqaiGridMask = 1.0 - smoothstep(0.0, aqaiGridLineW, min(fract(vUv.y * aqaiGridFreq), 1.0 - fract(vUv.y * aqaiGridFreq)));
+      gl_FragColor.rgb += uArtistColor * 0.5 * 0.05 * aqaiGridMask * uFx;`);
 };
 // a gently curved patch (not flat): a flat rectangle sized to the
 // camera's native FOV crops during mouse-look (revealing an edge), and
@@ -5792,11 +5860,9 @@ function animate(t){
   let targetYaw, targetPitch, camSmooth;
   if (document.body.classList.contains("scene-sphere")){
     // the sphere background reacts to the mouse again - yaw/pitch follow
-    // the cursor (roll keeps spinning independently, set above), reversed
-    // from the old mouse-look mode's own mapping (the view now turns
-    // *toward* the side the cursor is on rather than away from it), and
-    // with a longer trailing lag so it visibly trails behind instead of
-    // tracking tightly
+    // the cursor (roll keeps spinning independently, set above), so the
+    // view turns *toward* the side the cursor is on, and with a longer
+    // trailing lag so it visibly trails behind instead of tracking tightly
     targetYaw = mouseNX * 1.1;
     targetPitch = mouseNY * 0.7;
     camSmooth = 0.015;
@@ -6615,18 +6681,16 @@ function animate(t){
 
   if (foxRenderer){
     if (foxMixer) foxMixer.update(dtSec);
-    // idle sway between pos1/pos2 (see the tuner's "Set position 1/2")
-    // - paused while the tuner panel is open so it doesn't fight the
-    // mouse controls, and only runs at all once pos2 is actually set
+    // idle animation: the creature holds its tuned pose (scale/offset)
+    // and wobbles gently between -30deg and +30deg off its tuned facing,
+    // easing in/out at each end - paused while the tuner panel is open so
+    // it doesn't fight the mouse controls
     if (!creatureTuning && currentCreatureName){
-      const { pos1, pos2 } = getCreaturePoses(currentCreatureName);
-      if (pos2){
-        foxAnimPhase = (foxAnimPhase + dtSec / FOX_ANIM_HALF_PERIOD) % 2;
-        const raw = foxAnimPhase <= 1 ? foxAnimPhase : 2 - foxAnimPhase; // 0->1->0 triangle wave
-        applyCreatureTransform(lerpPose(pos1, pos2, easeInOutCubic(raw)));
-      } else {
-        applyCreatureTransform(pos1);
-      }
+      creatureWobblePhase = (creatureWobblePhase + dtSec / CREATURE_WOBBLE_HALF_PERIOD) % 2;
+      const raw = creatureWobblePhase <= 1 ? creatureWobblePhase : 2 - creatureWobblePhase; // 0->1->0 triangle wave
+      const wobble = -30 + 60 * easeInOutCubic(raw);
+      const pose = getCreaturePose(currentCreatureName);
+      applyCreatureTransform(Object.assign({}, pose, { rotationY: pose.rotationY + wobble }));
     }
     foxRenderer.render(foxScene, foxCamera);
   }
@@ -6660,6 +6724,7 @@ fetch("/api/tracks").then(r => r.json()).then(data => {
   initLyricsFlagging();
   initVideoExport();
   initCreatureTune();
+  initColorPicker();
   // deep link from a shared "?t=<id>" URL (see $("#btn-share").onclick) -
   // starts the player on that track instead of the default first one
   const deepLinkId = new URLSearchParams(location.search).get("t");
@@ -6870,7 +6935,7 @@ const OWNER_ONLY_SELECTORS = [
   "#pano-btns", "#btn-delete", "#btn-edit-title", "#btn-edit-artist",
   "#btn-edit-lyrics", "#btn-relocate-artist", "#lf-edit-btns",
   "#lyrics-audit-block", "#btn-flag-lyrics", "#btn-make-video", "#btn-preview-video",
-  "#btn-creature-tune",
+  "#btn-creature-tune", "#btn-color-picker",
 ];
 // true only when the server confirms this request never crossed the public
 // reverse proxy (see "editable" on /api/tracks and _is_public_request() in
