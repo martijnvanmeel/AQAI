@@ -660,20 +660,22 @@ body.scene-hands #stage{background:linear-gradient(to top,
    pill (.meta-row's z-index:3). Sized/positioned in JS by
    positionFoxCanvas(), vertically centred on .meta-row rather than the
    photo (see positionWaveCanvas) */
-/* 3px black outline around the creature itself: four 0-blur drop-shadows
-   (up/down/left/right) traced from the canvas's own alpha channel - works
-   on the exact rendered silhouette regardless of the model's own mesh
-   topology (unlike a 3D "inflated shell" outline, which doesn't self-
-   occlude cleanly on these low-poly, non-watertight, skinned models) */
+/* 3px outline around the creature itself, tinted the artist's own color
+   (70% darker) instead of flat black: four 0-blur drop-shadows (up/down/
+   left/right) traced from the canvas's own alpha channel - works on the
+   exact rendered silhouette regardless of the model's own mesh topology
+   (unlike a 3D "inflated shell" outline, which doesn't self-occlude
+   cleanly on these low-poly, non-watertight, skinned models) */
 #fox-3d-canvas{
   position:fixed;left:50%;z-index:1;pointer-events:none;transform:translateX(-50%);
+  --outline-color:color-mix(in srgb, var(--artist-color, var(--active-green)) 50%, black);
   filter:
-    drop-shadow(3px 0 0 #000000)
-    drop-shadow(-3px 0 0 #000000)
-    drop-shadow(0 3px 0 #000000)
-    drop-shadow(0 -3px 0 #000000);
+    drop-shadow(3px 0 0 var(--outline-color))
+    drop-shadow(-3px 0 0 var(--outline-color))
+    drop-shadow(0 3px 0 var(--outline-color))
+    drop-shadow(0 -3px 0 var(--outline-color));
 }
-.artist-photo-wrap{position:relative;z-index:0;width:167.0625px;aspect-ratio:638/497;margin:0 auto -5px;transform:translateY(-43px) scale(1.32)}
+.artist-photo-wrap{position:relative;z-index:0;width:192.121875px;aspect-ratio:1/1;margin:0 auto -5px;transform:translateY(-43px) scale(1.32)}
 /* soft glow behind the photo, tinted the current track's artist colour */
 .artist-photo-wrap::before{
   content:"";position:absolute;inset:-16%;z-index:0;
