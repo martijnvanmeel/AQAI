@@ -92,13 +92,47 @@
         <span class="ct-readout" id="cp-folder"></span>
       </div>
       <div class="ct-actions">
-        <button type="button" class="video-export-preview" id="cp-pick">Pick color</button>
+        <button type="button" class="video-export-preview" id="cp-eyedropper">Pick from screen</button>
         <span id="cp-swatch" aria-hidden="true"></span>
+      </div>
+      <div class="ct-actions">
+        <button type="button" class="video-export-preview" id="cp-wheel">Color wheel</button>
       </div>
       <div class="ct-actions">
         <button type="button" class="video-export-preview" id="cp-save" disabled>Save</button>
       </div>
       <input type="color" id="cp-input" aria-hidden="true">
+    </div>
+
+    <div class="meta-actions">
+      <button class="util-btn" id="btn-edit-title" aria-label="Rename this song">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+      </button>
+      <button class="util-btn" id="btn-edit-artist" aria-label="Rename this artist">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+      </button>
+      <button class="util-btn" id="btn-edit-lyrics" aria-label="Edit lyrics" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h13"/></svg>
+      </button>
+      <button class="util-btn" id="btn-relocate-artist" aria-label="Move this song to another artist">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M8 21H3v-5"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+      </button>
+      <button class="util-btn" id="btn-flag-lyrics" aria-label="Flag this song's lyrics for re-syncing" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4"/><path d="M4 4h14l-2.5 4L18 12H4"/></svg>
+      </button>
+      <button class="util-btn" id="btn-make-video" aria-label="Make a video from this song">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m23 7-7 5 7 5V7Z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+      </button>
+      <button class="util-btn" id="btn-preview-video" aria-label="Preview the video export in a new window">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+      <button class="util-btn" id="btn-creature-tune" aria-label="Tune this band's 3D creature" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
+      </button>
+      <button class="util-btn" id="btn-color-picker" aria-label="Pick this band's color" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 22 1-4 12.5-12.5a2.12 2.12 0 0 1 3 3L6 21l-4 1Z"/><path d="m14.5 6.5 3 3"/></svg>
+      </button>
+      <div class="lf-artist-picker" id="artist-picker"></div>
     </div>
 
     <canvas id="wave-canvas" aria-hidden="true"></canvas>
@@ -113,39 +147,15 @@
       <canvas id="fox-3d-canvas" aria-hidden="true"></canvas>
       <div class="meta-row">
         <div class="meta">
-          <span class="title" id="m-title">—</span>
-          <input class="title title-edit-input" id="m-title-input" type="text" aria-label="Song title">
-          <span class="by">BY</span>
-          <span class="sub" id="m-folder">—</span>
-          <input class="sub title-edit-input" id="m-folder-input" type="text" aria-label="Artist name">
-          <button class="util-btn" id="btn-edit-title" aria-label="Rename this song">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
-          </button>
-          <button class="util-btn" id="btn-edit-artist" aria-label="Rename this artist">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
-          </button>
-          <button class="util-btn" id="btn-edit-lyrics" aria-label="Edit lyrics" aria-pressed="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h13"/></svg>
-          </button>
-          <button class="util-btn" id="btn-relocate-artist" aria-label="Move this song to another artist">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M8 21H3v-5"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
-          </button>
-          <button class="util-btn" id="btn-flag-lyrics" aria-label="Flag this song's lyrics for re-syncing" aria-pressed="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4"/><path d="M4 4h14l-2.5 4L18 12H4"/></svg>
-          </button>
-          <button class="util-btn" id="btn-make-video" aria-label="Make a video from this song">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m23 7-7 5 7 5V7Z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-          </button>
-          <button class="util-btn" id="btn-preview-video" aria-label="Preview the video export in a new window">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-          </button>
-          <button class="util-btn" id="btn-creature-tune" aria-label="Tune this band's 3D creature" aria-pressed="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
-          </button>
-          <button class="util-btn" id="btn-color-picker" aria-label="Pick this band's color" aria-pressed="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 22 1-4 12.5-12.5a2.12 2.12 0 0 1 3 3L6 21l-4 1Z"/><path d="m14.5 6.5 3 3"/></svg>
-          </button>
-          <div class="lf-artist-picker" id="artist-picker"></div>
+          <div class="meta-text">
+            <span class="title" id="m-title">—</span>
+            <input class="title title-edit-input" id="m-title-input" type="text" aria-label="Song title">
+            <div class="meta-sub-row">
+              <span class="by">BY</span>
+              <span class="sub" id="m-folder">—</span>
+              <input class="sub title-edit-input" id="m-folder-input" type="text" aria-label="Artist name">
+            </div>
+          </div>
         </div>
       </div>
       <div class="controls-row">
@@ -309,10 +319,10 @@
     <span class="nav-label">Player</span>
   </button>
   <button class="nav-btn" data-view="list" aria-label="Music list">
-    <svg class="nav-icon-list" viewBox="0 0 32 40" fill="none" stroke="currentColor" stroke-width="4">
-      <rect x="2" y="2" width="28" height="10" rx="5"/>
-      <rect x="2" y="15" width="28" height="10" rx="5"/>
-      <rect x="2" y="28" width="28" height="10" rx="5"/>
+    <svg class="nav-icon-list" viewBox="0 0 44 32" fill="none" stroke="currentColor" stroke-width="4">
+      <rect x="0" y="3" width="12" height="26" rx="3"/>
+      <rect x="16" y="3" width="12" height="26" rx="3"/>
+      <rect x="32" y="3" width="12" height="26" rx="3"/>
     </svg>
     <span class="nav-label">Songs</span>
   </button>

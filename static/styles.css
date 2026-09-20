@@ -675,7 +675,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
     drop-shadow(0 3px 0 var(--outline-color))
     drop-shadow(0 -3px 0 var(--outline-color));
 }
-.artist-photo-wrap{position:relative;z-index:0;width:192.121875px;aspect-ratio:1/1;margin:0 auto -5px;transform:translateY(-43px) scale(1.32)}
+.artist-photo-wrap{position:relative;z-index:0;width:138.32775px;height:97.982156px;margin:0 auto -5px;transform:translateY(-393px) scale(1.32)}
 /* soft glow behind the photo, tinted the current track's artist colour */
 .artist-photo-wrap::before{
   content:"";position:absolute;inset:-16%;z-index:0;
@@ -684,6 +684,17 @@ body.scene-hands #stage{background:linear-gradient(to top,
     color-mix(in srgb, var(--artist-color, var(--active-green)) 78%, transparent) 0%,
     transparent 68%);
   filter:blur(16px);
+}
+/* 2px stroke around the disc, in the artist's own colour: the same
+   profilepic.png silhouette, filled solid and sized 2px larger on every
+   side, sitting just behind .artist-photo-fill so only a 2px rim of it
+   shows around the edge - same trick as the glow above, just solid and
+   tighter to the shape */
+.artist-photo-wrap::after{
+  content:"";position:absolute;inset:-2px;z-index:1;pointer-events:none;
+  background:color-mix(in srgb, var(--artist-color, var(--active-green)) 50%, black);
+  -webkit-mask-image:url('assets/profilepic.png');-webkit-mask-size:100% 100%;-webkit-mask-repeat:no-repeat;-webkit-mask-position:center;
+  mask-image:url('assets/profilepic.png');mask-size:100% 100%;mask-repeat:no-repeat;mask-position:center;
 }
 .artist-photo{
   display:block;width:100%;height:auto;position:relative;z-index:1;
@@ -738,9 +749,25 @@ body.scene-hands #stage{background:linear-gradient(to top,
   border-radius:200px;
   padding:6.05px 13.2px 6.05px 11px; /* +10% */
   color:#000000;
-  transform:scale(1.035); /* 20% bigger than the former .8625 */
-  box-shadow:0 3px 8px rgba(0,0,0,.35);
-  background:#ffffff;
+  transform:scale(1.3687875); /* 15% bigger than the former 1.19025 */
+  box-shadow:none; /* pill temporarily removed - see background below */
+  background:none;
+}
+/* title on its own line, "by <artist>" stacked 5px below it */
+.meta > .meta-text{
+  display:flex;flex-direction:column;align-items:center;gap:0px;
+  min-width:0;
+  position:relative;top:0px;
+}
+.meta-sub-row{display:flex;align-items:center;gap:8px;min-width:0;}
+/* edit buttons pulled out of the centered title group entirely and
+   pinned to the right edge of the screen instead, in their own fixed
+   column - .meta-row itself stays a normal flex row (just .meta-text
+   now, centered) alongside this */
+.meta-actions{
+  position:fixed;z-index:10;
+  top:calc(env(safe-area-inset-top) + 14px);right:14px;
+  display:flex;flex-direction:column;align-items:center;gap:8px;
 }
 #video-export-panel{
   display:none;flex-direction:column;gap:6px;
@@ -854,22 +881,43 @@ body.scene-hands #stage{background:linear-gradient(to top,
 }
 .meta > *{vertical-align:middle;position:relative;top:3px}
 .meta .title{
-  font-family:var(--font-title);font-weight:700;font-size:clamp(12.7544625px,3.98576953125vw,22.320309375px);
+  position:relative;z-index:0;
+  font-family:var(--font-title);font-weight:700;font-size:clamp(19.928847px,6.227765vw,34.875484px);
   word-spacing:.15em;min-width:0;text-transform:uppercase;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  color:#000000;
-  padding:0 0 0 10px;
+  color:#ffffff;
+  text-shadow:0 0 20px rgba(0,0,0,.8);
+  /* overflow:hidden (for the ellipsis above) clips at the padding edge,
+     which was cutting the shadow's 20px blur off right at the glyphs -
+     padding+matching negative margin gives the shadow room to paint
+     without shifting any surrounding layout (title width/position,
+     the 0px gap to the "by" line below, all unchanged) */
+  padding:40px;margin:-40px;
+}
+/* the stroke lives on a second, stroke-only copy of the same text (see
+   data-text, mirrored by renderMeta() in app.js) sat directly behind the
+   real one - -webkit-text-stroke alone always straddles the glyph edge
+   (half paints over the fill, half outside it); doubling the width here
+   and hiding it behind the real fill leaves only that outer half showing,
+   which reads as a clean 2px stroke entirely outside the letters */
+.meta .title::before{
+  content:attr(data-text);
+  position:absolute;inset:40px;
+  z-index:-1;
+  color:transparent;
+  -webkit-text-stroke:4px var(--artist-color, var(--active-green));
 }
 .meta .by{
   flex:0 0 auto;font-family:var(--font-title);font-weight:400;font-size:clamp(6.6241125px,2.06955vw,11.5902px);
-  text-transform:uppercase;color:#000000;
+  text-transform:uppercase;color:var(--artist-color, var(--active-green));
+  -webkit-text-stroke:1px color-mix(in srgb, var(--artist-color, var(--active-green)) 30%, transparent);
 }
 .meta .sub{
   flex:0 0 auto;font-family:var(--font-title);font-weight:400;font-size:clamp(12.7544625px,3.98576953125vw,22.320309375px);
   word-spacing:.15em;text-transform:uppercase;
   white-space:nowrap;
-  color:#000000;
-  padding:0 10px 0 0;
+  color:var(--artist-color, var(--active-green));
+  -webkit-text-stroke:1px color-mix(in srgb, var(--artist-color, var(--active-green)) 30%, transparent);
 }
 /* song title/artist: artist color -> white -> artist color, looping */
 @keyframes metaGreenWhiteCycle{
@@ -888,12 +936,12 @@ body.scene-hands #stage{background:linear-gradient(to top,
   background:transparent;border:none;border-bottom:1.5px solid var(--artist-color, var(--active-green));outline:none;
   padding:0;
 }
-.meta.editing-title #m-title{display:none}
-.meta.editing-title #m-title-input{display:inline-block}
-.meta.editing-title #btn-edit-title{display:none}
-.meta.editing-artist #m-folder{display:none}
-.meta.editing-artist #m-folder-input{display:inline-block}
-.meta.editing-artist #btn-edit-artist{display:none}
+.meta-row.editing-title #m-title{display:none}
+.meta-row.editing-title #m-title-input{display:inline-block}
+.meta-row.editing-title #btn-edit-title{display:none}
+.meta-row.editing-artist #m-folder{display:none}
+.meta-row.editing-artist #m-folder-input{display:inline-block}
+.meta-row.editing-artist #btn-edit-artist{display:none}
 /* quick fade in on hover, slower 1s fade back to the original look on
    hover-out (the :hover rule's own faster transition wins while
    hovering; this slower one only applies once the pointer leaves) */
@@ -955,7 +1003,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   #btn-fulllyrics{width:30.4px;padding:0}
   #btn-fulllyrics span{display:none}
   /* 80% of the full-size photo (167.0625px * 1.32 scale) */
-  .artist-photo-wrap{transform:translateY(-43px) scale(1.056)}
+  .artist-photo-wrap{transform:translateY(-393px) scale(1.056)}
 }
 
 /* true mobile: exactly 15px from the actual screen edge (not the wider
@@ -1255,7 +1303,7 @@ nav{
   flex:1;display:flex;align-items:center;justify-content:center;gap:7px;position:relative;
   background:color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 21%, black) 70%, white);
   border:none;
-  border-radius:22px 22px 0 0;
+  border-radius:28px 28px 0 0;
   color:var(--artist-color, var(--active-green));
   opacity:.81;
   transition:transform .2s ease,color .1s ease,background .2s ease,opacity .2s ease;
@@ -1283,7 +1331,7 @@ nav{
    with the svg first in markup, so no extra layout is needed here */
 /* 50% of the shared 23px .nav-btn svg size - needs to out-specificity the
    general ".nav-btn svg" rule above (a single class alone won't beat it) */
-.nav-btn svg.nav-icon-list{width:16px;height:20px}
+.nav-btn svg.nav-icon-list{width:26.125px;height:19px;position:relative;left:-4px}
 
 /* toast */
 #toast{

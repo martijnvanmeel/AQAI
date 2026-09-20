@@ -829,6 +829,12 @@ function updateLyrics(t){
 function renderMeta(){
   const tr = TRACKS[cur];
   $("#m-title").textContent = tr.title;
+  // mirrored into a data attribute so an ::before pseudo-element (see
+  // .meta .title::before in styles.css) can render a second, stroke-only
+  // copy of the same text behind the real one - the standard trick for
+  // an "outside only" text stroke, since -webkit-text-stroke alone always
+  // straddles the glyph edge (half in, half out)
+  $("#m-title").dataset.text = tr.title;
   $("#m-folder").textContent = tr.artist;
   $("#t-tot").textContent = fmt(tr.duration || 0);
   document.title = `${tr.title} — AQAI`;
@@ -1082,10 +1088,14 @@ function initColorPicker(){
   const panel = $("#color-tune-panel");
   const folderEl = $("#cp-folder");
   const swatchEl = $("#cp-swatch");
-  const pickBtn = $("#cp-pick");
+  const eyedropperBtn = $("#cp-eyedropper");
+  const wheelBtn = $("#cp-wheel");
   const saveBtn = $("#cp-save");
   const colorInput = $("#cp-input");
-  if (!btn || !panel || !folderEl || !swatchEl || !pickBtn || !saveBtn || !colorInput) return;
+  if (!btn || !panel || !folderEl || !swatchEl || !eyedropperBtn || !wheelBtn || !saveBtn || !colorInput) return;
+  // EyeDropper (screen sampling) isn't available in every browser - hide
+  // that option rather than show a button that'll just silently no-op
+  if (!window.EyeDropper) eyedropperBtn.style.display = "none";
   let pendingFolder = null, pendingHex = null;
 
   function refresh(){
@@ -1116,16 +1126,18 @@ function initColorPicker(){
     renderList();
   }
 
-  pickBtn.onclick = async () => {
-    if (window.EyeDropper){
-      try {
-        const result = await new EyeDropper().open();
-        applyLive(result.sRGBHex);
-      } catch (e) { /* user backed out of the picker - leave things as they are */ }
-    } else {
-      colorInput.value = (TRACKS[cur] && TRACKS[cur].artistColor) || "#7ed957";
-      colorInput.click();
-    }
+  eyedropperBtn.onclick = async () => {
+    try {
+      const result = await new EyeDropper().open();
+      applyLive(result.sRGBHex);
+    } catch (e) { /* user backed out of the picker - leave things as they are */ }
+  };
+  // native <input type=color> - its own OS picker (Windows/macOS/Chrome
+  // all include a color wheel/spectrum tab in there) for deliberately
+  // dialing in a color, as opposed to the eyedropper's screen-sampling
+  wheelBtn.onclick = () => {
+    colorInput.value = (TRACKS[cur] && TRACKS[cur].artistColor) || "#7ed957";
+    colorInput.click();
   };
   colorInput.addEventListener("input", () => applyLive(colorInput.value));
 
@@ -1392,13 +1404,13 @@ function beginEditTitle(){
   if (!tr || renameInFlight) return;
   const input = $("#m-title-input");
   input.value = tr.title;
-  $(".meta").classList.add("editing-title");
+  $(".meta-row").classList.add("editing-title");
   input.focus();
   input.select();
 }
 let titleEditCancelled = false;
 function commitEditTitle(){
-  $(".meta").classList.remove("editing-title");
+  $(".meta-row").classList.remove("editing-title");
   if (titleEditCancelled){ titleEditCancelled = false; return; }
   const tr = TRACKS[cur];
   const title = $("#m-title-input").value.trim();
@@ -1445,13 +1457,13 @@ function beginEditArtist(){
   if (!tr || renameInFlight) return;
   const input = $("#m-folder-input");
   input.value = tr.artist;
-  $(".meta").classList.add("editing-artist");
+  $(".meta-row").classList.add("editing-artist");
   input.focus();
   input.select();
 }
 let artistEditCancelled = false;
 function commitEditArtist(){
-  $(".meta").classList.remove("editing-artist");
+  $(".meta-row").classList.remove("editing-artist");
   if (artistEditCancelled){ artistEditCancelled = false; return; }
   const tr = TRACKS[cur];
   const name = $("#m-folder-input").value.trim();
@@ -1914,9 +1926,14 @@ if (foxCanvasEl){
 // applies a {scale, rotationY (deg), offsetX/Y/Z} transform to whichever
 // creature is currently loaded - used right after loading and live while
 // the tuner panel's sliders are being dragged (see initCreatureTune())
+// global size multiplier for every creature (on top of each one's own
+// tuned/default t.scale) - 0.75 = 75% of what it used to render at,
+// applied here so it affects live playback and the tuner's own drag-to-
+// resize alike, without touching any of the saved per-creature values
+const CREATURE_GLOBAL_SCALE = 0.75;
 function applyCreatureTransform(t){
   if (!currentInnerGroup || !currentRawSize || !t) return;
-  const scale = t.scale / Math.max(currentRawSize.x, currentRawSize.y, currentRawSize.z, 0.0001);
+  const scale = (t.scale * CREATURE_GLOBAL_SCALE) / Math.max(currentRawSize.x, currentRawSize.y, currentRawSize.z, 0.0001);
   currentInnerGroup.scale.setScalar(scale);
   currentInnerGroup.rotation.y = t.rotationY * Math.PI / 180;
   currentInnerGroup.position.set(t.offsetX, t.offsetY, t.offsetZ);
@@ -2211,7 +2228,7 @@ function positionWaveCanvas(){
   const height = baseHeight * heightMul;
   const photoRect = photo.getBoundingClientRect();
   const centerY = photoRect.top + photoRect.height / 2;
-  const canvasCenterY = centerY + 40 - 15 + 5 + 10 - 22 + 20; // visualiser (only) net 20px down from that
+  const canvasCenterY = centerY + 40 - 15 + 5 + 10 - 22 + 20 - 20; // visualiser (only) moved 20px up from before
   const baselineY = (canvasCenterY - baseHeight / 2) + baseHeight * 0.65;
   const top = baselineY - height * 0.65;
   canvas.style.top = top + "px";
@@ -6989,11 +7006,5 @@ $("#gate-btn").onclick = () => {
   // at boot) measured zero-size rects - redo it now that they're visible
   positionWaveCanvas();
   initAudio();
-  // this tap is the one guaranteed user gesture in the whole app, so
-  // it's also used to go full screen automatically - no separate toggle
-  // button for it, just this
-  if (document.documentElement.requestFullscreen && !document.fullscreenElement){
-    document.documentElement.requestFullscreen().catch(() => {});
-  }
   if (TRACKS.length) load(Math.floor(Math.random() * TRACKS.length), true);
 };
