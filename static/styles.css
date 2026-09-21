@@ -228,6 +228,13 @@ body.gate-active::after{display:none}
 
 /* ============================ HOME ============================ */
 #view-home{overflow:hidden}
+/* solid artist-color wash sat behind the sphere itself (#stage is
+   z-index:0, this is -1) - shows through wherever the sphere/pano scene
+   doesn't fully cover (transparent canvas clear color, curved-patch edges) */
+#pre-sphere-layer{
+  position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:color-mix(in srgb, var(--artist-color, var(--active-green)) 85%, transparent);
+}
 #stage{position:fixed;inset:0;z-index:0}
 /* the 3D environments' screen treatment: instead of the sphere's shader-
    retired: the vertical-grid/VCR overlay is gone - the 3D scenes render
@@ -684,6 +691,11 @@ body.scene-hands #stage{background:linear-gradient(to top,
     color-mix(in srgb, var(--artist-color, var(--active-green)) 78%, transparent) 0%,
     transparent 68%);
   filter:blur(16px);
+  /* purely visual - sizing/moving the circle this way (rather than via
+     the parent's own position/transform) doesn't touch .artist-photo-wrap's
+     own bounding rect, so it doesn't drag the creature/visualiser/title
+     (all of which anchor off that live rect) along with it */
+  transform:scale(1.1);
 }
 /* 2px stroke around the disc, in the artist's own colour: the same
    profilepic.png silhouette, filled solid and sized 2px larger on every
@@ -695,6 +707,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   background:color-mix(in srgb, var(--artist-color, var(--active-green)) 50%, black);
   -webkit-mask-image:url('assets/profilepic.png');-webkit-mask-size:100% 100%;-webkit-mask-repeat:no-repeat;-webkit-mask-position:center;
   mask-image:url('assets/profilepic.png');mask-size:100% 100%;mask-repeat:no-repeat;mask-position:center;
+  transform:scale(1.1);
 }
 .artist-photo{
   display:block;width:100%;height:auto;position:relative;z-index:1;
@@ -708,6 +721,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   background:linear-gradient(180deg, #000000 0%, color-mix(in srgb, var(--artist-color, var(--active-green)) 50%, #000000) 100%);
   -webkit-mask-image:url('assets/profilepic.png');-webkit-mask-size:100% 100%;-webkit-mask-repeat:no-repeat;-webkit-mask-position:center;
   mask-image:url('assets/profilepic.png');mask-size:100% 100%;mask-repeat:no-repeat;mask-position:center;
+  transform:scale(1.1);
 }
 /* the real photo underneath is fully replaced by the solid colour fill
    above it now (no more real people "pretending" to be the band) -
@@ -758,8 +772,12 @@ body.scene-hands #stage{background:linear-gradient(to top,
   display:flex;flex-direction:column;align-items:center;gap:0px;
   min-width:0;
   position:relative;top:0px;
+  /* single source of truth for how far the title (and, tracking it, the
+     by/artist line 8px below) has been shifted from its normal flow
+     position - keeps them a fixed 8px apart regardless of this value */
+  --title-shift:-65px;
 }
-.meta-sub-row{display:flex;align-items:center;gap:8px;min-width:0;}
+.meta-sub-row{display:flex;align-items:center;gap:8px;min-width:0;margin-top:8px;transform:translateY(calc(var(--title-shift) - 10px));}
 /* edit buttons pulled out of the centered title group entirely and
    pinned to the right edge of the screen instead, in their own fixed
    column - .meta-row itself stays a normal flex row (just .meta-text
@@ -886,38 +904,61 @@ body.scene-hands #stage{background:linear-gradient(to top,
   word-spacing:.15em;min-width:0;text-transform:uppercase;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   color:#ffffff;
-  text-shadow:0 0 20px rgba(0,0,0,.8);
+  text-shadow:0 0 10px rgba(0,0,0,.4);
   /* overflow:hidden (for the ellipsis above) clips at the padding edge,
      which was cutting the shadow's 20px blur off right at the glyphs -
      padding+matching negative margin gives the shadow room to paint
      without shifting any surrounding layout (title width/position,
      the 0px gap to the "by" line below, all unchanged) */
   padding:40px;margin:-40px;
+  transform:translateY(var(--title-shift));
 }
-/* the stroke lives on a second, stroke-only copy of the same text (see
-   data-text, mirrored by renderMeta() in app.js) sat directly behind the
-   real one - -webkit-text-stroke alone always straddles the glyph edge
-   (half paints over the fill, half outside it); doubling the width here
-   and hiding it behind the real fill leaves only that outer half showing,
-   which reads as a clean 2px stroke entirely outside the letters */
-.meta .title::before{
-  content:attr(data-text);
+/* title text is split into one span per letter (see renderScaledTitle()
+   in app.js) so each one can carry its own font-size - 100% at the first
+   and last letter, easing up to 110% at the middle of the string */
+.title-fill{position:relative;z-index:1}
+/* the stroke lives on a second, stroke-only copy of the same per-letter
+   spans (cloned 1:1 by renderMeta() in app.js, so it always matches the
+   fill layer's sizing exactly) sat directly behind the real one -
+   -webkit-text-stroke alone always straddles the glyph edge (half paints
+   over the fill, half outside it); doubling the width here and hiding it
+   behind the real fill leaves only that outer half showing, which reads
+   as a clean 2px stroke entirely outside the letters */
+.title-stroke{
   position:absolute;inset:40px;
-  z-index:-1;
+  z-index:0;
   color:transparent;
   -webkit-text-stroke:4px var(--artist-color, var(--active-green));
 }
 .meta .by{
+  position:relative;z-index:0;
   flex:0 0 auto;font-family:var(--font-title);font-weight:400;font-size:clamp(6.6241125px,2.06955vw,11.5902px);
   text-transform:uppercase;color:var(--artist-color, var(--active-green));
-  -webkit-text-stroke:1px color-mix(in srgb, var(--artist-color, var(--active-green)) 30%, transparent);
+}
+/* same outside-only stroke trick as .meta .title::before - a second,
+   stroke-only copy sat directly behind the real (transparent-fill) text,
+   doubled width so only the outer half (1px visible) shows */
+.meta .by::before{
+  content:"BY";
+  position:absolute;inset:0;
+  z-index:-1;
+  color:transparent;
+  -webkit-text-stroke:2px color-mix(in srgb, var(--artist-color, var(--active-green)) 20%, transparent);
 }
 .meta .sub{
+  position:relative;z-index:0;
   flex:0 0 auto;font-family:var(--font-title);font-weight:400;font-size:clamp(12.7544625px,3.98576953125vw,22.320309375px);
   word-spacing:.15em;text-transform:uppercase;
   white-space:nowrap;
   color:var(--artist-color, var(--active-green));
-  -webkit-text-stroke:1px color-mix(in srgb, var(--artist-color, var(--active-green)) 30%, transparent);
+  cursor:pointer;
+}
+.meta .sub::before{
+  content:attr(data-text);
+  position:absolute;inset:0;
+  z-index:-1;
+  color:transparent;
+  -webkit-text-stroke:2px color-mix(in srgb, var(--artist-color, var(--active-green)) 20%, transparent);
 }
 /* song title/artist: artist color -> white -> artist color, looping */
 @keyframes metaGreenWhiteCycle{
@@ -1167,8 +1208,39 @@ body.scene-hands #stage{background:linear-gradient(to top,
    own tr.artistColor, so each artist's section shows its own accent
    instead of one flat color across the whole list */
 .group-header{
-  padding:39px 22px 6px;font-family:var(--font-display);font-weight:600;
-  font-size:30px;letter-spacing:.2em;text-transform:uppercase;color:var(--row-color, var(--fg-soft));
+  display:flex;align-items:center;gap:10px;
+  padding:39px 22px 6px;
+  color:var(--row-color, var(--fg-soft));
+}
+.group-header-text{display:flex;flex-direction:column;gap:3px;min-width:0}
+.group-header-top{
+  display:flex;align-items:baseline;gap:10px;
+  font-family:var(--font-display);font-weight:600;
+  font-size:30px;letter-spacing:.2em;text-transform:uppercase;
+}
+.group-header-name{min-width:0}
+.group-header-count{
+  font-family:var(--font-body);font-weight:400;font-size:12px;letter-spacing:0;
+  text-transform:none;white-space:nowrap;
+  color:color-mix(in srgb, var(--row-color, var(--fg-soft)) 55%, transparent);
+}
+/* one-line music-style blurb (see ARTIST_STYLE_DESC in app.js) - small,
+   light grey, plain-case so it reads as a caption under the artist name
+   rather than competing with it */
+.group-header-desc{
+  font-family:var(--font-body);font-weight:400;font-size:11px;letter-spacing:0;
+  text-transform:none;color:rgba(255,255,255,.4);
+}
+/* small preview of the artist's animal, shown in whole (carved out of the
+   shared assets/animals.svg sprite via an #svgView(viewBox(...)) fragment -
+   see CREATURE_SVG_CROP in app.js), pushed to the far right of the row
+   (margin-left:auto) and vertically centred against the artist name via
+   the row's own align-items:center. Width/height are set inline in JS,
+   since each animal's own aspect ratio differs. */
+.group-header-creature{
+  margin-left:auto;flex:none;
+  background-position:top center;background-repeat:no-repeat;
+  pointer-events:none;
 }
 .track{
   width:100%;height:35px;display:flex;align-items:center;gap:14px;text-align:left;
@@ -1317,21 +1389,29 @@ nav{
   /* tab background 20% brighter on hover (its rest colour mixed with 20% white) */
   background:color-mix(in srgb, color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 21%, black) 70%, white) 80%, white);
 }
-.nav-btn svg{width:23px;height:23px;position:relative;z-index:1}
+.nav-btn svg{width:clamp(16.1px,4.107143vw,23px);height:clamp(16.1px,4.107143vw,23px);position:relative;z-index:1}
 .nav-btn-word{position:relative;z-index:1}
 .nav-btn:active{background:var(--artist-color, var(--active-green));color:#000000;border-color:var(--artist-color, var(--active-green))}
 .nav-btn.active{background:var(--artist-color, var(--active-green));color:#000000;border-color:var(--artist-color, var(--active-green))}
 .nav-btn.hidden{display:none}
-.nav-btn-word{font-family:var(--font-display);font-weight:900;font-size:18.75px;letter-spacing:-.02em}
+/* same clamp() approach as the rest of the app's text (e.g. .meta .title) -
+   scales down with the viewport instead of staying a fixed px size */
+.nav-btn-word{font-family:var(--font-display);font-weight:900;font-size:clamp(15.065px,3.850446vw,21.5625px);letter-spacing:-.02em}
 /* Player/Songs labels - exact spec from the supplied Photoshop character
    panel: Brice Regular, 20.41pt (taken 1:1 as px), -40 tracking (Adobe/
-   Photoshop tracking is in 1/1000 em, so -40 -> -.04em) */
-.nav-label{position:relative;left:-6px;z-index:1;font-family:var(--font-display);font-weight:400;font-size:20.41px;letter-spacing:-.04em}
+   Photoshop tracking is in 1/1000 em, so -40 -> -.04em) - now scales down
+   on smaller screens like the rest of the app's text instead of staying fixed */
+.nav-label{position:relative;left:-6px;z-index:1;font-family:var(--font-display);font-weight:400;font-size:clamp(14.3px,3.644643vw,20.41px);letter-spacing:-.04em}
 /* icon sits left of the label for free - .nav-btn is already a flex row
    with the svg first in markup, so no extra layout is needed here */
 /* 50% of the shared 23px .nav-btn svg size - needs to out-specificity the
    general ".nav-btn svg" rule above (a single class alone won't beat it) */
-.nav-btn svg.nav-icon-list{width:26.125px;height:19px;position:relative;left:-4px}
+.nav-btn svg.nav-icon-list{width:clamp(18.3px,4.665179vw,26.125px);height:clamp(13.3px,3.392857vw,19px);position:relative;left:-4px}
+/* bars are transparent (fill:none) with a centered (straddling, not
+   outside-only) artist-colour stroke */
+.nav-icon-list rect{stroke:var(--artist-color, var(--active-green));stroke-width:4px}
+.nav-btn.active .nav-icon-list rect{stroke:#000000}
+.nav-btn:not(.active):hover .nav-icon-list rect{stroke:#ffffff}
 
 /* toast */
 #toast{

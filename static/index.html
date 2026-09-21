@@ -30,6 +30,7 @@
 
   <!-- ============ HOME ============ -->
   <section class="view active" id="view-home">
+    <div id="pre-sphere-layer" aria-hidden="true"></div>
     <div id="stage"></div>
     <video id="gradient-overlay" src="/panorama/gradient.mp4" autoplay muted loop playsinline aria-hidden="true"></video>
     <div id="dim-overlay" aria-hidden="true"></div>
@@ -148,7 +149,7 @@
       <div class="meta-row">
         <div class="meta">
           <div class="meta-text">
-            <span class="title" id="m-title">—</span>
+            <span class="title" id="m-title"><span class="title-fill" id="m-title-fill">—</span><span class="title-stroke" id="m-title-stroke" aria-hidden="true"></span></span>
             <input class="title title-edit-input" id="m-title-input" type="text" aria-label="Song title">
             <div class="meta-sub-row">
               <span class="by">BY</span>
@@ -319,10 +320,10 @@
     <span class="nav-label">Player</span>
   </button>
   <button class="nav-btn" data-view="list" aria-label="Music list">
-    <svg class="nav-icon-list" viewBox="0 0 44 32" fill="none" stroke="currentColor" stroke-width="4">
-      <rect x="0" y="3" width="12" height="26" rx="3"/>
+    <svg class="nav-icon-list" viewBox="0 0 44 32" fill="none" stroke="none">
+      <rect x="2" y="3" width="12" height="26" rx="3"/>
       <rect x="16" y="3" width="12" height="26" rx="3"/>
-      <rect x="32" y="3" width="12" height="26" rx="3"/>
+      <rect x="30" y="3" width="12" height="26" rx="3"/>
     </svg>
     <span class="nav-label">Songs</span>
   </button>

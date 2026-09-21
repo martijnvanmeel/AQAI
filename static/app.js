@@ -826,16 +826,34 @@ function updateLyrics(t){
    UI
    ================================================================ */
 
+// wraps each character of the song title in its own span - every letter
+// is the same size (kept as per-letter spans so the stroke layer below
+// still clones an exact copy, and so the bottom-alignment fix still holds)
+function renderScaledTitle(text){
+  const frag = document.createDocumentFragment();
+  const n = text.length;
+  for (let i = 0; i < n; i++){
+    const scale = 100;
+    const span = document.createElement("span");
+    span.style.fontSize = scale.toFixed(2) + "%";
+    span.style.verticalAlign = "text-bottom"; // keeps every letter's bottom on the same line despite differing sizes
+    span.textContent = text[i];
+    frag.appendChild(span);
+  }
+  return frag;
+}
 function renderMeta(){
   const tr = TRACKS[cur];
-  $("#m-title").textContent = tr.title;
-  // mirrored into a data attribute so an ::before pseudo-element (see
-  // .meta .title::before in styles.css) can render a second, stroke-only
-  // copy of the same text behind the real one - the standard trick for
-  // an "outside only" text stroke, since -webkit-text-stroke alone always
-  // straddles the glyph edge (half in, half out)
-  $("#m-title").dataset.text = tr.title;
+  const titleFill = $("#m-title-fill");
+  titleFill.textContent = "";
+  titleFill.appendChild(renderScaledTitle(tr.title));
+  // stroke layer (see .title-stroke in styles.css) mirrors the exact same
+  // per-letter scaled spans behind the real text, offset-doubled stroke
+  // width trick for an outside-only stroke - cloned rather than rebuilt so
+  // it's pixel-identical to the fill layer instead of independently rounded
+  $("#m-title-stroke").innerHTML = titleFill.innerHTML;
   $("#m-folder").textContent = tr.artist;
+  $("#m-folder").dataset.text = tr.artist;
   $("#t-tot").textContent = fmt(tr.duration || 0);
   document.title = `${tr.title} — AQAI`;
   // each artist's own photo (artist_1.png etc) is masked into
@@ -1235,6 +1253,11 @@ function renderList(){
   });
   $("#list-count").textContent = `${indices.length} / ${TRACKS.length} tracks`;
 
+  // total song count per artist (across the whole library, not just
+  // whatever the search box currently has filtered down to)
+  const countByFolder = {};
+  TRACKS.forEach(t => { countByFolder[t.folder] = (countByFolder[t.folder] || 0) + 1; });
+
   let lastFolder = null;
   indices.forEach((i) => {
     const tr = TRACKS[i];
@@ -1242,7 +1265,52 @@ function renderList(){
       lastFolder = tr.folder;
       const h = document.createElement("div");
       h.className = "group-header";
-      h.textContent = tr.artist;
+      h.dataset.folder = tr.folder;
+      const textWrap = document.createElement("div");
+      textWrap.className = "group-header-text";
+      const topRow = document.createElement("div");
+      topRow.className = "group-header-top";
+      const nameEl = document.createElement("span");
+      nameEl.className = "group-header-name";
+      nameEl.textContent = tr.artist;
+      topRow.appendChild(nameEl);
+      const n = countByFolder[tr.folder] || 0;
+      const countEl = document.createElement("span");
+      countEl.className = "group-header-count";
+      countEl.textContent = `${n} song${n === 1 ? "" : "s"}`;
+      topRow.appendChild(countEl);
+      textWrap.appendChild(topRow);
+      // one-line music-style blurb, kept to 10 words or fewer per artist
+      const styleDesc = ARTIST_STYLE_DESC[tr.folder];
+      if (styleDesc){
+        const descEl = document.createElement("div");
+        descEl.className = "group-header-desc";
+        descEl.textContent = styleDesc;
+        textWrap.appendChild(descEl);
+      }
+      h.appendChild(textWrap);
+      // small preview of that artist's animal, shown in whole (not
+      // cropped) - carved out of the shared assets/animals.svg sprite via
+      // an #svgView(viewBox(...)) fragment. List-only swap: AQAI Collective
+      // and Ruby Monroe show each other's animal here, without touching
+      // CREATURE_BY_FOLDER (which still drives the actual 3D creature
+      // shown for them in the player)
+      const LIST_CREATURE_SWAP = { "Collective": "cat", "SilkyRustSoul Woman": "chameleon" };
+      const creatureName = LIST_CREATURE_SWAP[tr.folder] || CREATURE_BY_FOLDER[tr.folder];
+      const crop = CREATURE_SVG_CROP[creatureName];
+      if (crop){
+        // Benjamin Bloom's (BeatlesBeltolf) animal runs 125% of the usual size
+        const sizeMul = tr.folder === "BeatlesBeltolf" ? 1.25 : 1;
+        const THUMB_W = 77 * sizeMul; // 154px * 0.5
+        const fullH = THUMB_W * (crop.h / crop.w);
+        const thumb = document.createElement("span");
+        thumb.className = "group-header-creature";
+        thumb.style.backgroundImage = `url('assets/animals.svg#svgView(viewBox(${crop.x},${crop.y},${crop.w},${crop.h}))')`;
+        thumb.style.backgroundSize = `${THUMB_W}px ${fullH}px`;
+        thumb.style.width = THUMB_W + "px";
+        thumb.style.height = fullH + "px";
+        h.appendChild(thumb);
+      }
       if (tr.artistColor) h.style.setProperty("--row-color", tr.artistColor);
       el.appendChild(h);
     }
@@ -1298,6 +1366,20 @@ function showView(name){
   if (name === "home") positionWaveCanvas();
 }
 document.querySelectorAll(".nav-btn").forEach(b => b.onclick = () => showView(b.dataset.view));
+
+// clicking the artist name in the player jumps to the Songs list and
+// scrolls straight to that artist's section, instead of leaving the
+// visitor to search/scroll for it themselves
+$("#m-folder").addEventListener("click", () => {
+  const tr = TRACKS[cur];
+  if (!tr) return;
+  listFilter = "";
+  $("#list-search").value = "";
+  renderList();
+  showView("list");
+  const header = document.querySelector(`.group-header[data-folder="${CSS.escape(tr.folder)}"]`);
+  if (header) header.scrollIntoView({ block: "start" });
+});
 
 /* controls */
 $("#c-play").onclick = () => playing ? pause() : play();
@@ -1841,6 +1923,44 @@ const CREATURE_BY_FOLDER = {
   "SmoothSinger": "rabbit",
   "Volux by AQAI": "deer",
 };
+// short (10 words or fewer) music-style blurb shown under each artist's
+// name in the Songs list - hand-written summaries of that artist's own
+// generation-prompt tags (too long/messy to show verbatim)
+const ARTIST_STYLE_DESC = {
+  "1975": "Warm 70s-inspired disco-pop with soaring guitars and anthemic choruses",
+  "AirBreath": "Cosmic ambient pop with dreamy pads and glassy textures",
+  "BOBS PLACE": "Melancholic piano pop blending Afrobeat grooves and French hip-hop",
+  "BeatlesBeltolf": "Beatles-inspired pop-rock with jangly guitars and warm harmonies",
+  "Collective": "Heavy Brazilian phonk fused with Afrobeat and hip-hop",
+  "FrontLinie": "Dutch hip-hop with punchy electro beats and acid basslines",
+  "Instrumental": "Eclectic instrumental EDM spanning synthwave, trance and glitchy phonk",
+  "SilkyRustSoul Woman": "Lo-fi house and breakbeat techno with deep rolling bass",
+  "SmoothFemaleSinger": "80s electro-rock with talkbox vocals and jazzy synth stabs",
+  "SmoothSinger": "Acoustic singer-songwriter warmth meets gritty alternative hip-hop energy",
+  "Volux by AQAI": "Minimal electro-pop with slap bass and dreamy synth chords",
+};
+// each creature's own crop region (x, y, w, h, in the sprite's own 1024x1024
+// viewBox units) within the shared assets/animals.svg sprite sheet, used to
+// carve out just that one illustration via an #svgView(viewBox(...)) URL
+// fragment - see .group-header-creature in renderList(). Found once by
+// clustering every <path> in the sprite into 13 connected regions (nearby
+// bounding boxes merged) and sorting them into the sprite's 5/5/3 grid,
+// then padded 10 units on every side so no stroke gets clipped at the edge
+const CREATURE_SVG_CROP = {
+  phoenix:   { x: 80,    y: 51,   w: 165.6, h: 186.5 },
+  bug:       { x: 266.1, y: 51.8, w: 137.2, h: 188.3 },
+  rabbit:    { x: 434.8, y: 5.9,  w: 130.3, h: 235.6 },
+  platypus:  { x: 592.8, y: 93.8, w: 194,   h: 145.9 },
+  chameleon: { x: 800.2, y: 26.1, w: 156.2, h: 218   },
+  fox:       { x: 82.2,  y: 288.4,w: 154.3, h: 229.6 },
+  cat:       { x: 246,   y: 341.9,w: 152.2, h: 176.5 },
+  heron:     { x: 436.3, y: 279.3,w: 131.8, h: 242.1 },
+  deer:      { x: 603,   y: 274,  w: 141.4, h: 244.1 },
+  parrot:    { x: 792.4, y: 328.8,w: 173.3, h: 192.4 },
+  snake:     { x: 64.8,  y: 551.4,w: 169.2, h: 197.8 },
+  bird:      { x: 280.3, y: 535.5,w: 186.2, h: 219   },
+  jellyfish: { x: 524,   y: 543.7,w: 179.6, h: 200.7 },
+};
 // shared starting point for every creature - overridden per creature-name
 // by creatureTransforms (fetched from /api/creature-transforms at boot,
 // edited live by the owner-only tuner panel - see initCreatureTune()).
@@ -2204,8 +2324,9 @@ function positionArtistPhoto(){
   const photoRect = photo.getBoundingClientRect();
   const controlsTop = controlsRow.getBoundingClientRect().top;
   // "full song device" (photo + wave visualiser + title pill, which all
-  // anchor off this photo position) moved 40px up as one group
-  const desiredBottom = controlsTop - 50;
+  // anchor off this photo position) moved 40px up as one group, +100 more
+  // to bring the circle/creature/visualiser up another 100px
+  const desiredBottom = controlsTop - 150;
   photo.style.top = (desiredBottom - photoRect.bottom) + "px";
 }
 function positionWaveCanvas(){
@@ -2228,14 +2349,14 @@ function positionWaveCanvas(){
   const height = baseHeight * heightMul;
   const photoRect = photo.getBoundingClientRect();
   const centerY = photoRect.top + photoRect.height / 2;
-  const canvasCenterY = centerY + 40 - 15 + 5 + 10 - 22 + 20 - 20; // visualiser (only) moved 20px up from before
+  const canvasCenterY = centerY + 40 - 15 + 5 + 10 - 22 + 20 - 20 + 10; // visualiser (only) moved 20px up, then 10px back down, from before
   const baselineY = (canvasCenterY - baseHeight / 2) + baseHeight * 0.65;
   const top = baselineY - height * 0.65;
   canvas.style.top = top + "px";
   canvas.style.height = height + "px";
   // net effect: title pill sits 30px lower than before, independent of
   // however far the photo (and centerY along with it) has moved
-  metaRow.style.top = (centerY + 50) + "px"; // +20 more than before
+  metaRow.style.top = (centerY + 150) + "px"; // +20 more than before, +100 to offset the circle/visualiser-only 100px-up move
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(canvas.clientWidth * dpr);
   canvas.height = Math.round(height * dpr);
