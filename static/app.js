@@ -11,6 +11,19 @@ const $ = s => document.querySelector(s);
 const fmt = s => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,"0")}`;
 
 /* ================================================================
+   VIDEO EXPORT MODE — video_export/__init__.py drives this exact page
+   (not a separate export.html) headlessly via Playwright, at a real
+   phone-sized viewport so the site's own mobile CSS breakpoints apply,
+   then upscales via device_scale_factor for a crisp recording. Adding
+   the body class this early (before first paint) hides the tab bar and
+   transport controls (see body.video-export in styles.css) from frame
+   one. The rest of the flow (skip the gate, load the requested track,
+   signal playback state via document.title) is wired up once tracks
+   have loaded - see the tracksReady block below. */
+const VIDEO_EXPORT_ID = new URLSearchParams(location.search).get("video_export_id");
+if (VIDEO_EXPORT_ID) document.body.classList.add("video-export");
+
+/* ================================================================
    THEME ENGINE — each track deterministically picks a background /
    3D-object color pair from THEMES, so the palette changes per track
    and stays the same on replay. Text/controls default to white, but
@@ -169,12 +182,24 @@ function getAudio(i){
 
 function elapsed(){ return audioEls[cur] ? audioEls[cur].currentTime : 0; }
 
+// which track (by index) is waiting for its background title watermark
+// to slide in the moment its audio actually starts playing (see play()'s
+// resolved promise below) - -1 when nothing's pending. Set in load(),
+// not fired there directly, since play()'s promise only resolves once
+// playback has genuinely begun (past any buffering/autoplay negotiation),
+// not just when it was requested
+let watermarkPendingForTrack = -1;
 function play(){
   initAudio();
   if (ctx.state === "suspended") ctx.resume();
   const el = getAudio(cur);
-  el.play().then(() => { playing = true; syncButtons(); })
-           .catch(() => toast("Tap play to start audio"));
+  el.play().then(() => {
+    playing = true; syncButtons();
+    if (watermarkPendingForTrack === cur){
+      watermarkPendingForTrack = -1;
+      animateBgTitleWatermark(); // starts immediately once audio actually starts (loops itself - see its own transitionend listener)
+    }
+  }).catch(() => toast("Tap play to start audio"));
 }
 function pause(){
   if (audioEls[cur]) audioEls[cur].pause();
@@ -254,6 +279,56 @@ function waitForTrackAssets(el, photo){
   checkDone();
 }
 
+// snaps the watermark straight back to its off-screen starting spot with
+// no transition and no text yet - called immediately on every track load
+// (not the 3s-delayed sweep-in below), so a new song never keeps showing
+// the previous song's title sitting there for those first few seconds
+function resetBgTitleWatermark(){
+  const el = $("#bg-title-watermark");
+  const lyricsEl = $("#lyrics");
+  if (!el || !lyricsEl) return;
+  el.textContent = "";
+  const lyricsRect = lyricsEl.getBoundingClientRect();
+  const targetY = lyricsRect.top + lyricsRect.height / 2 + window.innerHeight * 0.05 + 5;
+  const elWidth = el.getBoundingClientRect().width;
+  const startX = window.innerWidth + elWidth;
+  el.style.transition = "none";
+  el.style.transform = `translate(calc(${startX}px - 50%), calc(${targetY}px - 50%))`;
+  el.getBoundingClientRect();
+  el.style.transition = "";
+}
+// giant, faint background watermark of the song title - slides in from
+// off the right edge and settles centered on the same spot the first
+// karaoke line lands on (see #bg-title-watermark in styles.css). Once a
+// sweep finishes crossing off the left edge, the transitionend listener
+// below restarts it, so it keeps looping for as long as that track is
+// still the current one
+let watermarkSweepTrack = -1;
+function animateBgTitleWatermark(){
+  const el = $("#bg-title-watermark");
+  const lyricsEl = $("#lyrics");
+  if (!el || !lyricsEl) return;
+  el.textContent = TRACKS[cur].title;
+  // vertical anchor stays tied to the lyrics carousel's own live position;
+  // horizontal now sweeps the full width, edge to edge, rather than
+  // stopping there
+  const lyricsRect = lyricsEl.getBoundingClientRect();
+  const targetY = lyricsRect.top + lyricsRect.height / 2 + window.innerHeight * 0.05 + 5; // 5%, +5%, then -5% (5% total) of viewport, +5px flat
+  const elWidth = el.getBoundingClientRect().width;
+  const startX = window.innerWidth + elWidth; // fully clear of the right edge
+  const endX = -elWidth; // fully clear of the left edge
+  watermarkSweepTrack = cur;
+  el.style.transition = "none";
+  el.style.transform = `translate(calc(${startX}px - 50%), calc(${targetY}px - 50%))`;
+  el.getBoundingClientRect();
+  el.style.transition = "";
+  el.style.transform = `translate(calc(${endX}px - 50%), calc(${targetY}px - 50%))`;
+}
+$("#bg-title-watermark")?.addEventListener("transitionend", (e) => {
+  if (e.propertyName !== "transform") return;
+  if (watermarkSweepTrack !== cur) return; // a newer track has since loaded/reset - don't restart a stale sweep
+  animateBgTitleWatermark(); // finished crossing the screen - go again
+});
 function load(i, autoplay = true){
   if (audioEls[cur]) audioEls[cur].pause();
   playing = false;
@@ -271,6 +346,8 @@ function load(i, autoplay = true){
   applyTheme(themeIndexForTrack(TRACKS[cur]));
   setBgVideoForTrack(TRACKS[cur]);
   updateArtistBackground(TRACKS[cur]);
+  resetBgTitleWatermark(); // clears/hides the previous song's title right away, not 3s into the new one
+  watermarkPendingForTrack = cur; // sweep-in fires once this track's audio actually starts (see play())
   if (autoplay) play(); else syncButtons();
 }
 function next(){ load(cur + 1); }
@@ -351,11 +428,12 @@ function paintWordSpans(row, words, tt){
    line before it ---- */
 let lyricRowEls = {};
 const LYRIC_ROW_GAP = 2;
-const LYRIC_ROW_REACH = 2;
-// depth 1 = the last-previous / first-next sentence, depth 2 = the one
-// beyond that; depth 1 is bigger and less transparent (via the "near"
-// class below) than depth 2
-const DEPTH_SCALES = [0.755625, 0.3453125]; // depth 1 (immediate prev/next) bumped to 125% of its former 0.6045
+const LYRIC_ROW_REACH = 3;
+// depth 1 = the last-previous sentence, depth 2 = the one beyond that,
+// depth 3 = the one beyond that; each one further back is smaller and
+// darker (see the "near"/"far" classes and color-mix values in
+// styles.css) than the one before it
+const DEPTH_SCALES = [0.755625, 0.4060875, 0.227]; // depth 2 (third sentence): +20% then -2% (0.3453125 -> 0.414375 -> 0.4060875)
 function rowBaseHeight(row){
   const fs = parseFloat(getComputedStyle(row).fontSize) || 0;
   return fs * 1.4 - 20;
@@ -449,8 +527,22 @@ function realNeighbors(dl, li, reach){
 function layoutLyricRows(li, before, after){
   const activeRow = lyricRowEls[li];
   if (!activeRow) return;
-  const activeScale = (activeRow._fitScale || 1) * ACTIVE_LINE_SCALE;
-  activeRow.style.transform = `translate(-50%, -50%) scale(${activeScale})`;
+  // 10% smaller at the smallest breakpoint, applied from the very start
+  // (the 130% entrance overshoot below is 130% of this already-reduced
+  // size, not the full-size 130%)
+  const smallBreakpointScale = window.innerWidth <= 480 ? 0.9 : 1;
+  const activeScale = (activeRow._fitScale || 1) * ACTIVE_LINE_SCALE * smallBreakpointScale;
+  // entrance overshoot: snap to 130% of the final active size first (no
+  // transition), then let the .lyric-row transition (see styles.css) ease
+  // it down to 100% - the same transition also governs every later scale
+  // change (active -> near -> gone), so scaling back out afterward moves
+  // at that identical slow speed instead of a separate, faster one
+  activeRow.style.transition = "none";
+  activeRow.style.translate = "-50% -50%";
+  activeRow.style.scale = String(activeScale * 1.3);
+  activeRow.getBoundingClientRect();
+  activeRow.style.transition = "";
+  activeRow.style.scale = String(activeScale);
   activeRow.classList.add("active-row");
   activeRow.classList.remove("near");
   [[1, after], [-1, before]].forEach(([dir, list]) => {
@@ -464,13 +556,37 @@ function layoutLyricRows(li, before, after){
       const h = rowBaseHeight(row) * scale;
       const y = edge + LYRIC_ROW_GAP + h / 2;
       // pull each neighbour toward the active line: 15px for the first
-      // sentence out, 20px for the second. Applied symmetrically so the two
-      // previous sentences get the same spacing as the two upcoming ones
-      // (upcoming sit below → pulled up; previous sit above → pulled down).
-      const shift = -dir * (depth === 2 ? 20 : 15);
-      row.style.transform = `translate(-50%, calc(-50% + ${dir * y + shift}px)) scale(${scale})`;
+      // sentence out, 20px for the second, 25px for the third. Applied
+      // symmetrically so the previous sentences get the same spacing as
+      // the upcoming ones (upcoming sit below → pulled up; previous sit
+      // above → pulled down).
+      const shift = -dir * (depth === 3 ? 25 : depth === 2 ? 20 : 15);
+      // per-depth vertical nudges, "before" rows only: second sentence
+      // (depth 1) 2px up; third sentence (depth 2) net +1px lower (+3px,
+      // then -2px). At the smallest breakpoint, the second/third/fourth
+      // sentences (depth 1/2/3) additionally move up 4px/8px/12px
+      const depthNudge = dir !== -1 ? 0 : depth === 1 ? -2 : depth === 2 ? 1 : 0;
+      const smallBreakpointNudge = (dir === -1 && window.innerWidth <= 480)
+        ? -(depth === 3 ? 12 : depth === 2 ? 8 : 4)
+        : 0;
+      const targetTranslate = `-50% calc(-50% + ${dir * y + shift + depthNudge + smallBreakpointNudge}px)`;
+      // previous sentences (and the one before that) move to their new,
+      // smaller spot and size immediately - no transition at all - only
+      // the newly-active line and the upcoming ("after") rows get the
+      // slow eased motion
+      if (dir === -1){
+        row.style.transition = "none";
+        row.style.translate = targetTranslate;
+        row.style.scale = String(scale);
+        row.getBoundingClientRect();
+        row.style.transition = "";
+      } else {
+        row.style.translate = targetTranslate;
+        row.style.scale = String(scale);
+      }
       row.classList.remove("active-row");
       row.classList.toggle("near", depth === 1);
+      row.classList.toggle("far", depth === 2);
       // "before" rows are past sentences that just moved up off center
       // stage (making room for the new active one) - their per-word color
       // fade animation is stopped right away; only the row-level depth
@@ -482,6 +598,7 @@ function layoutLyricRows(li, before, after){
           w.style.animation = "none";
           w.style.transform = "";
           w.style.color = "";
+          w.style.webkitTextStroke = ""; // no lingering outline once a word's sentence is no longer active
         });
       }
       edge = y + h / 2;
@@ -516,7 +633,8 @@ function renderLyricRows(li, dl){
       row._fitScale = row.scrollWidth > maxNaturalWidth ? maxNaturalWidth / row.scrollWidth : 1;
       lyricRowEls[idx] = row;
       row.style.transition = "none";
-      row.style.transform = "translate(-50%, -50%) scale(0)";
+      row.style.translate = "-50% -50%";
+      row.style.scale = "0";
       row.getBoundingClientRect();
       row.style.transition = "";
     }
@@ -537,9 +655,10 @@ function renderLyricRows(li, dl){
 function fadeOutForGap(dl, dli){
   const row = lyricRowEls[dlActiveIdx];
   if (!row) return;
-  // fades the whole sentence down to 50% opacity over a fixed 2s, instead
-  // of tracking the gap's own (often much longer) duration and only
-  // fading each word's color down to a dark blue
+  // during the silence, the just-finished sentence stays fully visible at
+  // its normal size/opacity (no fade, no shrink) - only its per-word color
+  // animation is frozen at whatever it had reached, instead of letting it
+  // keep running or snapping back to the inactive color
   // freeze every word at its CURRENT rendered color (whether that's
   // already-white, mid-fade, or still unsung) before stopping the
   // animation - otherwise stopping it snaps each word back to its
@@ -552,11 +671,6 @@ function fadeOutForGap(dl, dli){
     w.style.animation = "none";
     w.style.color = cur;
   });
-  row.style.transition = "none";
-  row.style.opacity = "1";
-  row.getBoundingClientRect();
-  row.style.transition = "opacity 2s linear";
-  row.style.opacity = "0.5";
 }
 /* whole sentence starts blue and fades to white over the exact time it
    stays active, instead of highlighting word-by-word */
@@ -580,7 +694,7 @@ function startActiveLineFade(dl, li){
   // own turn, so the last word finishes fading right as the next
   // sentence takes over (no scaling - color fade only)
   for (let i = 0; i < spans.length; i++){
-    const wordStart = words[i].t - start;
+    const wordStart = words[i].t - start - 0.2; // each word shows active 0.2s earlier
     let wordEndAbs = i < words.length - 1 ? words[i + 1].t : end;
     // the last word's fallback boundary (the next sentence, or the gap
     // placeholder right after it) can land at/before this word's own
@@ -589,7 +703,11 @@ function startActiveLineFade(dl, li){
     if (i === words.length - 1 && words[i].e != null) wordEndAbs = Math.max(wordEndAbs, words[i].e);
     const wordEnd = wordEndAbs - start;
     const fadeDuration = Math.max(0.15, wordEnd - wordStart);
-    spans[i].style.animation = `wordActiveWhite ${fadeDuration}s linear ${wordStart}s forwards`;
+    // wordActiveStroke starts at the same delay as the color change, but
+    // runs on its own fixed 1s duration (2x slower than its original 0.5s) -
+    // the 2px white outline appears the instant the word becomes active,
+    // then fades out to 0% over that 1s
+    spans[i].style.animation = `wordActiveWhite ${fadeDuration}s linear ${wordStart}s forwards, wordActiveStroke 1s linear ${wordStart}s forwards`;
   }
 }
 
@@ -686,19 +804,36 @@ function commitEditLyricRow(row, input){
   lyricRowEditCancelled = false;
   const newText = input.value.trim();
   const originalText = row._words.map(w => w.w).join(" ");
-  if (cancelled || !newText || newText === originalText){
+  // clearing the text entirely is a valid, intentional edit (the line
+  // becomes a blank/silent entry - the same words:[] shape already used
+  // for gaps between sentences, which the karaoke carousel already skips
+  // over cleanly, see prevRealIndex/nextRealIndex) - only Escape (cancel)
+  // or leaving the text unchanged reverts to the original
+  if (cancelled || newText === originalText){
     renderLyricRowWords(row);
     return;
   }
   const newWords = newText.split(/\s+/).filter(Boolean);
   const origWords = row._words;
-  if (newWords.length === origWords.length){
+  if (newWords.length === 0){
+    row._words = [];
+  } else if (newWords.length === origWords.length){
     row._words = newWords.map((w, i) => ({ w, t: origWords[i].t }));
   } else {
     const rowIdx = flRowEls.indexOf(row);
+    const prevRow = flRowEls[rowIdx - 1];
     const nextRow = flRowEls[rowIdx + 1];
-    const start = origWords[0].t;
-    const end = nextRow ? nextRow._words[0].t : origWords[origWords.length - 1].t + 1.5;
+    // typing new text into a line that's currently blank (words:[], e.g.
+    // just cleared, or already a silence gap) has no timestamp of its own
+    // to anchor to - fall back to just after the previous real line, or
+    // just before the next one, so it still lands somewhere sensible
+    const start = origWords.length ? origWords[0].t
+      : prevRow && prevRow._words.length ? prevRow._words[prevRow._words.length - 1].t + 0.3
+      : nextRow && nextRow._words.length ? Math.max(0, nextRow._words[0].t - 1.5)
+      : 0;
+    const end = nextRow && nextRow._words.length ? nextRow._words[0].t
+      : origWords.length ? origWords[origWords.length - 1].t + 1.5
+      : start + 1.5;
     const per = Math.max(0.3, end - start) / newWords.length;
     row._words = newWords.map((w, i) => ({ w, t: +(start + i * per).toFixed(2) }));
   }
@@ -727,11 +862,9 @@ function updateFullLyrics(li, tt, tr){
   // scroll-follows the song, handled by the caller)
 }
 function positionBgGradient(){
-  const photo = $("#artist-photo");
-  const grad = $("#bg-gradient");
-  if (!photo || !grad) return;
-  const photoBottom = photo.getBoundingClientRect().bottom;
-  grad.style.top = photoBottom + "px";
+  // #bg-gradient now spans the full viewport height via CSS (top:0 to
+  // bottom:0) instead of being pinned dynamically below the artist photo -
+  // kept as a no-op since other code still calls it on resize/track-change
 }
 function positionLyricsFull(){
   const logo = document.querySelector(".home-top .logo-text");
@@ -1711,10 +1844,30 @@ paintVolumeFill($("#c-volume"));
 /* mobile "more" menu (Lyrics/Download/Share collapse under 600px) - the
    trigger button itself lights up (see .mobile-more-btn.active) while the
    popover it opens (see .side-btns.open) is showing */
+// hover-capable devices (mouse/trackpad) open/close purely via hover
+// below; the click toggle here is only for touch, which has no hover -
+// otherwise a click's own toggle would immediately re-close what the
+// mouseenter just opened
+const moreMenuHoverCapable = matchMedia("(hover:hover)").matches;
 $("#btn-more").onclick = () => {
+  if (moreMenuHoverCapable) return;
   const open = $("#side-btns").classList.toggle("open");
   $("#btn-more").classList.toggle("active", open);
 };
+// opens on hover - stays open while the mouse is over either the "..."
+// button or the popover itself
+function openMoreMenu(){
+  $("#side-btns").classList.add("open");
+  $("#btn-more").classList.add("active");
+}
+function closeMoreMenu(){
+  $("#side-btns").classList.remove("open");
+  $("#btn-more").classList.remove("active");
+}
+$("#btn-more").addEventListener("mouseenter", openMoreMenu);
+$("#btn-more").addEventListener("mouseleave", closeMoreMenu);
+$("#side-btns").addEventListener("mouseenter", openMoreMenu);
+$("#side-btns").addEventListener("mouseleave", closeMoreMenu);
 
 /* ================================================================
    SYNC STUDIO — tap once per word (or per line), exports word-timed lines
@@ -2316,17 +2469,20 @@ function positionLogo(){
 }
 function positionArtistPhoto(){
   const photo = document.querySelector(".artist-photo-wrap");
-  const controlsRow = document.querySelector(".controls-row");
-  if (!photo || !controlsRow) return;
+  if (!photo) return;
   // reset to the natural (un-offset) position first so the measurement
   // below reflects normal flow, not last frame's applied offset
   photo.style.top = "0px";
   const photoRect = photo.getBoundingClientRect();
-  const controlsTop = controlsRow.getBoundingClientRect().top;
-  // "full song device" (photo + wave visualiser + title pill, which all
-  // anchor off this photo position) moved 40px up as one group, +100 more
-  // to bring the circle/creature/visualiser up another 100px
-  const desiredBottom = controlsTop - 150;
+  // artist block (circle + 3D creature + title + by/artist, all of which
+  // anchor off this photo's live position) sits with its bottom edge 50px
+  // above the play button, at every breakpoint - tying it directly to the
+  // play button's own live position (rather than a viewport-percentage or
+  // controls-row guess) means it can never overlap/steal clicks from the
+  // transport controls, by construction
+  const playBtn = document.querySelector("#c-play");
+  const smallBreakpointGap = window.innerWidth <= 480 ? 15 : 40; // extra lift: 15px at the smallest breakpoint, 40px everywhere else
+  const desiredBottom = playBtn ? playBtn.getBoundingClientRect().top - 50 - smallBreakpointGap : window.innerHeight * 0.75;
   photo.style.top = (desiredBottom - photoRect.bottom) + "px";
 }
 function positionWaveCanvas(){
@@ -6856,7 +7012,12 @@ fetch("/api/tracks").then(r => r.json()).then(data => {
     _lyricsLoaded: false,
   }));
   $("#info-count").textContent = TRACKS.length;
-  EDITABLE = !!data.editable;
+  // video-export recordings always go through Playwright hitting this
+  // server directly on localhost (never through the public tunnel that
+  // _is_public_request() in server.py looks for), so the server can't
+  // tell it apart from the owner and would otherwise leave the edit
+  // buttons/delete button/etc. visible in every exported video
+  EDITABLE = VIDEO_EXPORT_ID ? false : !!data.editable;
   updateEditControlsVisibility();
   initLyricsAudit();
   initLyricsFlagging();
@@ -6880,6 +7041,7 @@ fetch("/api/tracks").then(r => r.json()).then(data => {
   }
   tracksReady = true;
   updateGateLoadingState();
+  if (VIDEO_EXPORT_ID) startVideoExport(VIDEO_EXPORT_ID);
 }).catch(() => {
   toast("Could not load the library");
   const btn = $("#gate-btn");
@@ -7105,8 +7267,10 @@ function updateGateLoadingState(){
 }
 updateGateLoadingState();
 
-$("#gate-btn").onclick = () => {
-  if (!tracksReady) return;
+// shared by the real "TAP TO LISTEN" click and startVideoExport() below -
+// leaves the gate screen and readies the sphere/audio for a track that's
+// about to be load()'ed, without picking which one
+function dismissGate(){
   $("#gate").classList.add("hidden");
   document.body.classList.remove("gate-active");
   // the (now hidden) password input may still hold keyboard focus, which
@@ -7127,5 +7291,24 @@ $("#gate-btn").onclick = () => {
   // at boot) measured zero-size rects - redo it now that they're visible
   positionWaveCanvas();
   initAudio();
+}
+$("#gate-btn").onclick = () => {
+  if (!tracksReady) return;
+  dismissGate();
   if (TRACKS.length) load(Math.floor(Math.random() * TRACKS.length), true);
 };
+// drives the requested track for video_export/__init__.py's headless
+// Playwright recording - same gate-skip as a real tap, but on the exact
+// track asked for, and signalling state back via document.title (polled
+// from the Python side, which has no other way to know what's on screen)
+function startVideoExport(id){
+  const idx = TRACKS.findIndex(tr => tr.id === id);
+  if (idx === -1){ document.title = "AQAI_EXPORT_ERROR:track not found"; return; }
+  dismissGate();
+  load(idx, true);
+  window.__exportCurrentTime = () => (audioEls[idx] ? audioEls[idx].currentTime : 0);
+  const el = getAudio(idx);
+  el.addEventListener("playing", () => { document.title = "AQAI_EXPORT_PLAYING"; }, { once: true });
+  el.addEventListener("ended", () => { document.title = "AQAI_EXPORT_DONE"; });
+  el.addEventListener("error", () => { document.title = "AQAI_EXPORT_ERROR:audio failed"; });
+}

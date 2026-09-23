@@ -77,6 +77,19 @@ body.gate-active nav,
    scanlines / darkening are disabled via the uGate uniform in app.js) */
 body.gate-active #artist-color-overlay,
 body.gate-active #bg-gradient{display:none}
+/* video export mode (see the video_export_id URL param, handled in
+   app.js): the real player, headlessly recorded by Playwright for the
+   social-video export feature, with just the tab bar and transport
+   controls hidden - title/artist and everything else stays exactly as a
+   real visitor would see it, so the export always matches the live site */
+body.video-export nav,
+/* not owner-only (a real visitor sees this), but makes no sense on a
+   static recording - toggling fullscreen does nothing there */
+body.video-export #btn-fullscreen{display:none}
+/* visibility:hidden, not display:none - positionArtistPhoto() anchors the
+   whole creature/circle/title group off .controls-row's own live
+   getBoundingClientRect(), which collapses to zero if it were display:none */
+body.video-export .controls-row{visibility:hidden}
 /* the bottom accent bar is also part of that same chrome - no artist is
    loaded yet on the gate screen, so it'd otherwise show as a flat green
    strip with no purpose */
@@ -197,6 +210,15 @@ body.gate-active::after{display:none}
    as the fade above, just a constant color instead of a gradient) */
 @keyframes wordActiveWhite{
   0%,100%{color:var(--fg)}
+}
+/* the word that's currently active also gets a 2px white outline the
+   instant it's set, which then fades out to 0% opacity over a fixed 0.5s -
+   started at the same delay as wordActiveWhite above (see
+   startActiveLineFade() in app.js), but with its own fixed 0.5s duration
+   instead of running for the word's whole active span */
+@keyframes wordActiveStroke{
+  0%{-webkit-text-stroke:2px rgba(255,255,255,1)}
+  100%{-webkit-text-stroke:2px rgba(255,255,255,0)}
 }
 .gate-hint{font-size:11px;color:var(--fg-soft);letter-spacing:.16em;text-transform:uppercase}
 /* same white->yellow->green->blue->green->yellow->white->pause cycle as
@@ -358,10 +380,10 @@ body.scene-hands #stage{background:linear-gradient(to top,
 /* readability scrim behind the whole bottom UI cluster (title/artist,
    transport, duration/volume, side buttons) - sits in front of the 3D
    sphere (#stage, z-index:0) but behind all that UI content (z-index:2+);
-   top is pinned dynamically to just under the artist photo, in
-   positionBgGradient() */
+   now spans the full viewport height (top to bottom) instead of just
+   below the artist photo */
 #bg-gradient{
-  position:fixed;left:0;right:0;bottom:0;z-index:1;pointer-events:none;
+  position:fixed;left:0;right:0;top:0;bottom:0;z-index:1;pointer-events:none;
   /* tinted scrim: the artist's color darkened 40%, fading in toward the
      bottom (was plain black) - still dark enough to keep the UI readable */
   background:linear-gradient(to bottom,
@@ -449,6 +471,28 @@ body.scene-hands #stage{background:linear-gradient(to top,
    element and doesn't stretch from left/right offsets the way a <div> does */
 #wave-canvas{position:absolute;left:-10px;width:calc(100% + 20px);z-index:2;pointer-events:none;display:block}
 
+/* giant, faint song-title watermark - sweeps slowly all the way across
+   the screen, from fully off the right edge to fully off the left edge,
+   on every track start (see animateBgTitleWatermark() in app.js),
+   vertically anchored to wherever the karaoke carousel currently sits.
+   Sits behind the actual lyrics (z-index:1 vs #lyrics' z-index:2).
+   Positioned at top:0/left:0 with the actual x/y done entirely via a
+   JS-computed translate() (see animateBgTitleWatermark()), so there's
+   nothing here depending on this element's own box size except the
+   self-centering -50%/-50% baked into that same translate() */
+#bg-title-watermark{
+  position:fixed;top:0;left:0;z-index:1;pointer-events:none;
+  /* plain 'Brice' family (not var(--font-title)'s Condensed variant) at
+     weight 600 = Brice-Semi-Bold.woff2 */
+  font-family:'Brice';font-weight:600;text-transform:uppercase;
+  white-space:nowrap;color:transparent;opacity:.2;
+  -webkit-text-stroke:3px var(--artist-color, var(--active-green));
+  /* 2200% of the normal song-title size (see .meta .title's own clamp()) */
+  font-size:calc(22 * clamp(19.928847px, 6.227765vw, 34.875484px));
+  letter-spacing:-.04em; /* -4% of the (huge) font-size */
+  transition:transform 160s ease-out;
+}
+
 /* lyrics — 3-row carousel: the real previous/next lines sit 4px above and
    below the active line, all at the same size; only color/opacity marks
    which one is active */
@@ -471,17 +515,29 @@ body.scene-hands #stage{background:linear-gradient(to top,
   font-family:var(--font-title);font-weight:700;text-transform:uppercase;
   font-size:clamp(18px,calc(14vw - 10px),70px);line-height:calc(1.4em - 20px);
   letter-spacing:-2px;
-  transition:transform .3s ease-in-out;
+  /* slow, continuous scale motion - shared by the entrance overshoot
+     (130% -> 100%, see layoutLyricRows()) and every later depth change
+     (active -> near -> gone), so scaling out moves at the same speed */
+  /* translate and scale as separate transitionable properties (not the
+     combined transform shorthand) so JS can snap position instantly for
+     the "before" rows while still letting their scale/zoom ease out
+     slowly - see layoutLyricRows() */
+  transition:translate 9.3s ease-in-out, scale 9.3s ease-in-out;
 }
 .lyric-row .w{
   display:inline-block;margin:0 .12em;
-  /* inactive rows read as solid, muted color instead of see-through text -
-     darker/duller mixes instead of low opacity */
-  color:color-mix(in srgb, var(--artist-color, var(--active-green)) 32%, black);opacity:1;
+  /* fourth sentence back (no "near"/"far" class - the deepest of the 3
+     "before" rows, since upcoming lines are never shown): artist color
+     40% darker, solid (not transparent) */
+  color:color-mix(in srgb, var(--artist-color, var(--active-green)) 60%, black);opacity:1;
   transition:transform .3s ease;
 }
-.lyric-row.near .w{color:color-mix(in srgb, var(--artist-color, var(--active-green)) 48%, black)}
-.lyric-row.active-row .w{color:color-mix(in srgb, var(--artist-color, var(--active-green)) 70%, black);opacity:1}
+/* second sentence back (the most recent previous sentence): artist color
+   20% darker, solid (not transparent) */
+.lyric-row.near .w{color:color-mix(in srgb, var(--artist-color, var(--active-green)) 80%, black)}
+/* third sentence back: artist color 30% darker, solid (not transparent) */
+.lyric-row.far .w{color:color-mix(in srgb, var(--artist-color, var(--active-green)) 70%, black)}
+.lyric-row.active-row .w{color:color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 70%, black) 75%, white);opacity:1}
 @media (max-width:640px){
   #lyrics{transform:translateY(calc(-50% - 110px)) scale(1.5)}
 }
@@ -625,6 +681,10 @@ body.scene-hands #stage{background:linear-gradient(to top,
   padding:1px 0;
   color:#000000;
   transition:color .25s ease;
+  /* a fully-cleared line (see commitEditLyricRow()) has no text content
+     left, which would otherwise collapse the row to ~0 height - keeping a
+     minimum height means it stays visible/clickable to edit again */
+  min-height:calc(1.3em - 5px);
 }
 .lf-row .w{
   display:inline-block;margin:0 .12em;
@@ -752,6 +812,13 @@ body.scene-hands #stage{background:linear-gradient(to top,
   transform:translateY(-50%);
   display:flex;align-items:center;justify-content:center;
   text-align:center;
+  /* .meta's own scale(1.37) transform (below) enlarges its actual
+     clickable/hit-tested area well past what the visible text suggests -
+     on short/narrow viewports that invisible overflow can reach down far
+     enough to steal clicks from the seek bar/volume slider underneath.
+     Disabled here and re-enabled only on the one thing inside that's
+     actually meant to be clickable (the artist name - see .meta .sub) */
+  pointer-events:none;
 }
 /* pill in the artist's color behind the song/by/artist text, black text
    for contrast; scaled to 75% of its previous size overall, with
@@ -777,7 +844,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
      position - keeps them a fixed 8px apart regardless of this value */
   --title-shift:-65px;
 }
-.meta-sub-row{display:flex;align-items:center;gap:8px;min-width:0;margin-top:8px;transform:translateY(calc(var(--title-shift) - 10px));}
+.meta-sub-row{display:flex;align-items:center;gap:7px;min-width:0;margin-top:8px;transform:translateY(calc(var(--title-shift) - 10px));}
 /* edit buttons pulled out of the centered title group entirely and
    pinned to the right edge of the screen instead, in their own fixed
    column - .meta-row itself stays a normal flex row (just .meta-text
@@ -904,7 +971,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   word-spacing:.15em;min-width:0;text-transform:uppercase;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   color:#ffffff;
-  text-shadow:0 0 10px rgba(0,0,0,.4);
+  text-shadow:0 0 5.75px rgba(0,0,0,.15);
   /* overflow:hidden (for the ellipsis above) clips at the padding edge,
      which was cutting the shadow's 20px blur off right at the glyphs -
      padding+matching negative margin gives the shadow room to paint
@@ -952,6 +1019,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   white-space:nowrap;
   color:var(--artist-color, var(--active-green));
   cursor:pointer;
+  pointer-events:auto; /* .meta-row disables pointer-events - this is the one thing in it that's actually clickable */
 }
 .meta .sub::before{
   content:attr(data-text);
@@ -976,6 +1044,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   color:#eeeeee;
   background:transparent;border:none;border-bottom:1.5px solid var(--artist-color, var(--active-green));outline:none;
   padding:0;
+  pointer-events:auto; /* .meta-row disables pointer-events - these owner-only edit fields still need to be typeable */
 }
 .meta-row.editing-title #m-title{display:none}
 .meta-row.editing-title #m-title-input{display:inline-block}
@@ -1017,6 +1086,23 @@ body.scene-hands #stage{background:linear-gradient(to top,
   position:relative;top:-15px;
 }
 .transport{display:flex;align-items:center;gap:8px;position:relative;top:-15px}
+/* random-song button: 2x the usual .ctl size, fully round, and 40px clear
+   of its neighbour (8px from the shared .transport gap + 32px margin) */
+/* 75% of the previous 2x size (67.2px -> 50.4px) - pulses and cycles
+   through the same colors as the "TAP TO LISTEN" gate button */
+#c-random{
+  width:52.92px;height:52.92px;border-radius:50%;margin-right:32px; /* 5% bigger */
+  border:none;color:#000000;
+  outline-width:2px;outline-offset:0;
+  animation:pulse 2.4s ease-in-out infinite, gateBtnColorCycle 4s ease-in-out infinite, randomRingStroke 1.5s linear infinite;
+}
+#c-random svg{width:22.8px;height:22.8px}
+/* 2px white ring around the circle (not the icon) - fades out over 1s,
+   then a 0.5s pause before pulsing again */
+@keyframes randomRingStroke{
+  0%{outline-color:rgba(255,255,255,1)}
+  66.667%,100%{outline-color:rgba(255,255,255,0)}
+}
 .transport-center{display:flex;align-items:center;gap:8px}
 .ctl.big-play{width:44px;height:44px;border-radius:15px}
 .ctl.big-play svg{width:20px;height:20px}
@@ -1055,27 +1141,60 @@ body.scene-hands #stage{background:linear-gradient(to top,
    "..." button instead of sitting inline, only appearing (as their own
    centred row) once #btn-more toggles #side-btns' .open class. */
 @media (max-width:480px){
+  /* nav tabs (Player/Songs/AQAI) height at this breakpoint: 30% shorter
+     than the base 56.64px, then +15px - --nav-h also drives the reserved
+     space at the bottom of every view and the toast's resting position,
+     so both resize to match instead of leaving a gap/overlap */
+  :root{--nav-h:54.648px}
+  /* song-title outside stroke, 2px thinner at this breakpoint (doubled
+     width convention - see .title-stroke - so this is 1px less visible) */
+  .title-stroke{-webkit-text-stroke-width:2px}
+  /* volume slider removed at this breakpoint entirely */
+  #c-volume{display:none}
+  /* current-position/total-duration time labels either side of the seek
+     bar removed at this breakpoint entirely */
+  #t-cur,#t-tot{display:none}
+  /* song-position bar (track + fill) and its round knob both 2x their
+     usual height (knob's width scales along with it, so it stays round) */
+  #bar::before,#bar-fill{height:39.68px;border-radius:19.84px}
+  #bar{margin-left:10%;margin-right:10%}
+  #bar-knob{width:39.68px;height:39.68px}
   .player{padding-left:15px;padding-right:15px}
   .controls-row{width:100%;margin-left:0;margin-right:0}
   /* bleeds past .player's own 15px side padding, so the position/volume
      row alone reaches the true screen edge (transport row above keeps it) */
   .bar-row{width:calc(100% + 30px);margin:0 -15px;padding:0}
-  .transport{width:100%;justify-content:space-between;gap:0}
+  .transport{width:100%;justify-content:space-between;gap:0;position:relative}
+  /* prev/play/next always dead-centre in .transport, independent of
+     whatever width the random/more buttons on either side take up -
+     taken out of the space-between flow and centred absolutely instead */
+  .transport-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
   #c-random{transform:scale(.9)}
   .mobile-more-btn{display:flex}
   /* popover anchored above the "..." button (bottom edge of .controls-row,
      which is where the button itself sits, right:0 lining up with its
      right edge) instead of reflowing into its own row below the bar-row -
      that used to land it two rows down from the button that opened it */
+  /* bottom:100% (flush against the "..." button, no dead gap) so the
+     mouse can travel straight from the button into the popover without
+     crossing empty space and losing :hover along the way */
   .side-btns{
-    display:none;position:absolute;right:0;bottom:calc(100% + 10px);z-index:5;
+    display:none;flex-direction:column;gap:10px;position:absolute;top:auto;right:0;bottom:100%;z-index:5;
     background:var(--nav-bg);backdrop-filter:blur(10px);
-    padding:8px;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.4);
+    padding:12px;border-radius:18px;box-shadow:0 8px 24px rgba(0,0,0,.4);
   }
   .side-btns.open{display:flex}
   /* white pill while its popover is open, matching the "active" look the
      other toggle-style controls (fullscreen, playing) use elsewhere */
   .mobile-more-btn.active{background:#ffffff;color:#000000;border-color:#ffffff}
+  /* icon only at this breakpoint, same footprint as download/share */
+  #btn-fulllyrics{width:30.4px;padding:0}
+  #btn-fulllyrics span{display:none}
+  /* bigger targets inside the popover specifically - easier to land a
+     tap/click on the one you want (id + class beats the plain-id rule
+     above, so this wins despite coming after it in source) */
+  .side-btns .util-btn, .side-btns #btn-fulllyrics{width:44px;height:44px;border-radius:15px;padding:0}
+  .side-btns .util-btn svg{width:19px;height:19px}
 }
 
 .ctl{
@@ -1084,9 +1203,15 @@ body.scene-hands #stage{background:linear-gradient(to top,
   color:var(--artist-color, var(--active-green));border:1px solid var(--artist-color, var(--active-green));
   background:rgba(255,255,255,.06);backdrop-filter:blur(8px);
   outline:4px solid transparent;outline-offset:-2px;
-  transition:background-color .3s ease,color .3s ease,border-color .3s ease,box-shadow .3s ease;
+  transition:background-color .3s ease,color .3s ease,border-color .3s ease,box-shadow .3s ease,transform .15s ease-out;
   box-shadow:0 0 3px rgba(255,255,255,0);
 }
+.ctl:hover{transform:scale(1.15)}
+/* #c-random's own pulse keyframe animates transform too, which would
+   otherwise fight this hover scale every frame - pause it while hovered
+   so the 100% -> 115% scale reads clean, then it picks back up on
+   hover-out (mid-cycle, not reset) */
+#c-random:hover{animation-play-state:paused}
 .ctl::before{
   content:"";position:absolute;inset:0;z-index:0;border-radius:inherit;
   background:var(--hover-gradient);opacity:0;transition:opacity .5s ease;
@@ -1097,29 +1222,36 @@ body.scene-hands #stage{background:linear-gradient(to top,
 .ctl:hover{background:#ffffff;color:#000000;border-color:#ffffff;box-shadow:0 0 3px rgba(255,255,255,.2)}
 .ctl:active{background:var(--artist-color, var(--active-green));color:#000000;border-color:var(--artist-color, var(--active-green))}
 .ctl svg{width:15.2px;height:15.2px;position:relative;z-index:1}
-.ctl.toggle.on{color:#000000;background:var(--artist-color, var(--active-green));border-color:var(--artist-color, var(--active-green));box-shadow:0 8px 22px rgba(0,0,0,.4)}
+.ctl.toggle.on{color:#000000;background:var(--artist-color, var(--active-green));border-color:var(--artist-color, var(--active-green))}
 .ctl.toggle.on:hover{background:#ffffff;border-color:#ffffff;color:#000000;box-shadow:0 0 3px rgba(255,255,255,.2)}
 .ctl.toggle.on:hover::before{opacity:0}
 
-.bar-row .time{font-family:var(--font-title);font-size:11px;letter-spacing:.06em;color:var(--fg-soft);flex:0 0 auto;position:relative;top:1px}
+/* white at every breakpoint above the smallest one - #t-cur/#t-tot are
+   hidden entirely at the smallest breakpoint (see the 480px media query
+   below), so this base rule only ever paints on bigger breakpoints */
+.bar-row .time{font-family:var(--font-title);font-size:11px;letter-spacing:.06em;color:#ffffff;flex:0 0 auto;position:relative;top:1px}
 #t-cur{left:-2px} /* current position text: net 2px left of centre */
 #bar{
   position:relative;height:26px;flex:1 1 auto;display:flex;align-items:center;cursor:pointer;
   touch-action:none;min-width:0;
 }
-#bar::before{content:"";position:absolute;left:0;right:0;height:5px;border-radius:2.5px;background:#888888}
+#bar::before{content:"";position:absolute;left:0;right:0;height:20px;border-radius:10px;background:color-mix(in srgb, var(--artist-color, var(--active-green)) 10%, rgba(0,0,0,.75))}
 #bar-fill{
-  position:absolute;left:0;height:5px;width:0%;border-radius:2.5px;
+  position:absolute;left:0;height:20px;width:0%;
+  /* same corner radius as #bar-knob's own circle (25.20672px diameter,
+     50% = 12.60336px radius), not just half its own height */
+  border-radius:12.60336px;
   background:var(--artist-color, var(--active-green));
 }
 #bar-knob{
-  position:absolute;width:19.84px;height:19.84px;border-radius:50%;
+  position:absolute;width:25.20672px;height:25.20672px;border-radius:50%; /* +5%, +10%, +10% (19.84px -> 20.832px -> 22.9152px -> 25.20672px) */
   /* artist-colour outer circle with a small grey (matching the bar) centre dot */
   background:radial-gradient(circle,
     #000000 0, #000000 4px,
     var(--artist-color, var(--active-green)) 4px, var(--artist-color, var(--active-green)) 100%);
   left:0%;transform:translateX(-50%);
-  border:2px solid var(--artist-color, var(--active-green));
+  margin-top:-2px;
+  border:0.2px solid rgba(0,0,0,.5);
   transition:transform .15s ease;
 }
 #bar:hover #bar-knob{transform:translateX(-50%) scale(1.15)}
@@ -1127,9 +1259,11 @@ body.scene-hands #stage{background:linear-gradient(to top,
    transparent fill, fade-to-white on hover, fade-to-artist-color on
    active - so the mute button matches every other round icon button */
 .vol-btn{
-  flex:0 0 auto;width:33.6px;height:33.6px;border-radius:11.2px;position:relative;
+  flex:0 0 auto;width:33.6px;height:33.6px;border-radius:50%;position:relative;
   display:flex;align-items:center;justify-content:center;
-  color:var(--artist-color, var(--active-green));border:1px solid var(--artist-color, var(--active-green));background:transparent;
+  color:var(--artist-color, var(--active-green));border:none;
+  /* same pill look as the seek bar's unfilled track (see #bar::before) */
+  background:color-mix(in srgb, var(--artist-color, var(--active-green)) 10%, rgba(0,0,0,.75));
   outline:4px solid transparent;outline-offset:-2px;
   transition:background-color .3s ease,color .3s ease,border-color .3s ease,box-shadow .3s ease;
   box-shadow:0 0 3px rgba(255,255,255,0);
@@ -1154,19 +1288,25 @@ body.scene-hands #stage{background:linear-gradient(to top,
   background:transparent;
   margin-left:7px; /* extra space from the duration text, on top of the row's own gap */
 }
+/* same pill look as the main seek bar (see #bar::before/#bar-fill/
+   #bar-knob): unfilled track tinted 10% artist color into black 75%,
+   filled portion solid artist color, thumb with the same hairline stroke -
+   and now the exact same height/size as the seek bar's own track/knob too */
 #c-volume::-webkit-slider-runnable-track{
-  height:5px;border-radius:2.5px;
-  background:linear-gradient(to right, var(--artist-color, var(--active-green)) var(--vol-pct), #888888 var(--vol-pct));
+  height:20px;border-radius:10px;
+  background:linear-gradient(to right,
+    var(--artist-color, var(--active-green)) var(--vol-pct),
+    color-mix(in srgb, var(--artist-color, var(--active-green)) 10%, rgba(0,0,0,.75)) var(--vol-pct));
 }
-#c-volume::-moz-range-track{height:5px;background:#888888;border-radius:2.5px}
-#c-volume::-moz-range-progress{height:5px;background:var(--artist-color, var(--active-green));border-radius:2.5px}
+#c-volume::-moz-range-track{height:20px;background:color-mix(in srgb, var(--artist-color, var(--active-green)) 10%, rgba(0,0,0,.75));border-radius:10px}
+#c-volume::-moz-range-progress{height:20px;background:var(--artist-color, var(--active-green));border-radius:10px}
 #c-volume::-webkit-slider-thumb{
-  -webkit-appearance:none;margin-top:-7.42px;
-  width:19.84px;height:19.84px;border-radius:50%;
+  -webkit-appearance:none;margin-top:-2.60336px; /* centers the 25.20672px thumb on the 20px track */
+  width:25.20672px;height:25.20672px;border-radius:50%;
   background:radial-gradient(circle,
     #000000 0, #000000 4px,
     var(--artist-color, var(--active-green)) 4px, var(--artist-color, var(--active-green)) 100%);
-  border:2px solid var(--artist-color, var(--active-green));
+  border:0.2px solid rgba(0,0,0,.5);
   transition:transform .15s ease;
 }
 #c-volume:hover::-webkit-slider-thumb{transform:scale(1.15)}
@@ -1378,7 +1518,17 @@ nav{
   border-radius:28px 28px 0 0;
   color:var(--artist-color, var(--active-green));
   opacity:.81;
-  transition:transform .2s ease,color .1s ease,background .2s ease,opacity .2s ease;
+  transition:transform .2s ease,color .1s ease,background .2s ease,opacity .2s ease,border-color .2s ease;
+}
+.nav-btn:not(.active){
+  border:none;
+  /* same color as the seek bar's unfilled track (see #bar::before) */
+  background:color-mix(in srgb, var(--artist-color, var(--active-green)) 10%, rgba(0,0,0,.75));
+}
+/* top corners 30% less rounded at the smallest breakpoint (28px -> 19.6px) -
+   placed after the base rule above (same specificity) so it actually wins */
+@media (max-width:480px){
+  .nav-btn{border-radius:19.6px 19.6px 0 0}
 }
 .nav-btn.active{opacity:1}
 /* hover: icon/text turn white and the tab lifts up - no stroke at all,
@@ -1386,8 +1536,7 @@ nav{
    see .active below) */
 .nav-btn:not(.active):hover{
   color:#ffffff;transform:translateY(-5px);
-  /* tab background 20% brighter on hover (its rest colour mixed with 20% white) */
-  background:color-mix(in srgb, color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 21%, black) 70%, white) 80%, white);
+  background:#000000;
 }
 .nav-btn svg{width:clamp(16.1px,4.107143vw,23px);height:clamp(16.1px,4.107143vw,23px);position:relative;z-index:1}
 .nav-btn-word{position:relative;z-index:1}
