@@ -39,6 +39,29 @@
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overscroll-behavior:none}
+/* owner-only editing controls (delete/edit/flag/video-export/creature-tune/
+   color-picker/...) - hidden the instant CSS parses, before app.js even
+   runs, let alone before its /api/tracks fetch resolves and confirms this
+   visitor isn't the owner. Without this they render visible from the
+   static HTML for however long that round trip takes, then vanish - a
+   real, visible flash on a fresh page load. body.owner-mode (added by
+   updateEditControlsVisibility() in app.js, only once the server
+   confirms real owner access) is the only thing that reveals them. */
+body:not(.owner-mode) #pano-btns,
+body:not(.owner-mode) #btn-delete,
+body:not(.owner-mode) #btn-edit-title,
+body:not(.owner-mode) #btn-edit-artist,
+body:not(.owner-mode) #btn-edit-lyrics,
+body:not(.owner-mode) #btn-relocate-artist,
+body:not(.owner-mode) #lf-edit-btns,
+body:not(.owner-mode) #lyrics-audit-block,
+body:not(.owner-mode) #btn-flag-lyrics,
+body:not(.owner-mode) #btn-make-video,
+body:not(.owner-mode) #btn-preview-video,
+body:not(.owner-mode) #btn-creature-tune,
+body:not(.owner-mode) #btn-color-picker{
+  display:none !important;
+}
 body{
   color:var(--fg);
   font-family:var(--font-body);

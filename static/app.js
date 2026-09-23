@@ -7242,13 +7242,13 @@ const OWNER_ONLY_SELECTORS = [
 // server.py) - the real boundary for who gets editing controls
 let EDITABLE = false;
 function updateEditControlsVisibility(){
-  const hide = !EDITABLE;
-  OWNER_ONLY_SELECTORS.forEach(sel => {
-    const el = document.querySelector(sel);
-    if (el) el.style.display = hide ? "none" : "";
-  });
+  // the actual hiding is a CSS default (body:not(.owner-mode) ... -
+  // see styles.css), applied before this script even runs, so there's
+  // never a flash of owner-only controls on a fresh page load. This just
+  // flips the one class that reveals them, once EDITABLE is confirmed.
+  document.body.classList.toggle("owner-mode", EDITABLE);
   const lfList = $("#lf-list");
-  if (lfList) lfList.classList.toggle("editable", !hide);
+  if (lfList) lfList.classList.toggle("editable", EDITABLE);
 }
 
 // the library manifest fetch (see BOOT below) can take a real, visible
