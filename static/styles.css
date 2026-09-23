@@ -1093,16 +1093,9 @@ body.scene-hands #stage{background:linear-gradient(to top,
 #c-random{
   width:52.92px;height:52.92px;border-radius:50%;margin-right:32px; /* 5% bigger */
   border:none;color:#000000;
-  outline-width:2px;outline-offset:0;
-  animation:pulse 2.4s ease-in-out infinite, gateBtnColorCycle 4s ease-in-out infinite, randomRingStroke 1.5s linear infinite;
+  animation:pulse 2.4s ease-in-out infinite, gateBtnColorCycle 4s ease-in-out infinite;
 }
 #c-random svg{width:22.8px;height:22.8px}
-/* 2px white ring around the circle (not the icon) - fades out over 1s,
-   then a 0.5s pause before pulsing again */
-@keyframes randomRingStroke{
-  0%{outline-color:rgba(255,255,255,1)}
-  66.667%,100%{outline-color:rgba(255,255,255,0)}
-}
 .transport-center{display:flex;align-items:center;gap:8px}
 .ctl.big-play{width:44px;height:44px;border-radius:15px}
 .ctl.big-play svg{width:20px;height:20px}
@@ -1169,8 +1162,8 @@ body.scene-hands #stage{background:linear-gradient(to top,
      whatever width the random/more buttons on either side take up -
      taken out of the space-between flow and centred absolutely instead */
   .transport-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
-  #c-random{transform:scale(.9)}
-  .mobile-more-btn{display:flex}
+  #c-random{transform:scale(.9);margin-left:5%}
+  .mobile-more-btn{display:flex;margin-right:5%}
   /* popover anchored above the "..." button (bottom edge of .controls-row,
      which is where the button itself sits, right:0 lining up with its
      right edge) instead of reflowing into its own row below the bar-row -
