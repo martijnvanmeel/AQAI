@@ -779,7 +779,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
      the parent's own position/transform) doesn't touch .artist-photo-wrap's
      own bounding rect, so it doesn't drag the creature/visualiser/title
      (all of which anchor off that live rect) along with it */
-  transform:translateY(-50%) scale(1.1);
+  transform:translateY(-50%) scale(.825);
 }
 /* 2px stroke around the disc, in the artist's own colour: the same
    profilepic.png silhouette, filled solid and sized 2px larger on every
@@ -790,7 +790,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   content:"";position:absolute;left:-2px;top:50%;width:calc(100% + 4px);aspect-ratio:1/1;z-index:1;pointer-events:none;
   border-radius:50%;
   background:color-mix(in srgb, var(--artist-color, var(--active-green)) 50%, black);
-  transform:translateY(-50%) scale(1.1);
+  transform:translateY(-50%) scale(.825);
 }
 .artist-photo{
   display:block;width:100%;height:auto;position:relative;z-index:1;
@@ -806,7 +806,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
      instead of moving - black, tinted 20% toward the artist's color */
   border-radius:50%;
   background:color-mix(in srgb, var(--artist-color, var(--active-green)) 20%, #000000);
-  transform:translateY(-50%) scale(1.1);
+  transform:translateY(-50%) scale(.825);
 }
 /* the real photo underneath is fully replaced by the solid colour fill
    above it now (no more real people "pretending" to be the band) -
