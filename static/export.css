@@ -11,8 +11,7 @@
 /* hidden regardless of owner status (export.js also forces EDITABLE=false
    so styles.css's own body:not(.owner-mode) rule covers the edit buttons
    too - this just covers the rest of the interactive chrome) */
-body.export-mode nav,
-body.export-mode #btn-fullscreen{display:none}
+body.export-mode nav{display:none}
 /* #gate starts in the markup with body.gate-active already applied (see
    index.html), and stays visible until app.js's dismissGate() runs - which
    only happens once the track library has loaded and export.js's own

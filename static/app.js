@@ -86,18 +86,6 @@ function setBgVideoForTrack(track) {
   const idx = Math.floor(Math.random() * (PANORAMAS.length + 1));
   if (idx < PANORAMAS.length) loadPanoFile(PANORAMAS[idx]);
 }
-function updateFullscreenBtn(){
-  const on = !!document.fullscreenElement;
-  const btn = $("#btn-fullscreen");
-  btn.classList.toggle("on", on);
-  btn.setAttribute("aria-pressed", on ? "true" : "false");
-  btn.setAttribute("aria-label", on ? "Exit fullscreen" : "Enter fullscreen");
-}
-$("#btn-fullscreen").onclick = () => {
-  if (document.fullscreenElement) document.exitFullscreen();
-  else document.documentElement.requestFullscreen().catch(() => toast("Fullscreen isn't available"));
-};
-document.addEventListener("fullscreenchange", updateFullscreenBtn);
 function applyTheme(idx) {
   if (idx === currentThemeIndex) return;
   currentThemeIndex = idx;
