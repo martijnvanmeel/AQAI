@@ -6015,14 +6015,14 @@ panoGifImg.addEventListener("load", () => {
 rebuildPanoMesh();
 
 function isGifFile(file){ return /\.gif$/i.test(file); }
-// a diagonal band of light sweeps left -> right every 3s; it is never drawn
+// a diagonal band of light sweeps left -> right every 12s; it is never drawn
 // itself - it only lights up the big background title's OUTLINE where it
 // passes over it (the glow is a stroke-only copy of the title, its ::after
 // in styles.css, masked to that diagonal band; --glow-x is the band's x in
 // the title's own coordinates, since the title itself is a huge, moving box).
 // The sweep runs a little past both screen edges so the tilted band enters
 // and leaves fully.
-const SCAN_PERIOD_MS = 3000;
+const SCAN_PERIOD_MS = 12000;
 const SCAN_OVERSHOOT_PX = 400;
 function updateScanLine(){
   const wm = document.querySelector("#bg-title-watermark");
