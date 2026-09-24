@@ -1525,16 +1525,25 @@ fetch("playlists.json").then(r => r.ok ? r.json() : null).then(d => {
   MIXES = (d && d.playlists) || [];
   renderMixes();
 }).catch(() => {});
-// each mix is fronted by its own chibi creature (assets/mix/*.png, drawn in
-// the style of the artist animals): violet Slow Burn = a starry snail,
-// orange Golden Hour = a golden flamingo, blue Open Road = a horse, pink
-// Bright Lights = a glowing ant, red Full Tilt = a bear
+// each mix is fronted by one of the creatures on assets/mix/creatures-sheet.svg
+// (a single vector sheet, cropped per creature with an #svgView fragment, the
+// same way assets/animals.svg is used for the artist animals): Slow Burn =
+// the snail, Golden Hour = the golden fish, Open Road = the horse, Bright
+// Lights = the ant, Full Tilt = the bear. Crops are in the sheet's own
+// 2048 x 2048 units.
 const MIX_ANIMALS = {
   "slow-burn": "snail",
-  "golden-hour": "flamingo",
+  "golden-hour": "goldfish",
   "open-road": "horse",
   "bright-lights": "ant",
   "full-tilt": "bear",
+};
+const MIX_CREATURE_CROP = {
+  snail:    { x: 22,   y: 873, w: 344, h: 349 },
+  bear:     { x: 391,  y: 784, w: 493, h: 446 },
+  ant:      { x: 880,  y: 887, w: 397, h: 336 },
+  horse:    { x: 1293, y: 728, w: 330, h: 499 },
+  goldfish: { x: 1621, y: 882, w: 400, h: 342 },
 };
 function mixIndices(mix){
   if (mix._idxFor !== TRACKS.length){
@@ -1612,11 +1621,13 @@ function renderMixes(){
 // height, so the width is set from the measured height here
 function sizeMixIcons(){
   document.querySelectorAll(".mix-icon-box").forEach(b => {
+    const crop = MIX_CREATURE_CROP[b.dataset.creature];
     const H = b.offsetHeight;
-    if (!b.dataset.creature || !H) return;
+    if (!crop || !H) return;
     b.style.width = H + "px"; // one square slot per creature, so all the titles start at the same x
-    b.style.backgroundImage = `url('assets/mix/${b.dataset.creature}.png')`;
-    b.style.backgroundSize = "contain";
+    const s = H / Math.max(crop.w, crop.h); // fit the whole creature inside the slot, keeping its proportions
+    b.style.backgroundImage = `url('assets/mix/creatures-sheet.svg#svgView(viewBox(${crop.x},${crop.y},${crop.w},${crop.h}))')`;
+    b.style.backgroundSize = `${crop.w * s}px ${crop.h * s}px`;
   });
 }
 window.addEventListener("resize", sizeMixIcons);
