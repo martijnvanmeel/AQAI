@@ -119,11 +119,11 @@ body.gate-active::after{display:none}
 #gate.hidden{opacity:0;visibility:hidden}
 /* the artist creatures, standing along the bottom of the start screen: a
    transparent-background WebM (black keyed out), centered, at least the
-   full screen wide (cropped at the sides on narrow phones), behind the
+   75% of the screen wide (570px at least, cropped at the sides on narrow phones), behind the
    logo/button */
 #gate-creatures{
   position:absolute;left:50%;bottom:0;z-index:1;
-  width:max(100%, 760px);height:auto;
+  width:max(75%, 570px);height:auto; /* 25% smaller than full width */
   transform:translateX(-50%);
   pointer-events:none;
 }
