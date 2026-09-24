@@ -1552,6 +1552,7 @@ function renderMixes(){
     const idx = mixIndices(mix);
     const card = document.createElement("div");
     card.className = "mix-card" + (mix.id === openMixId ? " open" : "") + (mix.id === activeMixId ? " active" : "");
+    if (mix.color) card.style.setProperty("--mix-color", mix.color);
     const mins = Math.round(idx.reduce((s, i) => s + (TRACKS[i].duration || 0), 0) / 60);
     const head = document.createElement("div");
     head.className = "mix-head";
@@ -1575,7 +1576,6 @@ function renderMixes(){
         const tr = TRACKS[i];
         const b = document.createElement("button");
         b.className = "track" + (i === cur && mix.id === activeMixId ? " playing" : "");
-        if (tr.artistColor) b.style.setProperty("--row-color", tr.artistColor);
         b.innerHTML = `
           <span class="idx">${String(pos + 1).padStart(2, "0")}</span>
           <span class="t-meta"><span class="t-title"></span></span>

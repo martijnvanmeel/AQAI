@@ -1472,7 +1472,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
 .mix-card{padding:26px 0 0}
 .mix-head{
   display:flex;align-items:center;gap:14px;padding:0 22px 8px;
-  color:var(--artist-color, var(--active-green));cursor:pointer;
+  color:var(--mix-color, var(--artist-color, var(--active-green)));cursor:pointer;
 }
 .mix-head-text{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
 .mix-name{
@@ -1482,17 +1482,17 @@ body.scene-hands #stage{background:linear-gradient(to top,
 .mix-name .mix-chev{font-size:14px;letter-spacing:0;opacity:.6;transition:transform .2s ease}
 .mix-card.open .mix-chev{transform:rotate(90deg)}
 .mix-blurb{font-family:var(--font-body);font-size:12px;color:rgba(255,255,255,.55)}
-.mix-meta{font-family:var(--font-body);font-size:11px;color:color-mix(in srgb, var(--artist-color, var(--active-green)) 55%, transparent)}
+.mix-meta{font-family:var(--font-body);font-size:11px;color:color-mix(in srgb, var(--mix-color, var(--artist-color, var(--active-green))) 60%, transparent)}
 .mix-play{
   flex:0 0 auto;display:flex;align-items:center;gap:7px;
   padding:9px 16px;border-radius:999px;border:none;
-  background:var(--artist-color, var(--active-green));color:#000;
+  background:var(--mix-color, var(--artist-color, var(--active-green)));color:#000;
   font-family:var(--font-display);font-weight:600;font-size:12px;letter-spacing:.14em;text-transform:uppercase;
 }
 .mix-play svg{width:13px;height:13px}
 .mix-play:hover{background:#fff}
 .mix-card.active .mix-name::after{
-  content:"";width:8px;height:8px;border-radius:50%;background:var(--artist-color, var(--active-green));
+  content:"";width:8px;height:8px;border-radius:50%;background:var(--mix-color, var(--artist-color, var(--active-green)));
   align-self:center;animation:pulse 2.4s ease-in-out infinite;
 }
 .mix-tracks{display:none}
@@ -1508,6 +1508,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   .track .t-artist{display:none}
 }
 
+.mix-card .track{--row-color:var(--mix-color, var(--artist-color, var(--active-green)))}
 /* ============================ INFO ============================ */
 #view-info{padding:calc(env(safe-area-inset-top) + 18px) 22px 0;overflow-y:auto}
 #view-info .logo{width:min(200px,56vw);height:auto;margin:26px auto 26px}

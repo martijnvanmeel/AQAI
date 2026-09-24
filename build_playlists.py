@@ -42,6 +42,14 @@ PLAYLIST_DEFS = [
     ("Open Road", "A steady, driving pulse - the fastest tempos, held in a groove.", "tempo", +1),
     ("Bright Lights", "Busy, bright and electric - lots going on.", "onset_density", +1),
 ]
+# one accent color per mix, same vibrancy as the artist palette's orange
+MIX_COLORS = {
+    "Slow Burn": "#9B72FF",     # violet
+    "Golden Hour": "#FF7F27",   # orange
+    "Open Road": "#37B6FF",     # sky blue
+    "Bright Lights": "#FF8FDB", # pink
+    "Full Tilt": "#FF4D4D",     # red
+}
 DISPLAY_ORDER = ["Slow Burn", "Golden Hour", "Open Road", "Bright Lights", "Full Tilt"]
 TEXTURES = {
     "piano": ["piano", "rhodes", "keys"],
@@ -198,6 +206,7 @@ def main():
             "id": re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-"),
             "name": name,
             "blurb": blurb,
+            "color": MIX_COLORS[name],
             "avgBpm": avg_bpm,
             "minutes": minutes,
             "feel": ", ".join(top),
