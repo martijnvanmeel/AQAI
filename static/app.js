@@ -6015,6 +6015,30 @@ panoGifImg.addEventListener("load", () => {
 rebuildPanoMesh();
 
 function isGifFile(file){ return /\.gif$/i.test(file); }
+// thin vertical line sweeping left -> right every 3s; the big background
+// title's OUTLINE lights up wherever the line passes over it (the glow is a
+// stroke-only copy of the title, its ::after in styles.css, masked to a
+// narrow band that follows the line - --glow-x is that band's x in the
+// title's own coordinates, since the title itself is a huge, moving box)
+const SCAN_PERIOD_MS = 3000;
+let scanLineEl = null;
+function updateScanLine(){
+  const wm = document.querySelector("#bg-title-watermark");
+  if (!wm) return;
+  const app = document.querySelector("#app");
+  if (!scanLineEl){
+    scanLineEl = document.createElement("div");
+    scanLineEl.id = "scan-line";
+    (app || document.body).appendChild(scanLineEl);
+  }
+  const ar = app ? app.getBoundingClientRect() : { left: 0, width: window.innerWidth };
+  const frac = (performance.now() % SCAN_PERIOD_MS) / SCAN_PERIOD_MS;
+  scanLineEl.style.transform = `translateX(${(frac * ar.width).toFixed(1)}px)`;
+  if (wm.dataset.text !== wm.textContent) wm.dataset.text = wm.textContent;
+  const r = wm.getBoundingClientRect();
+  const scale = (wm.offsetWidth ? r.width / wm.offsetWidth : 1) || 1;
+  wm.style.setProperty("--glow-x", ((ar.left + frac * ar.width - r.left) / scale).toFixed(1) + "px");
+}
 let panoPingPong = false;
 // ping-pong clips are [forward][reverse] back to back, so each half is
 // half the file's duration; speed follows a sine over each half - crawling
@@ -7004,6 +7028,7 @@ function animate(t){
   }
 
   updatePanoPingPongSpeed();
+  updateScanLine();
   if (TRACKS.length) updateUI();
   renderer.render(scene, camera);
 

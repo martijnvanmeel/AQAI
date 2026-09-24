@@ -509,6 +509,28 @@ body.scene-hands #stage{background:linear-gradient(to top,
   transition:transform 160s ease-out;
 }
 
+/* thin sweeping line (see updateScanLine() in app.js) + the lit-up stroke on
+   the big title: a stroke-only copy of the text, revealed only inside a
+   narrow band (--glow-x, set every frame) that travels with the line */
+#scan-line{
+  position:fixed;top:0;left:0;width:1px;height:100%;z-index:1;pointer-events:none;
+  background:color-mix(in srgb, var(--artist-color, var(--active-green)) 55%, white);
+  opacity:.35;
+  box-shadow:0 0 8px color-mix(in srgb, var(--artist-color, var(--active-green)) 60%, transparent);
+}
+body.gate-active #scan-line{display:none}
+#bg-title-watermark::after{
+  content:attr(data-text);
+  position:absolute;inset:0;padding-top:.3em;
+  color:transparent;background:none;
+  -webkit-text-stroke:1px color-mix(in srgb, var(--artist-color, var(--active-green)) 45%, white);
+  -webkit-mask-image:linear-gradient(to right, transparent, #000 50%, transparent);
+  mask-image:linear-gradient(to right, transparent, #000 50%, transparent);
+  -webkit-mask-size:260px 100%;mask-size:260px 100%;
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  -webkit-mask-position:calc(var(--glow-x, -9999px) - 130px) 0;
+  mask-position:calc(var(--glow-x, -9999px) - 130px) 0;
+}
 /* lyrics — 3-row carousel: the real previous/next lines sit 4px above and
    below the active line, all at the same size; only color/opacity marks
    which one is active */
