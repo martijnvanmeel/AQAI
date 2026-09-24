@@ -505,9 +505,12 @@ body.scene-hands #stage{background:linear-gradient(to top,
     color-mix(in srgb, var(--artist-color, var(--active-green)) 20%, transparent),
     color-mix(in srgb, var(--artist-color, var(--active-green)) 0%, transparent));
   -webkit-background-clip:text;background-clip:text;
+  /* thin outline in the artist color at 14% (20% made 30% more transparent) */
+  -webkit-text-stroke:.5px color-mix(in srgb, var(--artist-color, var(--active-green)) 14%, transparent);
   /* 2200% of the normal song-title size (see .meta .title's own clamp()) */
   font-size:calc(22 * clamp(19.928847px, 6.227765vw, 34.875484px));
   letter-spacing:-3px;
+  transform-origin:50% 100%; /* scale (export slider) keeps the bottom on the baseline */
   transition:transform 160s ease-out;
 }
 

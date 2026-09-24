@@ -271,6 +271,32 @@ function waitForTrackAssets(el, photo){
   checkDone();
 }
 
+// y of the audio visualiser's resting baseline (drawWaveCanvas() draws it
+// at 65% of #wave-canvas's own height) - the huge background title sits
+// with the bottom of its letters on this line
+function watermarkBaselineY(){
+  const c = document.querySelector("#wave-canvas");
+  if (!c) return window.innerHeight * 0.6;
+  const r = c.getBoundingClientRect();
+  return r.top + r.height * 0.65 + watermarkBaselineGap();
+}
+// distance from the bottom of the watermark's line box down to its actual
+// glyph baseline (line-height is tightened below the font's natural
+// ascent+descent, so the letters don't sit flush with the box bottom) -
+// added to the target so the LETTERS, not the box, land on the visualiser line
+let _wmMeasureCtx = null;
+function watermarkBaselineGap(){
+  const el = document.querySelector("#bg-title-watermark");
+  if (!el) return 0;
+  const cs = getComputedStyle(el);
+  if (!_wmMeasureCtx) _wmMeasureCtx = document.createElement("canvas").getContext("2d");
+  _wmMeasureCtx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  const m = _wmMeasureCtx.measureText("H");
+  const a = m.fontBoundingBoxAscent, d = m.fontBoundingBoxDescent;
+  if (!isFinite(a) || !isFinite(d)) return 0;
+  const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 0.75;
+  return lh / 2 - (a - d) / 2; // box bottom sits this far BELOW the baseline
+}
 // snaps the watermark straight back to its off-screen starting spot with
 // no transition and no text yet - called immediately on every track load
 // (not the 3s-delayed sweep-in below), so a new song never keeps showing
@@ -280,12 +306,11 @@ function resetBgTitleWatermark(){
   const lyricsEl = $("#lyrics");
   if (!el || !lyricsEl) return;
   el.textContent = "";
-  const lyricsRect = lyricsEl.getBoundingClientRect();
-  const targetY = lyricsRect.top + lyricsRect.height / 2 + window.innerHeight * 0.05 + 5;
+  const targetY = watermarkBaselineY();
   const elWidth = el.getBoundingClientRect().width;
   const startX = window.innerWidth + elWidth;
   el.style.transition = "none";
-  el.style.transform = `translate(calc(${startX}px - 50%), calc(${targetY}px - 50%))`;
+  el.style.transform = `translate(calc(${startX}px - 50%), calc(${targetY}px - 100%))`;
   el.getBoundingClientRect();
   el.style.transition = "";
 }
@@ -304,8 +329,7 @@ function animateBgTitleWatermark(){
   // vertical anchor stays tied to the lyrics carousel's own live position;
   // horizontal now sweeps the full width, edge to edge, rather than
   // stopping there
-  const lyricsRect = lyricsEl.getBoundingClientRect();
-  const targetY = lyricsRect.top + lyricsRect.height / 2 + window.innerHeight * 0.05 + 5; // 5%, +5%, then -5% (5% total) of viewport, +5px flat
+  const targetY = watermarkBaselineY();
   const elWidth = el.getBoundingClientRect().width;
   // the first sweep of a track starts already on screen (left edge of the
   // text 5% in), so the title is visible from second 0 instead of taking
@@ -316,10 +340,10 @@ function animateBgTitleWatermark(){
   const endX = -elWidth; // fully clear of the left edge
   watermarkSweepTrack = cur;
   el.style.transition = "none";
-  el.style.transform = `translate(calc(${startX}px - 50%), calc(${targetY}px - 50%))`;
+  el.style.transform = `translate(calc(${startX}px - 50%), calc(${targetY}px - 100%))`;
   el.getBoundingClientRect();
   el.style.transition = "";
-  el.style.transform = `translate(calc(${endX}px - 50%), calc(${targetY}px - 50%))`;
+  el.style.transform = `translate(calc(${endX}px - 50%), calc(${targetY}px - 100%))`;
 }
 $("#bg-title-watermark")?.addEventListener("transitionend", (e) => {
   if (e.propertyName !== "transform") return;

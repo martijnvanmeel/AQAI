@@ -106,10 +106,7 @@ function frameCenterY(){
   return rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
 }
 function watermarkTargetY(){
-  if (ASPECT === "square") return frameCenterY() + wmYOffset;
-  const lyricsEl = document.querySelector("#lyrics");
-  const lyricsRect = lyricsEl ? lyricsEl.getBoundingClientRect() : { top: 0, height: 0 };
-  return lyricsRect.top + lyricsRect.height / 2 + window.innerHeight * 0.05 + 5 + wmYOffset;
+  return watermarkBaselineY() + wmYOffset;
 }
 resetBgTitleWatermark = function(){
   const el = document.querySelector("#bg-title-watermark");
@@ -119,7 +116,7 @@ resetBgTitleWatermark = function(){
   const elWidth = el.getBoundingClientRect().width;
   const startX = window.innerWidth + elWidth;
   el.style.transition = "none";
-  el.style.transform = `translate(calc(${startX}px - 50%), calc(${targetY}px - 50%)) scale(${wmScale})`;
+  el.style.transform = `translate(calc(${startX}px - 50%), calc(${targetY}px - 100%)) scale(${wmScale})`;
   el.getBoundingClientRect();
   el.style.transition = "";
 };
@@ -135,10 +132,10 @@ animateBgTitleWatermark = function(){
   const endX = -elWidth;
   watermarkSweepTrack = cur;
   el.style.transition = "none";
-  el.style.transform = `translate(calc(${startX}px - 50%), calc(${targetY}px - 50%)) scale(${wmScale})`;
+  el.style.transform = `translate(calc(${startX}px - 50%), calc(${targetY}px - 100%)) scale(${wmScale})`;
   el.getBoundingClientRect();
   el.style.transition = "";
-  el.style.transform = `translate(calc(${endX}px - 50%), calc(${targetY}px - 50%)) scale(${wmScale})`;
+  el.style.transform = `translate(calc(${endX}px - 50%), calc(${targetY}px - 100%)) scale(${wmScale})`;
 };
 // slider-driven live update - the sweep is mid-flight most of the time
 // (a single crossing takes a while, see #bg-title-watermark's own
@@ -154,7 +151,7 @@ function applyWatermarkOffset(){
   const m = el.style.transform.match(/translate\(([^,]+),/);
   const xPart = m ? m[1] : "0px";
   el.style.transition = "none";
-  el.style.transform = `translate(${xPart}, calc(${targetY}px - 50%)) scale(${wmScale})`;
+  el.style.transform = `translate(${xPart}, calc(${targetY}px - 100%)) scale(${wmScale})`;
   // force this jump to actually apply with no transition, THEN restore the
   // CSS transition - leaving it permanently disabled (as this used to)
   // silently breaks the sweep for good: the sweep's own restart loop is
