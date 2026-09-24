@@ -517,8 +517,8 @@ body.scene-hands #stage{background:linear-gradient(to top,
   content:attr(data-text);
   position:absolute;inset:0;padding-top:.3em;
   color:transparent;background:none;
-  /* the artist color's complement (hue + 180deg) */
-  -webkit-text-stroke:1px hsl(from var(--artist-color, var(--active-green)) calc(h + 180) s l);
+  /* the artist color rotated +90deg in hue */
+  -webkit-text-stroke:1px hsl(from var(--artist-color, var(--active-green)) calc(h + 90) s l);
   -webkit-mask-image:linear-gradient(110deg, transparent 34%, #000 50%, transparent 66%);
   mask-image:linear-gradient(110deg, transparent 34%, #000 50%, transparent 66%);
   -webkit-mask-size:700px 100%;mask-size:700px 100%;
