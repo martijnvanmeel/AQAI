@@ -510,8 +510,8 @@ body.scene-hands #stage{background:linear-gradient(to top,
   -webkit-text-stroke:1px color-mix(in srgb, var(--artist-color, var(--active-green)) 50%, transparent);
   -webkit-mask-image:linear-gradient(to top, transparent .125em, #000 .825em);
   mask-image:linear-gradient(to top, transparent .125em, #000 .825em);
-  /* 2200% of the normal song-title size (see .meta .title's own clamp()) */
-  font-size:calc(22 * clamp(19.928847px, 6.227765vw, 34.875484px));
+  /* 2750% (2200% + 25%) of the normal song-title size (see .meta .title's own clamp()) */
+  font-size:calc(27.5 * clamp(19.928847px, 6.227765vw, 34.875484px));
   letter-spacing:-.05em; /* -5% of the (huge) font-size */
   transform-origin:50% 100%; /* scale (export slider) keeps the bottom on the baseline */
   transition:transform 160s ease-out;
