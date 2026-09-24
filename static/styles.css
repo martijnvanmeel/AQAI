@@ -1479,18 +1479,19 @@ body.scene-hands #stage{background:linear-gradient(to top,
   font-family:var(--font-display);font-weight:600;font-size:26px;letter-spacing:.2em;text-transform:uppercase;
   display:flex;align-items:baseline;gap:10px;
 }
+.mix-name .mix-icon{width:26px;height:26px;flex:0 0 auto;align-self:center}
 .mix-name .mix-chev{font-size:18.2px;letter-spacing:0;opacity:.6;transition:transform .2s ease} /* 30% bigger than the original 14px */
 .mix-name .mix-toggle-label{font-family:var(--font-body);font-weight:400;font-size:11px;letter-spacing:0;text-transform:none;opacity:.7;align-self:center}
 .mix-card.open .mix-chev{transform:rotate(90deg)}
 .mix-blurb{font-family:var(--font-body);font-size:12px;color:rgba(255,255,255,.55)}
 .mix-meta{font-family:var(--font-body);font-size:11px;color:color-mix(in srgb, var(--mix-color, var(--artist-color, var(--active-green))) 60%, transparent)}
 .mix-play{
-  flex:0 0 auto;display:flex;align-items:center;gap:7px;
-  padding:9px 16px;border-radius:999px;border:none;
+  flex:0 0 auto;display:flex;align-items:center;gap:8.75px;
+  padding:11.25px 20px;border-radius:999px;border:none; /* 25% bigger */
   background:var(--mix-color, var(--artist-color, var(--active-green)));color:#000;
-  font-family:var(--font-display);font-weight:600;font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+  font-family:var(--font-display);font-weight:600;font-size:15px;letter-spacing:.14em;text-transform:uppercase;
 }
-.mix-play svg{width:13px;height:13px}
+.mix-play svg{width:16.25px;height:16.25px}
 .mix-play:hover{background:#fff}
 .mix-card.active .mix-name::after{
   content:"";width:8px;height:8px;border-radius:50%;background:var(--mix-color, var(--artist-color, var(--active-green)));
@@ -1506,6 +1507,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
 .track:hover .t-artist{color:#000}
 @media (max-width:480px){
   .mix-name{font-size:20px;letter-spacing:.14em}
+  .mix-name .mix-icon{width:20px;height:20px}
   .track .t-artist{display:none}
 }
 
