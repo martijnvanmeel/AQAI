@@ -1628,7 +1628,7 @@ function updateUI(){
    its logo, in CSS). Only measurable while the view is showing. */
 let _titleMeasureCtx = null;
 function fitScreenTitles(){
-  const LS_PX = -4; // fixed letter-spacing of these titles
+  const LS_PX = -5; // fixed letter-spacing of these titles
   const titles = [...document.querySelectorAll("#view-list h2, #view-mixes h2")];
   if (!titles.length) return;
   if (!_titleMeasureCtx) _titleMeasureCtx = document.createElement("canvas").getContext("2d");
@@ -1654,6 +1654,8 @@ function fitScreenTitles(){
 }
 window.addEventListener("resize", fitScreenTitles);
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitScreenTitles);
+// the titles' font (Brice Black) isn't fetched until something uses it, and the canvas measurement above would otherwise fall back to a default font
+if (document.fonts && document.fonts.load) document.fonts.load('900 100px "Brice"').then(fitScreenTitles).catch(() => {});
 
 /* views */
 function showView(name){
