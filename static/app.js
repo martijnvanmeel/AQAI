@@ -11,19 +11,6 @@ const $ = s => document.querySelector(s);
 const fmt = s => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,"0")}`;
 
 /* ================================================================
-   VIDEO EXPORT MODE — video_export/__init__.py drives this exact page
-   (not a separate export.html) headlessly via Playwright, at a real
-   phone-sized viewport so the site's own mobile CSS breakpoints apply,
-   then upscales via device_scale_factor for a crisp recording. Adding
-   the body class this early (before first paint) hides the tab bar and
-   transport controls (see body.video-export in styles.css) from frame
-   one. The rest of the flow (skip the gate, load the requested track,
-   signal playback state via document.title) is wired up once tracks
-   have loaded - see the tracksReady block below. */
-const VIDEO_EXPORT_ID = new URLSearchParams(location.search).get("video_export_id");
-if (VIDEO_EXPORT_ID) document.body.classList.add("video-export");
-
-/* ================================================================
    THEME ENGINE — each track deterministically picks a background /
    3D-object color pair from THEMES, so the palette changes per track
    and stays the same on replay. Text/controls default to white, but
@@ -67,8 +54,13 @@ let PANORAMAS = [];
 const INTRO_PANO_FILE = "From Klickpin.com- 68749462254-pin-id-68749462254.mp4";
 // test source: Panoramas2 (mix of .mp4 clips and .gif animations), served
 // via /api/panoramas2 + /panorama2/ instead of the original panoramas folder
+// clips listed here (the anims/ folder) are baked forward+reversed server-
+// side, so they ping-pong - their playback speed is eased on top of that,
+// see updatePanoPingPongSpeed()
+let PINGPONG_FILES = new Set();
 fetch("/api/panoramas2").then(r => r.json()).then(data => {
   PANORAMAS = (data.files || []).filter(f => f !== INTRO_PANO_FILE);
+  PINGPONG_FILES = new Set(data.pingpong || []);
 }).catch(() => {});
 // every 5th background pick swaps the video-panorama sphere for a random
 // fully-3D environment instead (see sceneChoice / updateArtistBackground
@@ -1060,8 +1052,8 @@ function initLyricsFlagging(){
 // per-track "make a video" button (owner-only, see #btn-make-video/
 // OWNER_ONLY_SELECTORS) - kicks off a server-side ffmpeg render (the
 // karaoke lyrics, background, photo, waveform and logo baked into an
-// actual .mp4, see player/video_export/) for both a 9:16 and a 16:9 cut,
-// then polls for progress until each is ready to download
+// actual .mp4, see player/video_export/) for all 4 aspect ratios (9:16,
+// 16:9, 1:1, 4:5), then polls for progress until each is ready to download
 let videoExportPollTimer = null;
 function stopVideoExportPoll(){
   if (videoExportPollTimer){ clearTimeout(videoExportPollTimer); videoExportPollTimer = null; }
@@ -5997,7 +5989,22 @@ panoGifImg.addEventListener("load", () => {
 rebuildPanoMesh();
 
 function isGifFile(file){ return /\.gif$/i.test(file); }
+let panoPingPong = false;
+// ping-pong clips are [forward][reverse] back to back, so each half is
+// half the file's duration; speed follows a sine over each half - crawling
+// (floor, never a dead stop) at both turnarounds, fastest mid-half - which
+// reads as the motion easing in and out of each reversal. Averages ~1x.
+const PINGPONG_MIN_RATE = 0.12, PINGPONG_MAX_RATE = 1.7;
+function updatePanoPingPongSpeed(){
+  if (!panoPingPong || currentPanoKind !== "video") { if (panoVideoEl.playbackRate !== 1) panoVideoEl.playbackRate = 1; return; }
+  const d = panoVideoEl.duration;
+  if (!d || !isFinite(d)) return;
+  const half = d / 2;
+  const phase = (panoVideoEl.currentTime % half) / half;
+  panoVideoEl.playbackRate = PINGPONG_MIN_RATE + (PINGPONG_MAX_RATE - PINGPONG_MIN_RATE) * Math.sin(Math.PI * phase);
+}
 function loadPanoFile(file, base = "/panorama2/"){
+  panoPingPong = PINGPONG_FILES.has(file);
   const src = base + file;
   if (isGifFile(file)){
     currentPanoKind = "gif";
@@ -6970,6 +6977,7 @@ function animate(t){
     panoGifTexture.needsUpdate = true;
   }
 
+  updatePanoPingPongSpeed();
   if (TRACKS.length) updateUI();
   renderer.render(scene, camera);
 
@@ -7012,12 +7020,7 @@ fetch("/api/tracks").then(r => r.json()).then(data => {
     _lyricsLoaded: false,
   }));
   $("#info-count").textContent = TRACKS.length;
-  // video-export recordings always go through Playwright hitting this
-  // server directly on localhost (never through the public tunnel that
-  // _is_public_request() in server.py looks for), so the server can't
-  // tell it apart from the owner and would otherwise leave the edit
-  // buttons/delete button/etc. visible in every exported video
-  EDITABLE = VIDEO_EXPORT_ID ? false : !!data.editable;
+  EDITABLE = !!data.editable;
   updateEditControlsVisibility();
   initLyricsAudit();
   initLyricsFlagging();
@@ -7041,7 +7044,6 @@ fetch("/api/tracks").then(r => r.json()).then(data => {
   }
   tracksReady = true;
   updateGateLoadingState();
-  if (VIDEO_EXPORT_ID) startVideoExport(VIDEO_EXPORT_ID);
 }).catch(() => {
   toast("Could not load the library");
   const btn = $("#gate-btn");
@@ -7267,7 +7269,6 @@ function updateGateLoadingState(){
 }
 updateGateLoadingState();
 
-// shared by the real "TAP TO LISTEN" click and startVideoExport() below -
 // leaves the gate screen and readies the sphere/audio for a track that's
 // about to be load()'ed, without picking which one
 function dismissGate(){
@@ -7297,18 +7298,3 @@ $("#gate-btn").onclick = () => {
   dismissGate();
   if (TRACKS.length) load(Math.floor(Math.random() * TRACKS.length), true);
 };
-// drives the requested track for video_export/__init__.py's headless
-// Playwright recording - same gate-skip as a real tap, but on the exact
-// track asked for, and signalling state back via document.title (polled
-// from the Python side, which has no other way to know what's on screen)
-function startVideoExport(id){
-  const idx = TRACKS.findIndex(tr => tr.id === id);
-  if (idx === -1){ document.title = "AQAI_EXPORT_ERROR:track not found"; return; }
-  dismissGate();
-  load(idx, true);
-  window.__exportCurrentTime = () => (audioEls[idx] ? audioEls[idx].currentTime : 0);
-  const el = getAudio(idx);
-  el.addEventListener("playing", () => { document.title = "AQAI_EXPORT_PLAYING"; }, { once: true });
-  el.addEventListener("ended", () => { document.title = "AQAI_EXPORT_DONE"; });
-  el.addEventListener("error", () => { document.title = "AQAI_EXPORT_ERROR:audio failed"; });
-}

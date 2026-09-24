@@ -1,11 +1,11 @@
 """Renders a song into a social-ready video by headlessly recording the
-actual player UI (static/export.html + export.js) with Playwright/Chromium,
-rather than approximating the wave visualiser and karaoke lyrics with
-ffmpeg filters - export.js copies the exact same rendering functions
-app.js uses, so what gets recorded genuinely looks and behaves like the
-live player. The recording has no audio (screen capture doesn't grab it),
-so the real track audio is muxed in afterward with ffmpeg (a static
-binary from the imageio-ffmpeg package, no system install needed).
+actual player UI (static/export.html, which loads real index.html markup
++ app.js verbatim - see export.js) with Playwright/Chromium, so what gets
+recorded is genuinely the live tool (3D creature/panorama scene, waveform,
+karaoke, everything), not a re-implementation. The recording has no audio
+(screen capture doesn't grab it), so the real track audio is muxed in
+afterward with ffmpeg (a static binary from the imageio-ffmpeg package, no
+system install needed).
 
 This module does no I/O outside of what it's handed - the caller
 (server.py) resolves paths/track data and passes them in.
@@ -24,6 +24,22 @@ FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
 ASPECTS = {
     "vertical": {"w": 1080, "h": 1920},
     "horizontal": {"w": 1920, "h": 1080},
+    "square": {"w": 1200, "h": 1200},
+    "portrait": {"w": 1080, "h": 1350},
+}
+
+# the real player's mobile-compact styling only kicks in at CSS widths
+# <=480px (see styles.css's @media(max-width:480px)) - vertical/square/
+# portrait all want that compact phone-style layout (not a desktop layout
+# squeezed into a tall frame), so each uses a real narrow CSS viewport
+# that triggers it, then device_scale_factor upscales to the exact target
+# pixels. horizontal is the one aspect wide enough to just use its own
+# real desktop layout directly, at 1:1 scale.
+CSS_VIEWPORTS = {
+    "vertical": {"css_w": 360, "css_h": 640, "scale": 3},    # 360*3=1080, 640*3=1920
+    "square": {"css_w": 400, "css_h": 400, "scale": 3},      # 400*3=1200
+    "portrait": {"css_w": 360, "css_h": 450, "scale": 3},    # 360*3=1080, 450*3=1350
+    "horizontal": {"css_w": 1920, "css_h": 1080, "scale": 1},
 }
 
 
@@ -56,7 +72,20 @@ def render(track, karaoke_data, aspect, out_path, panorama_dir, static_dir,
 
     w, h = ASPECTS[aspect]["w"], ASPECTS[aspect]["h"]
     duration = duration_hint or track.get("duration") or _probe_duration(track["_path"]) or 0
-    url = f"http://127.0.0.1:{server_port}/export.html?id={track['id']}&aspect={aspect}"
+
+    # every aspect records static/export.html - a separate file from
+    # index.html, so it can never be affected by (or affect) the real
+    # index.html a visitor sees, but it loads the SAME app.js verbatim
+    # (see export.js), so the 3D creature/panorama scene and everything
+    # else is genuinely the live tool. See CSS_VIEWPORTS above for why
+    # each aspect uses the CSS viewport it does.
+    # record=1 tells export.js this is the real recording, not a browser-
+    # tab preview - it still applies whatever's been saved for this aspect,
+    # but never creates the manual X/Y/scale control panel/sliders, which
+    # must never show up in the actual output video
+    url = f"http://127.0.0.1:{server_port}/export.html?id={track['id']}&aspect={aspect}&record=1"
+    vp = CSS_VIEWPORTS[aspect]
+    css_w, css_h, scale = vp["css_w"], vp["css_h"], vp["scale"]
 
     import tempfile
     with tempfile.TemporaryDirectory(prefix="aqai_video_") as tmp:
@@ -65,7 +94,8 @@ def render(track, karaoke_data, aspect, out_path, panorama_dir, static_dir,
                 args=["--autoplay-policy=no-user-gesture-required"],
             )
             context = browser.new_context(
-                viewport={"width": w, "height": h},
+                viewport={"width": css_w, "height": css_h},
+                device_scale_factor=scale,
                 record_video_dir=tmp,
                 record_video_size={"width": w, "height": h},
             )

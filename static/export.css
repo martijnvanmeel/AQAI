@@ -1,82 +1,88 @@
-/* Layout for the headless-recorded video export - reuses styles.css as-is
-   for fonts/colors/lyric+wave/logo styling (so it's pixel-identical to the
-   live player), this file only handles the two fixed-canvas aspect ratios
-   video_export/__init__.py records at. */
-/* Previewed in a normal browser tab, which can be any shape - #export-root
-   is letterboxed to the EXACT 9:16 or 16:9 the real export records at
-   (video_export/__init__.py's ASPECTS dict), centered within whatever
-   window it's actually opened in, rather than stretching to fill it. */
-html, body{margin:0;padding:0;background:#000;overflow:hidden;height:100%}
-body{display:flex;align-items:center;justify-content:center}
-#export-root{
-  position:relative;overflow:hidden;background:#000;
-}
-body.aspect-vertical #export-root{
-  width:min(100vw, calc(100vh * 9 / 16));
-  height:min(100vh, calc(100vw * 16 / 9));
-}
-body.aspect-horizontal #export-root{
-  width:min(100vw, calc(100vh * 16 / 9));
-  height:min(100vh, calc(100vw * 9 / 16));
-}
-#bg-video{
-  position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;
-}
-#export-dim{
-  position:absolute;inset:0;z-index:1;pointer-events:none;
-  background:linear-gradient(to bottom, rgba(0,0,0,.15) 0%, rgba(0,0,0,.15) 40%, rgba(0,0,0,.75) 100%);
-}
-.home-top{position:absolute;top:0;left:0;right:0;height:1px}
-.home-top .logo-text{top:64px}
+/* Layout for the headless-recorded video export. export.html now loads the
+   REAL player markup + app.js verbatim (see export.js) - this file only
+   handles two things: hiding the interactive 2D chrome that makes no
+   sense on a static recording (nav tabs, transport/seek bar, edit
+   buttons, fullscreen), and picking which CSS viewport size each aspect
+   records at (see video_export/__init__.py's ASPECTS/CSS_VIEWPORTS) so
+   the real mobile-breakpoint styling (≤480px) applies for the three
+   tall/square formats, same trick the old "vertical" export always used.
+   Nothing here touches index.html/styles.css/app.js themselves. */
 
-/* stacking order top -> bottom: logo, karaoke lyrics, artist photo, then
-   title/artist pinned near the bottom - photo and meta are each their own
-   independently-positioned element now (no longer grouped in one .player
-   block), so this order can be set explicitly rather than following
-   normal document flow */
-.artist-photo-wrap{position:absolute;left:50%;z-index:2}
-/* styles.css's own .meta-row is built for the live player (position:fixed,
-   top:0, transform:translateY(-50%) to center it up there) - reset every
-   one of those so bottom:10% is the only thing controlling its position;
-   left/right:0 + top:auto is what makes height come from its own content
-   instead of stretching to fill top:0..bottom:10% */
-.meta-row{position:absolute;left:0;right:0;top:auto;bottom:10%;transform:none;z-index:2;display:flex;justify-content:center}
-
-/* logo at 50% of its previous size */
-body.aspect-vertical .home-top .logo-text{font-size:32px}
-body.aspect-horizontal .home-top .logo-text{font-size:26px}
-
-/* artist photo at 60% of its previous size, placed between the lyrics
-   band below it and the logo above it */
-/* explicit height (from profilepic.png's fixed 638:497 oval ratio) rather
-   than leaving it to the <img>'s natural size once loaded - the wrap used
-   to sit at 0 height until the photo actually finished loading, so
-   positionWaveCanvas() (and everything anchored off it: the visualiser,
-   the title/artist row) measured a collapsed box for the first few
-   frames of every render and visibly jumped once the image arrived */
-body.aspect-vertical .artist-photo-wrap{width:144px;height:112px;top:58%;transform:translateX(-50%)}
-body.aspect-horizontal .artist-photo-wrap{width:108px;height:84px;top:56%;transform:translateX(-50%)}
-
-/* wave visualiser at 5x (500% taller) its previous height - vertically
-   re-centred on the (now smaller/repositioned) photo by positionWaveCanvas()
-   in export.js, same as before */
-body.aspect-vertical #wave-canvas, body.aspect-vertical #wave-canvas-2{height:600px}
-body.aspect-horizontal #wave-canvas, body.aspect-horizontal #wave-canvas-2{height:700px}
-
-/* karaoke lyrics sit in the band between the logo and the photo -
-   styles.css's own #lyrics carries a transform (translateY + scale) built
-   for the live player's different layout; reset it so top/height alone
-   place this band */
-body.aspect-vertical #lyrics{position:absolute;left:6%;right:6%;top:12%;height:42%;transform:none}
-body.aspect-horizontal #lyrics{position:absolute;left:10%;right:10%;top:10%;height:42%;transform:none}
-
-#wave-canvas{position:absolute;left:-10px;width:calc(100% + 20px);z-index:1;pointer-events:none}
-/* duplicate of the same waveform, mirrored left-right and shifted right by
-   the photo's own width (see positionWaveCanvas() in export.js) so it
-   reads as a flipped echo sitting behind the photo's right side, rather
-   than exactly overlapping the original */
-#wave-canvas-2{
-  position:absolute;left:-10px;width:calc(100% + 20px);z-index:1;pointer-events:none;
-  transform:scaleX(-1);
+/* hidden regardless of owner status (export.js also forces EDITABLE=false
+   so styles.css's own body:not(.owner-mode) rule covers the edit buttons
+   too - this just covers the rest of the interactive chrome) */
+body.export-mode nav,
+body.export-mode #btn-fullscreen{display:none}
+/* #gate starts in the markup with body.gate-active already applied (see
+   index.html), and stays visible until app.js's dismissGate() runs - which
+   only happens once the track library has loaded and export.js's own
+   startExport() calls it, a real (not instant) delay. A CSS rule hides it
+   from this page's very first paint instead of waiting on that JS, so a
+   recording never captures so much as a frame of the tap-to-listen gate */
+body.export-mode #gate{display:none !important}
+/* visibility:hidden, not display:none - positionArtistPhoto() anchors the
+   whole creature/circle/title group off .controls-row's own live
+   getBoundingClientRect(), which collapses to zero if it were display:none */
+body.export-mode .controls-row{visibility:hidden}
+/* thinner 3D-creature outline for the export instances only - styles.css's
+   own #fox-3d-canvas keeps its normal 3px outline for the live site */
+body.export-mode #fox-3d-canvas{
+  filter:
+    drop-shadow(1px 0 0 var(--outline-color))
+    drop-shadow(-1px 0 0 var(--outline-color))
+    drop-shadow(0 1px 0 var(--outline-color))
+    drop-shadow(0 -1px 0 var(--outline-color));
 }
-#lyrics{z-index:2}
+/* positionLogo() in app.js centers the logo at 15% of window.innerHeight,
+   tuned for real phone/desktop viewport heights - at the square/portrait
+   export's much shorter 400/450px viewport that lands too close to the
+   top edge and clips. Pin it to a safe fixed position instead (overrides
+   the JS-computed inline top - a real visitor's viewport is never this
+   short, so this can't affect the live site) */
+body.aspect-square .home-top .logo-text,
+body.aspect-portrait .home-top .logo-text{top:45px !important}
+/* AQAI logo 50% smaller - square/portrait/vertical only, not horizontal */
+body.aspect-square .home-top .logo-text,
+body.aspect-portrait .home-top .logo-text,
+body.aspect-vertical .home-top .logo-text{font-size:calc(47.817px * 0.5) !important}
+/* #bg-title-watermark's font-size formula (styles.css) is tuned for real
+   phone/desktop viewport heights - on the square/portrait/vertical
+   export's much shorter/narrower viewport (400/450/360px wide) the vw
+   term in that clamp() maxes out, giving ~500-770px glyphs, taller than
+   the entire frame and permanently overlapping the logo/creature/title
+   for the whole sweep. Scaled down to a consistent proportion of each
+   frame's own height instead (~55vh) (again a real visitor's viewport is
+   never this narrow, so this can't affect the live site) */
+body.aspect-square #bg-title-watermark,
+body.aspect-portrait #bg-title-watermark,
+body.aspect-vertical #bg-title-watermark{font-size:55vh !important}
+/* 1:1: 200% of that 55vh (export.js also re-centers it vertically for
+   this aspect, since its default Y anchor is tied to the karaoke lyrics
+   position, not frame-center) */
+body.aspect-square #bg-title-watermark{font-size:110vh !important}
+/* 1:1 and 4:5's karaoke-centering transform (previously an !important
+   override here) now lives in export.js's applyLyricsBaseTransform() -
+   it needs to be a plain inline style, not an !important stylesheet
+   rule, so the Karaoke-text Y/scale slider (export.js's control panel)
+   can compose translateY()/scale() on top of it instead of being
+   blocked outright by !important */
+
+/* letterboxing for previewing in a browser tab/pane of an arbitrary
+   shape (the real headless recording always sets its viewport to the
+   exact target ratio - see video_export/__init__.py's CSS_VIEWPORTS -
+   so there min(100vw, ...) below just resolves to 100vw/100vh and this
+   is a no-op with zero visible bars). #app/#stage are position:fixed
+   (styles.css), which normally always fills the true viewport regardless
+   of any wrapping container - adding transform here makes #app itself
+   the containing block for its own fixed-position descendants, so they
+   size/clip to this box instead of bleeding past the letterboxed frame */
+body.export-mode{background:#000}
+body.export-mode #app{
+  position:fixed;top:50%;left:50%;right:auto;bottom:auto;
+  transform:translate(-50%,-50%);
+  overflow:hidden;background:#000;
+}
+body.aspect-square #app{width:min(100vw, 100vh);height:min(100vh, 100vw)}
+body.aspect-portrait #app{width:min(100vw, calc(100vh * 4 / 5));height:min(100vh, calc(100vw * 5 / 4))}
+body.aspect-vertical #app{width:min(100vw, calc(100vh * 9 / 16));height:min(100vh, calc(100vw * 16 / 9))}
+body.aspect-horizontal #app{width:min(100vw, calc(100vh * 16 / 9));height:min(100vh, calc(100vw * 9 / 16))}

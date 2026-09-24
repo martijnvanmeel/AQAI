@@ -19,6 +19,7 @@ import os
 import re
 import shutil
 import socketserver
+import subprocess
 import threading
 import time
 import traceback
@@ -33,6 +34,14 @@ SYNC_DIR = os.path.join(os.path.dirname(__file__), "sync")
 AUTO_LYRICS_DIR = os.path.join(os.path.dirname(__file__), "lyrics_auto")
 PANORAMA_DIR = os.path.join(LIBRARY_ROOT, "panoramas")
 PANORAMA2_DIR = os.path.join(LIBRARY_ROOT, "Panoramas2")
+# extra background clips (portrait, rotated to fit by the client) - listed
+# and served alongside Panoramas2's own, same /panorama2/ URL space
+ANIMS_DIR = os.path.join(LIBRARY_ROOT, "anims")
+# TEMPORARY: while False, /api/panoramas2 lists only the anims/ clips, so
+# the random per-track background never picks an old Panoramas2 one (they
+# stay on disk and still serve by name - the intro clip etc. use them).
+# Set back to True to restore the full pool.
+INCLUDE_OLD_PANORAMAS = False
 SONG_NAMES_PATH = os.path.join(LIBRARY_ROOT, "song_names.json")
 # manually flagged by the owner from the player's "flag this song's lyrics"
 # button (see /api/lyrics-flag) - separate from the automatic heuristics in
@@ -447,6 +456,36 @@ def refresh_index():
     return tracks
 
 
+def ensure_pingpong(src_path):
+    """Forward + reversed copy of an anims/ clip, built once with ffmpeg
+    and cached next to the originals in anims/_pp/ (browsers can't play a
+    <video> backwards, so the ping-pong is baked into the file - the
+    client eases the playback speed on top, see updatePanoPingPongSpeed).
+    Returns the cached path, or the original if ffmpeg fails."""
+    pp_dir = os.path.join(ANIMS_DIR, "_pp")
+    out = os.path.join(pp_dir, os.path.basename(src_path))
+    if os.path.isfile(out) and os.path.getmtime(out) >= os.path.getmtime(src_path):
+        return out
+    os.makedirs(pp_dir, exist_ok=True)
+    tmp = out + ".tmp.mp4"
+    cmd = [
+        video_export.FFMPEG, "-y", "-loglevel", "error", "-i", src_path,
+        "-filter_complex",
+        "[0:v]split[a][b];[b]reverse,trim=start_frame=1[r];[a][r]concat=n=2:v=1[v]",
+        "-map", "[v]", "-an", "-c:v", "libx264", "-preset", "fast", "-crf", "20",
+        "-pix_fmt", "yuv420p", "-movflags", "+faststart", tmp,
+    ]
+    try:
+        subprocess.run(cmd, check=True, timeout=180)
+        os.replace(tmp, out)
+        return out
+    except Exception:
+        traceback.print_exc()
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        return src_path
+
+
 def _set_job_state(track_id, aspect, **fields):
     with _video_jobs_lock:
         job = _video_jobs.setdefault(track_id, {})
@@ -457,7 +496,7 @@ def _run_video_exports(track):
     tid = track["id"]
     karaoke_path = track.get("_karaoke_path")
     karaoke_data = load_karaoke_file(karaoke_path) if karaoke_path else None
-    for aspect in ("vertical", "horizontal"):
+    for aspect in ("vertical", "horizontal", "square", "portrait"):
         _set_job_state(tid, aspect, status="running", progress=0, url=None, error=None)
         try:
             out_name = f"{tid}_{aspect}.mp4"
@@ -638,17 +677,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         if path == "/api/panoramas2":
             files = []
-            if os.path.isdir(PANORAMA2_DIR):
-                names = [
-                    f for f in os.listdir(PANORAMA2_DIR)
-                    if f.lower().endswith((".mp4", ".gif"))
-                ]
-                files = sorted(
-                    names,
-                    key=lambda f: os.path.getmtime(os.path.join(PANORAMA2_DIR, f)),
-                    reverse=True,
-                )
-            self._send_json({"files": files})
+            paths = {}
+            has_anims = os.path.isdir(ANIMS_DIR) and any(f.lower().endswith((".mp4", ".gif")) for f in os.listdir(ANIMS_DIR))
+            # (falls back to Panoramas2 when there's no anims/ folder at all,
+            # e.g. on a server it hasn't been synced to yet)
+            for d in ((ANIMS_DIR, PANORAMA2_DIR) if (INCLUDE_OLD_PANORAMAS or not has_anims) else (ANIMS_DIR,)):
+                if os.path.isdir(d):
+                    for f in os.listdir(d):
+                        if f.lower().endswith((".mp4", ".gif")):
+                            paths[f] = os.path.join(d, f)
+            files = sorted(paths, key=lambda f: os.path.getmtime(paths[f]), reverse=True)
+            anim_names = set(os.listdir(ANIMS_DIR)) if os.path.isdir(ANIMS_DIR) else set()
+            self._send_json({"files": files, "pingpong": [f for f in files if f in anim_names and f not in ("_pp",)]})
             return
 
         if path.startswith("/panorama/"):
@@ -663,9 +703,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path.startswith("/panorama2/"):
             name = os.path.basename(path[len("/panorama2/"):])
             filepath = os.path.join(PANORAMA2_DIR, name)
+            is_anim = False
+            if not os.path.isfile(filepath):
+                filepath = os.path.join(ANIMS_DIR, name)
+                is_anim = True
             if not name.lower().endswith((".mp4", ".gif")) or not os.path.isfile(filepath):
                 self.send_error(404, "Panorama not found")
                 return
+            if is_anim and name.lower().endswith(".mp4"):
+                filepath = ensure_pingpong(filepath)
             self._serve_audio(filepath)
             return
 
@@ -790,7 +836,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with _video_jobs_lock:
                 already_running = any(
                     _video_jobs.get(tid, {}).get(a, {}).get("status") == "running"
-                    for a in ("vertical", "horizontal")
+                    for a in ("vertical", "horizontal", "square", "portrait")
                 )
             if not already_running:
                 threading.Thread(target=_run_video_exports, args=(track,), daemon=True).start()
@@ -1162,6 +1208,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        # no cache headers at all previously meant browsers were left to
+        # their own heuristics for how long to hold onto app.js/styles.css
+        # - fine most of the time, but it means a deployed fix can sit
+        # invisible in someone's already-open tab/cache until they happen
+        # to hard-refresh. no-cache still lets the browser cache the file,
+        # it just always revalidates first (a cheap 304 when unchanged,
+        # a real fetch the moment it isn't) - Last-Modified is what makes
+        # that revalidation cheap instead of always re-downloading
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Last-Modified", self.date_time_string(int(os.path.getmtime(full_path))))
         self.end_headers()
         self.wfile.write(body)
 

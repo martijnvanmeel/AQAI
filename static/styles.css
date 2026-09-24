@@ -100,19 +100,6 @@ body.gate-active nav,
    scanlines / darkening are disabled via the uGate uniform in app.js) */
 body.gate-active #artist-color-overlay,
 body.gate-active #bg-gradient{display:none}
-/* video export mode (see the video_export_id URL param, handled in
-   app.js): the real player, headlessly recorded by Playwright for the
-   social-video export feature, with just the tab bar and transport
-   controls hidden - title/artist and everything else stays exactly as a
-   real visitor would see it, so the export always matches the live site */
-body.video-export nav,
-/* not owner-only (a real visitor sees this), but makes no sense on a
-   static recording - toggling fullscreen does nothing there */
-body.video-export #btn-fullscreen{display:none}
-/* visibility:hidden, not display:none - positionArtistPhoto() anchors the
-   whole creature/circle/title group off .controls-row's own live
-   getBoundingClientRect(), which collapses to zero if it were display:none */
-body.video-export .controls-row{visibility:hidden}
 /* the bottom accent bar is also part of that same chrome - no artist is
    loaded yet on the gate screen, so it'd otherwise show as a flat green
    strip with no purpose */
@@ -508,8 +495,16 @@ body.scene-hands #stage{background:linear-gradient(to top,
   /* plain 'Brice' family (not var(--font-title)'s Condensed variant) at
      weight 600 = Brice-Semi-Bold.woff2 */
   font-family:'Brice';font-weight:600;text-transform:uppercase;
-  white-space:nowrap;color:transparent;opacity:.2;
-  -webkit-text-stroke:3px var(--artist-color, var(--active-green));
+  white-space:nowrap;color:transparent;
+  /* filled with the artist color, 20% opaque at the bottom of the letters
+     fading to fully transparent at the top - line-height tightened to
+     roughly the capital height so the gradient spans the glyphs, not the
+     blank line box around them */
+  line-height:.75;
+  background:linear-gradient(to top,
+    color-mix(in srgb, var(--artist-color, var(--active-green)) 20%, transparent),
+    color-mix(in srgb, var(--artist-color, var(--active-green)) 0%, transparent));
+  -webkit-background-clip:text;background-clip:text;
   /* 2200% of the normal song-title size (see .meta .title's own clamp()) */
   font-size:calc(22 * clamp(19.928847px, 6.227765vw, 34.875484px));
   letter-spacing:-.04em; /* -4% of the (huge) font-size */
