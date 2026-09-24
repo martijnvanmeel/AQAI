@@ -1264,7 +1264,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
 /* white at every breakpoint above the smallest one - #t-cur/#t-tot are
    hidden entirely at the smallest breakpoint (see the 480px media query
    below), so this base rule only ever paints on bigger breakpoints */
-.bar-row .time{font-family:var(--font-title);font-size:11px;letter-spacing:.06em;color:#ffffff;flex:0 0 auto;position:relative;top:1px}
+.bar-row .time{font-family:var(--font-title);font-size:11px;letter-spacing:.06em;color:var(--artist-color, var(--active-green));flex:0 0 auto;position:relative;top:1px}
 #t-cur{left:-2px} /* current position text: net 2px left of centre */
 #bar{
   position:relative;height:26px;flex:1 1 auto;display:flex;align-items:center;cursor:pointer;
