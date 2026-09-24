@@ -1665,7 +1665,8 @@ function fitScreenTitles(){
   // the titles never get wider than the tab bar
   const navRect = document.querySelector("nav").getBoundingClientRect();
   // ...and, on narrow screens, keep the same 22px of space on the right as on the left
-  const avail = Math.min(navRect.width, window.innerWidth - 44);
+  const SIDE = 22 - window.innerWidth * 0.01; // 22px of side space, less 1% of the screen width
+  const avail = Math.min(navRect.width, window.innerWidth - 2 * SIDE);
   let common = Infinity;
   titles.forEach(h => {
     const cs = getComputedStyle(h);
@@ -1680,7 +1681,7 @@ function fitScreenTitles(){
     h.style.whiteSpace = "nowrap";
     h.style.letterSpacing = LS_PX + "px";
     h.style.fontSize = common.toFixed(2) + "px";
-    h.style.marginLeft = "0"; // flush with the left margin, like the lists below
+    h.style.marginLeft = (SIDE - 22) + "px"; // 1% of the screen width closer to the left edge than the lists below
   });
 }
 window.addEventListener("resize", fitScreenTitles);
