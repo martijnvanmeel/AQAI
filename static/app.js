@@ -533,6 +533,7 @@ function realNeighbors(dl, li, reach){
   }
   return { before, after };
 }
+const ACTIVE_LINE_LIFT = 5; // px the active sentence moves up while it scales in
 function layoutLyricRows(li, before, after){
   const activeRow = lyricRowEls[li];
   if (!activeRow) return;
@@ -552,6 +553,9 @@ function layoutLyricRows(li, before, after){
   activeRow.getBoundingClientRect();
   activeRow.style.transition = "";
   activeRow.style.scale = String(activeScale);
+  // while it eases down to its final size the newly-active sentence also
+  // drifts up 5px (translate shares the same slow transition as scale)
+  activeRow.style.translate = `-50% calc(-50% - ${ACTIVE_LINE_LIFT}px)`;
   activeRow.classList.add("active-row");
   activeRow.classList.remove("near");
   [[1, after], [-1, before]].forEach(([dir, list]) => {
@@ -578,7 +582,7 @@ function layoutLyricRows(li, before, after){
       const smallBreakpointNudge = (dir === -1 && window.innerWidth <= 480)
         ? -(depth === 3 ? 12 : depth === 2 ? 8 : 4)
         : 0;
-      const targetTranslate = `-50% calc(-50% + ${dir * y + shift + depthNudge + smallBreakpointNudge}px)`;
+      const targetTranslate = `-50% calc(-50% + ${dir * y + shift + depthNudge + smallBreakpointNudge - ACTIVE_LINE_LIFT}px)`; // same 5px lift as the active line, so spacing between rows is unchanged
       // previous sentences (and the one before that) move to their new,
       // smaller spot and size immediately - no transition at all - only
       // the newly-active line and the upcoming ("after") rows get the

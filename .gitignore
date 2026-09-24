@@ -5,3 +5,6 @@ __pycache__/
 bin/
 sync/*.json
 exports/
+
+whisper_cache/
+lyrics_resync_reports/
