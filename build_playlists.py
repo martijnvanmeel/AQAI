@@ -44,11 +44,11 @@ PLAYLIST_DEFS = [
 ]
 # one accent color per mix, same vibrancy as the artist palette's orange
 MIX_COLORS = {
-    "Slow Burn": "#9B72FF",     # violet
-    "Golden Hour": "#FF7F27",   # orange
-    "Open Road": "#37B6FF",     # sky blue
-    "Bright Lights": "#FF8FDB", # pink
-    "Full Tilt": "#FF4D4D",     # red
+    "Slow Burn": "#7FD672",     # green (the snail)
+    "Golden Hour": "#FF7F27",   # orange (the goldfish)
+    "Open Road": "#C9A27A",     # brown (the horse)
+    "Bright Lights": "#FF5A4E", # red (the ant)
+    "Full Tilt": "#B5713F",     # darker brown (the bear)
 }
 DISPLAY_ORDER = ["Slow Burn", "Golden Hour", "Open Road", "Bright Lights", "Full Tilt"]
 TEXTURES = {
