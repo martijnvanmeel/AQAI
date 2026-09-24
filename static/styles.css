@@ -1375,7 +1375,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
 /* ============================ LIST ============================ */
 #view-list,#view-mixes{padding:calc(env(safe-area-inset-top) + 18px) 0 0;overflow:hidden}
 .list-head{padding:0 22px 14px}
-.list-head h2{font-family:var(--font-display);font-weight:900;font-size:14px;letter-spacing:-5px;text-transform:uppercase} /* Brice Black */
+.list-head h2{font-family:var(--font-display);font-weight:900;font-size:14px;letter-spacing:-5px;text-transform:uppercase;color:var(--artist-color, var(--active-green))} /* Brice Black, in the current artist's color */
 .list-head p{margin-top:4px;font-size:12px;color:var(--fg-soft)}
 #list-search{
   width:100%;margin-top:12px;padding:11px 14px;border-radius:999px;

@@ -1662,7 +1662,7 @@ function fitScreenTitles(){
   // measured off-DOM (canvas), so it works while a screen is hidden and both
   // titles always land on the same size: the largest one at which the
   // WIDEST title still fits between the 22px side margins
-  // the titles never get wider than the tab bar, and line up with its left edge
+  // the titles never get wider than the tab bar
   const navRect = document.querySelector("nav").getBoundingClientRect();
   const avail = navRect.width;
   let common = Infinity;
@@ -1679,8 +1679,7 @@ function fitScreenTitles(){
     h.style.whiteSpace = "nowrap";
     h.style.letterSpacing = LS_PX + "px";
     h.style.fontSize = common.toFixed(2) + "px";
-    const head = h.parentElement; // .list-head: 22px side padding inside a full-width view
-    h.style.marginLeft = (navRect.left - 22 - head.parentElement.getBoundingClientRect().left) + "px";
+    h.style.marginLeft = "0"; // flush with the left margin, like the lists below
   });
 }
 window.addEventListener("resize", fitScreenTitles);
