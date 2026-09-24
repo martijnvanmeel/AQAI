@@ -342,9 +342,10 @@ function load(i, autoplay = true){
   if (audioEls[cur]) audioEls[cur].pause();
   playing = false;
   cur = (i + TRACKS.length) % TRACKS.length;
+  if (activeQueue && !activeQueue.includes(cur)){ activeQueue = null; activeMixId = null; }
   const el = getAudio(cur);
   el.currentTime = 0; el.playbackRate = 1;
-  renderMeta(); renderList();
+  renderMeta(); renderList(); renderMixes();
   waitForTrackAssets(el, $("#artist-photo"));
   $("#lyric-rows").innerHTML = "";
   lyricRowEls = {};
@@ -359,11 +360,31 @@ function load(i, autoplay = true){
   watermarkPendingForTrack = cur; // sweep-in fires once this track's audio actually starts (see play())
   if (autoplay) play(); else syncButtons();
 }
-function next(){ load(cur + 1); }
-function prev(){ if (elapsed() > 3) seek(0); else load(cur - 1); }
+// while a Mixes-tab playlist is playing, next/previous/shuffle stay inside
+// it (see playMix()/renderMixes()); picking any track outside it from
+// the Songs tab drops back to the whole library (see load())
+let activeQueue = null;   // TRACKS indices of the playing mix, in order
+let activeMixId = null;
+function next(){
+  if (activeQueue && activeQueue.length){
+    const p = activeQueue.indexOf(cur);
+    return load(activeQueue[(p + 1) % activeQueue.length]);
+  }
+  load(cur + 1);
+}
+function prev(){
+  if (elapsed() > 3) return seek(0);
+  if (activeQueue && activeQueue.length){
+    const p = activeQueue.indexOf(cur);
+    return load(activeQueue[(p - 1 + activeQueue.length) % activeQueue.length]);
+  }
+  load(cur - 1);
+}
 function random(){
-  if (TRACKS.length < 2) return seek(0);
-  let r; do { r = Math.floor(Math.random() * TRACKS.length); } while (r === cur);
+  const pool = activeQueue && activeQueue.length > 1 ? activeQueue : null;
+  if ((pool ? pool.length : TRACKS.length) < 2) return seek(0);
+  let r;
+  do { r = pool ? pool[Math.floor(Math.random() * pool.length)] : Math.floor(Math.random() * TRACKS.length); } while (r === cur);
   load(r);
 }
 
@@ -1495,6 +1516,84 @@ function renderList(){
   });
 }
 $("#list-search").addEventListener("input", e => { listFilter = e.target.value; renderList(); });
+/* ---- Mixes tab: 5 playlists that mix artists (static/playlists.json, built
+   by build_playlists.py from each track's audio features). Entries are keyed
+   by folder + title, since track ids differ per machine. ---- */
+let MIXES = [];
+let openMixId = null;
+fetch("playlists.json").then(r => r.ok ? r.json() : null).then(d => {
+  MIXES = (d && d.playlists) || [];
+  renderMixes();
+}).catch(() => {});
+function mixIndices(mix){
+  if (mix._idxFor !== TRACKS.length){
+    mix._idx = mix.tracks
+      .map(e => TRACKS.findIndex(t => t.folder === e.folder && t.title === e.title))
+      .filter(i => i >= 0);
+    mix._idxFor = TRACKS.length;
+  }
+  return mix._idx;
+}
+function playMix(mix, startPos = 0){
+  const idx = mixIndices(mix);
+  if (!idx.length) return;
+  activeQueue = idx.slice();
+  activeMixId = mix.id;
+  load(idx[Math.min(startPos, idx.length - 1)], true);
+  showView("home");
+}
+function renderMixes(){
+  const el = $("#mixes-body");
+  if (!el || !MIXES.length || !TRACKS.length) return;
+  const keepScroll = el.scrollTop;
+  el.innerHTML = "";
+  $("#mixes-count").textContent = `${MIXES.length} mixes`;
+  MIXES.forEach(mix => {
+    const idx = mixIndices(mix);
+    const card = document.createElement("div");
+    card.className = "mix-card" + (mix.id === openMixId ? " open" : "") + (mix.id === activeMixId ? " active" : "");
+    const mins = Math.round(idx.reduce((s, i) => s + (TRACKS[i].duration || 0), 0) / 60);
+    const head = document.createElement("div");
+    head.className = "mix-head";
+    head.innerHTML = `
+      <div class="mix-head-text">
+        <div class="mix-name"><span></span><span class="mix-chev">&#9656;</span></div>
+        <div class="mix-blurb"></div>
+        <div class="mix-meta"></div>
+      </div>
+      <button class="mix-play" aria-label="Play this mix"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>Play</button>`;
+    head.querySelector(".mix-name span").textContent = mix.name;
+    head.querySelector(".mix-blurb").textContent = mix.blurb;
+    head.querySelector(".mix-meta").textContent = `${idx.length} tracks \u00b7 ${mins >= 60 ? Math.floor(mins / 60) + " h " + (mins % 60) + " min" : mins + " min"} \u00b7 ~${mix.avgBpm} BPM \u00b7 ${mix.feel}`;
+    head.addEventListener("click", () => { openMixId = openMixId === mix.id ? null : mix.id; renderMixes(); });
+    head.querySelector(".mix-play").addEventListener("click", e => { e.stopPropagation(); playMix(mix, 0); });
+    card.appendChild(head);
+    const list = document.createElement("div");
+    list.className = "mix-tracks";
+    if (mix.id === openMixId){
+      idx.forEach((i, pos) => {
+        const tr = TRACKS[i];
+        const b = document.createElement("button");
+        b.className = "track" + (i === cur && mix.id === activeMixId ? " playing" : "");
+        if (tr.artistColor) b.style.setProperty("--row-color", tr.artistColor);
+        b.innerHTML = `
+          <span class="idx">${String(pos + 1).padStart(2, "0")}</span>
+          <span class="t-meta"><span class="t-title"></span></span>
+          <span class="t-artist"></span>
+          <span class="eq"><i></i><i></i><i></i></span>
+          <span class="t-len">${fmt(tr.duration || 0)}</span>`;
+        b.querySelector(".t-title").textContent = tr.title;
+        b.querySelector(".t-artist").textContent = tr.artist;
+        b.onclick = () => playMix(mix, pos);
+        list.appendChild(b);
+      });
+    }
+    card.appendChild(list);
+    el.appendChild(card);
+  });
+  el.scrollTop = keepScroll;
+}
+
 
 /* progress bar (drag + tap) */
 const bar = $("#bar");

@@ -8,3 +8,4 @@ exports/
 
 whisper_cache/
 lyrics_resync_reports/
+playlist_cache/

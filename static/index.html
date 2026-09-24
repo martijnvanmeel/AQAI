@@ -224,6 +224,16 @@
     <div id="tracklist-gradient" aria-hidden="true"></div>
   </section>
 
+  <!-- ============ MIXES (playlists) ============ -->
+  <section class="view" id="view-mixes">
+    <div class="list-head">
+      <h2>Mixes</h2>
+      <p><span id="mixes-count"></span> &middot; playlists across all artists, tap Play to start one</p>
+    </div>
+    <div id="mixes-body"></div>
+    <div id="mixes-gradient" aria-hidden="true"></div>
+  </section>
+
   <!-- ============ INFO ============ -->
   <section class="view" id="view-info">
     <img class="logo" src="assets/logo.png" alt="AQAI Amsterdam">
@@ -336,6 +346,10 @@
       <rect x="30" y="3" width="12" height="26" rx="3"/>
     </svg>
     <span class="nav-label">Songs</span>
+  </button>
+  <button class="nav-btn" data-view="mixes" aria-label="Mixes (playlists)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h13M3 12h10M3 18h7"/><path d="M15 14.5l6 3.5-6 3.5z" fill="currentColor"/></svg>
+    <span class="nav-label">Mixes</span>
   </button>
   <button class="nav-btn nav-btn-word" data-view="info" aria-label="Info">AQAI</button>
   <button class="nav-btn hidden" data-view="sync" id="nav-sync" aria-label="Sync studio">

@@ -1373,7 +1373,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
 #c-volume:hover::-moz-range-thumb{transform:scale(1.15)}
 
 /* ============================ LIST ============================ */
-#view-list{padding:calc(env(safe-area-inset-top) + 18px) 0 0;overflow:hidden}
+#view-list,#view-mixes{padding:calc(env(safe-area-inset-top) + 18px) 0 0;overflow:hidden}
 .list-head{padding:0 22px 14px}
 .list-head h2{font-family:var(--font-display);font-weight:600;font-size:14px;letter-spacing:.24em;text-transform:uppercase}
 .list-head p{margin-top:4px;font-size:12px;color:var(--fg-soft)}
@@ -1383,15 +1383,15 @@ body.scene-hands #stage{background:linear-gradient(to top,
   font-size:13px;
 }
 #list-search::placeholder{color:var(--fg-faint)}
-#tracklist{
+#tracklist,#mixes-body{
   flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;
   padding-bottom:70px; /* 20px + 50px extra requested space */
   scrollbar-width:none;-ms-overflow-style:none; /* scroll still works, just no visible scrollbar */
 }
-#tracklist::-webkit-scrollbar{display:none;width:0;height:0}
+#tracklist::-webkit-scrollbar,#mixes-body::-webkit-scrollbar{display:none;width:0;height:0}
 /* light black gradient stuck to the bottom of the list, fading the last
    rows out under the nav bar - purely decorative, doesn't block taps */
-#tracklist-gradient{
+#tracklist-gradient,#mixes-gradient{
   position:absolute;left:0;right:0;bottom:0;height:120px;z-index:1;
   pointer-events:none;
   background:linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,.5) 100%);
@@ -1466,6 +1466,47 @@ body.scene-hands #stage{background:linear-gradient(to top,
 .eq i{width:3px;background:var(--row-color, var(--active-green));border-radius:2px;animation:eq .9s ease-in-out infinite}
 .eq i:nth-child(2){animation-delay:.2s}.eq i:nth-child(3){animation-delay:.4s}
 @keyframes eq{0%,100%{height:4px}50%{height:14px}}
+
+
+/* ---- Mixes tab: one card per playlist (see renderMixes() in app.js) ---- */
+.mix-card{padding:26px 0 0}
+.mix-head{
+  display:flex;align-items:center;gap:14px;padding:0 22px 8px;
+  color:var(--artist-color, var(--active-green));cursor:pointer;
+}
+.mix-head-text{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.mix-name{
+  font-family:var(--font-display);font-weight:600;font-size:26px;letter-spacing:.2em;text-transform:uppercase;
+  display:flex;align-items:baseline;gap:10px;
+}
+.mix-name .mix-chev{font-size:14px;letter-spacing:0;opacity:.6;transition:transform .2s ease}
+.mix-card.open .mix-chev{transform:rotate(90deg)}
+.mix-blurb{font-family:var(--font-body);font-size:12px;color:rgba(255,255,255,.55)}
+.mix-meta{font-family:var(--font-body);font-size:11px;color:color-mix(in srgb, var(--artist-color, var(--active-green)) 55%, transparent)}
+.mix-play{
+  flex:0 0 auto;display:flex;align-items:center;gap:7px;
+  padding:9px 16px;border-radius:999px;border:none;
+  background:var(--artist-color, var(--active-green));color:#000;
+  font-family:var(--font-display);font-weight:600;font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+}
+.mix-play svg{width:13px;height:13px}
+.mix-play:hover{background:#fff}
+.mix-card.active .mix-name::after{
+  content:"";width:8px;height:8px;border-radius:50%;background:var(--artist-color, var(--active-green));
+  align-self:center;animation:pulse 2.4s ease-in-out infinite;
+}
+.mix-tracks{display:none}
+.mix-card.open .mix-tracks{display:block}
+.track .t-artist{
+  flex:0 1 auto;max-width:34%;font-size:11px;color:var(--fg-soft);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;top:2px;
+  transition:color .5s ease;
+}
+.track:hover .t-artist{color:#000}
+@media (max-width:480px){
+  .mix-name{font-size:20px;letter-spacing:.14em}
+  .track .t-artist{display:none}
+}
 
 /* ============================ INFO ============================ */
 #view-info{padding:calc(env(safe-area-inset-top) + 18px) 22px 0;overflow-y:auto}
