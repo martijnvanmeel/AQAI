@@ -1558,12 +1558,13 @@ function renderMixes(){
     head.className = "mix-head";
     head.innerHTML = `
       <div class="mix-head-text">
-        <div class="mix-name"><span></span><span class="mix-chev">&#9656;</span></div>
+        <div class="mix-name"><span></span><span class="mix-chev">&#9656;</span><span class="mix-toggle-label"></span></div>
         <div class="mix-blurb"></div>
         <div class="mix-meta"></div>
       </div>
       <button class="mix-play" aria-label="Play this mix"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>Play</button>`;
     head.querySelector(".mix-name span").textContent = mix.name;
+    head.querySelector(".mix-toggle-label").textContent = mix.id === openMixId ? "hide songs" : "all songs";
     head.querySelector(".mix-blurb").textContent = mix.blurb;
     head.querySelector(".mix-meta").textContent = `${idx.length} tracks \u00b7 ${mins >= 60 ? Math.floor(mins / 60) + " h " + (mins % 60) + " min" : mins + " min"} \u00b7 ~${mix.avgBpm} BPM \u00b7 ${mix.feel}`;
     head.addEventListener("click", () => { openMixId = openMixId === mix.id ? null : mix.id; renderMixes(); });
