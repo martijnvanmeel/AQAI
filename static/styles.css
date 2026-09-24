@@ -769,7 +769,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
 .artist-photo-wrap{position:relative;z-index:0;width:138.32775px;height:97.982156px;margin:0 auto -5px;transform:translateY(-393px) scale(1.32)}
 /* soft glow behind the photo, tinted the current track's artist colour */
 .artist-photo-wrap::before{
-  content:"";position:absolute;inset:-16%;z-index:0;
+  content:"";position:absolute;left:-16%;top:50%;width:132%;aspect-ratio:1/1;z-index:0;
   border-radius:50%;pointer-events:none;
   background:radial-gradient(circle,
     color-mix(in srgb, var(--artist-color, var(--active-green)) 78%, transparent) 0%,
@@ -779,7 +779,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
      the parent's own position/transform) doesn't touch .artist-photo-wrap's
      own bounding rect, so it doesn't drag the creature/visualiser/title
      (all of which anchor off that live rect) along with it */
-  transform:scale(1.1);
+  transform:translateY(-50%) scale(1.1);
 }
 /* 2px stroke around the disc, in the artist's own colour: the same
    profilepic.png silhouette, filled solid and sized 2px larger on every
@@ -787,11 +787,10 @@ body.scene-hands #stage{background:linear-gradient(to top,
    shows around the edge - same trick as the glow above, just solid and
    tighter to the shape */
 .artist-photo-wrap::after{
-  content:"";position:absolute;inset:-2px;z-index:1;pointer-events:none;
+  content:"";position:absolute;left:-2px;top:50%;width:calc(100% + 4px);aspect-ratio:1/1;z-index:1;pointer-events:none;
+  border-radius:50%;
   background:color-mix(in srgb, var(--artist-color, var(--active-green)) 50%, black);
-  -webkit-mask-image:url('assets/profilepic.png');-webkit-mask-size:100% 100%;-webkit-mask-repeat:no-repeat;-webkit-mask-position:center;
-  mask-image:url('assets/profilepic.png');mask-size:100% 100%;mask-repeat:no-repeat;mask-position:center;
-  transform:scale(1.1);
+  transform:translateY(-50%) scale(1.1);
 }
 .artist-photo{
   display:block;width:100%;height:auto;position:relative;z-index:1;
@@ -801,11 +800,13 @@ body.scene-hands #stage{background:linear-gradient(to top,
    the whole shape instead of a thin outline) - the fox now reads as the
    "face" here instead of a person, this is just its colour backdrop */
 .artist-photo-fill{
-  position:absolute;inset:0;z-index:2;pointer-events:none;
-  background:linear-gradient(180deg, #000000 0%, color-mix(in srgb, var(--artist-color, var(--active-green)) 50%, #000000) 100%);
-  -webkit-mask-image:url('assets/profilepic.png');-webkit-mask-size:100% 100%;-webkit-mask-repeat:no-repeat;-webkit-mask-position:center;
-  mask-image:url('assets/profilepic.png');mask-size:100% 100%;mask-repeat:no-repeat;mask-position:center;
-  transform:scale(1.1);
+  position:absolute;left:0;top:50%;width:100%;aspect-ratio:1/1;z-index:2;pointer-events:none;
+  /* a true circle now (was the oval profilepic.png mask): as wide as the
+     old oval, centered on the same spot, so it grows upward/downward
+     instead of moving - black, tinted 20% toward the artist's color */
+  border-radius:50%;
+  background:color-mix(in srgb, var(--artist-color, var(--active-green)) 20%, #000000);
+  transform:translateY(-50%) scale(1.1);
 }
 /* the real photo underneath is fully replaced by the solid colour fill
    above it now (no more real people "pretending" to be the band) -
