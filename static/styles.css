@@ -496,7 +496,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
      weight 600 = Brice-Semi-Bold.woff2 */
   font-family:'Brice';font-weight:600;text-transform:uppercase;
   white-space:nowrap;color:transparent;
-  /* filled with the artist color (20%) plus a 2px outline (50%), both
+  /* filled with the artist color (20%) plus a 1px outline (50%), both
      fading to fully transparent going up: the fade is one mask over the
      letters - opaque from the baseline (the .125em of descender room
      under it is the line box's own spacing) up to nothing at cap height
@@ -507,7 +507,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   padding-top:.3em;
   background:color-mix(in srgb, var(--artist-color, var(--active-green)) 20%, transparent);
   -webkit-background-clip:text;background-clip:text;
-  -webkit-text-stroke:2px color-mix(in srgb, var(--artist-color, var(--active-green)) 50%, transparent);
+  -webkit-text-stroke:1px color-mix(in srgb, var(--artist-color, var(--active-green)) 50%, transparent);
   -webkit-mask-image:linear-gradient(to top, #000 .125em, transparent .825em);
   mask-image:linear-gradient(to top, #000 .125em, transparent .825em);
   /* 2200% of the normal song-title size (see .meta .title's own clamp()) */
