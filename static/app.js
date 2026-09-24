@@ -1627,16 +1627,20 @@ function updateUI(){
    and right edge land exactly on them (the AQAI screen does the same with
    its logo, in CSS). Only measurable while the view is showing. */
 function fitScreenTitles(){
+  const LS_PX = -4; // fixed letter-spacing of these titles
   document.querySelectorAll("#view-list h2, #view-mixes h2").forEach(h => {
     if (!h.offsetParent) return; // its view is hidden right now
-    const LS_EM = 0.24; // the h2's letter-spacing, in em
     h.style.whiteSpace = "nowrap";
+    h.style.letterSpacing = LS_PX + "px";
     h.style.fontSize = "14px";
     const avail = h.clientWidth;
+    const n = h.textContent.length;
     const range = document.createRange();
     range.selectNodeContents(h);
-    const visible = range.getBoundingClientRect().width - LS_EM * 14; // minus the trailing letter-space
-    if (visible > 0 && avail > 0) h.style.fontSize = (14 * avail / visible).toFixed(2) + "px";
+    // width = glyph advance (scales with font size) + n * letter-spacing (fixed px)
+    const glyphs14 = range.getBoundingClientRect().width - n * LS_PX;
+    const perPx = glyphs14 / 14;
+    if (perPx > 0 && avail > 0) h.style.fontSize = ((avail - (n - 1) * LS_PX) / perPx).toFixed(2) + "px"; // ink ends at the right margin (no trailing spacing)
   });
 }
 window.addEventListener("resize", fitScreenTitles);
