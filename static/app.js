@@ -1622,10 +1622,31 @@ function updateUI(){
   updateLyrics(t);
 }
 
+/* screen titles (Songs' "Music", Mixes) run the full width between the
+   screen's side margins: the font size is fitted so the text's left edge
+   and right edge land exactly on them (the AQAI screen does the same with
+   its logo, in CSS). Only measurable while the view is showing. */
+function fitScreenTitles(){
+  document.querySelectorAll("#view-list h2, #view-mixes h2").forEach(h => {
+    if (!h.offsetParent) return; // its view is hidden right now
+    const LS_EM = 0.24; // the h2's letter-spacing, in em
+    h.style.whiteSpace = "nowrap";
+    h.style.fontSize = "14px";
+    const avail = h.clientWidth;
+    const range = document.createRange();
+    range.selectNodeContents(h);
+    const visible = range.getBoundingClientRect().width - LS_EM * 14; // minus the trailing letter-space
+    if (visible > 0 && avail > 0) h.style.fontSize = (14 * avail / visible).toFixed(2) + "px";
+  });
+}
+window.addEventListener("resize", fitScreenTitles);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitScreenTitles);
+
 /* views */
 function showView(name){
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "view-" + name));
   document.querySelectorAll(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.view === name));
+  fitScreenTitles();
   // #view-home (and everything anchored off it - the title/artist pill,
   // the wave visualiser) is display:none while another tab is active, so a
   // track change that happens off-tab (e.g. a song auto-advancing to the
