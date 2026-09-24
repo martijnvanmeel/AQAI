@@ -496,17 +496,20 @@ body.scene-hands #stage{background:linear-gradient(to top,
      weight 600 = Brice-Semi-Bold.woff2 */
   font-family:'Brice';font-weight:600;text-transform:uppercase;
   white-space:nowrap;color:transparent;
-  /* filled with the artist color, 20% opaque at the bottom of the letters
-     fading to fully transparent at the top - line-height tightened to
-     roughly the capital height so the gradient spans the glyphs, not the
-     blank line box around them */
+  /* filled with the artist color (20%) plus a 2px outline (50%), both
+     fading to fully transparent going up: the fade is one mask over the
+     letters - opaque from the baseline (the .125em of descender room
+     under it is the line box's own spacing) up to nothing at cap height
+     (~.7em above the baseline). line-height is tightened to roughly the
+     capital height, and the extra top padding gives the mask (which only
+     paints inside the element's box) room over the caps' overshoot */
   line-height:.75;
-  background:linear-gradient(to top,
-    color-mix(in srgb, var(--artist-color, var(--active-green)) 20%, transparent),
-    color-mix(in srgb, var(--artist-color, var(--active-green)) 0%, transparent));
+  padding-top:.3em;
+  background:color-mix(in srgb, var(--artist-color, var(--active-green)) 20%, transparent);
   -webkit-background-clip:text;background-clip:text;
-  /* thin outline in the artist color at 14% (20% made 30% more transparent) */
-  -webkit-text-stroke:.5px color-mix(in srgb, var(--artist-color, var(--active-green)) 14%, transparent);
+  -webkit-text-stroke:2px color-mix(in srgb, var(--artist-color, var(--active-green)) 50%, transparent);
+  -webkit-mask-image:linear-gradient(to top, #000 .125em, transparent .825em);
+  mask-image:linear-gradient(to top, #000 .125em, transparent .825em);
   /* 2200% of the normal song-title size (see .meta .title's own clamp()) */
   font-size:calc(22 * clamp(19.928847px, 6.227765vw, 34.875484px));
   letter-spacing:-3px;
