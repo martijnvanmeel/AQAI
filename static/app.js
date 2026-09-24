@@ -767,6 +767,13 @@ function buildFullLyrics(){
   });
 
   resizeLyricsFullCard();
+  // the card is sized off the widest line's measured width, which is wrong
+  // if the lyric font hasn't finished loading yet (the fallback font is
+  // narrower, so the widest line then wraps by a word) - re-measure once
+  // it's actually available
+  if (document.fonts && document.fonts.load){
+    document.fonts.load('300 20px "Brice"').then(() => resizeLyricsFullCard()).catch(() => {});
+  }
 }
 // the card is sized off the widest sentence instead of a fixed percentage,
 // so every line renders in full on one line at its natural size - but never
@@ -779,7 +786,17 @@ function buildFullLyrics(){
 function resizeLyricsFullCard(){
   const overlay = $("#lyrics-full");
   let maxWidth = 0;
-  flRowEls.forEach(row => { maxWidth = Math.max(maxWidth, row.scrollWidth); });
+  // each row's natural single-line text width (measured with wrapping off) -
+  // a wrapping row's own scrollWidth just echoes its current, already
+  // narrowed box, so it can't be used to size the card up to fit
+  flRowEls.forEach(row => {
+    const prevWs = row.style.whiteSpace;
+    row.style.whiteSpace = "nowrap";
+    const range = document.createRange();
+    range.selectNodeContents(row);
+    maxWidth = Math.max(maxWidth, Math.ceil(range.getBoundingClientRect().width), row.querySelector("input") ? row.scrollWidth : 0);
+    row.style.whiteSpace = prevWs;
+  });
   const listPaddingX = 46; // #lf-list's own left+right padding (38 left + 8 right) - as tight as the 38px-left/close-button constraints allow
   const scrollbarW = 35.7; // custom scrollbar channel width (see #lf-list::-webkit-scrollbar)
   const viewportCap = window.innerWidth - 20; // 10px clear on each side, always
