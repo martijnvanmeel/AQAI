@@ -1488,9 +1488,12 @@ bar.addEventListener("pointerup",   () => dragging = false);
 function updateUI(){
   const tr = TRACKS[cur], t = Math.min(elapsed(), tr.duration || 1);
   const pct = tr.duration ? (t / tr.duration) * 100 : 0;
-  $("#bar-fill").style.width = pct + "%";
-  // knob starts 3px left of the bar's start, easing to 0 offset at the end
-  $("#bar-knob").style.left = `calc(${pct}% - ${(3 * (1 - pct / 100)).toFixed(2)}px)`;
+  // while the fill is narrower than the knob it sits entirely behind it,
+  // but its rounded corners still peek out around the knob's edge - so
+  // it stays hidden until it's wide enough for the knob to lead it cleanly
+  const barPx = bar.clientWidth || 0;
+  $("#bar-fill").style.width = (barPx && pct / 100 * barPx < 15) ? "0px" : pct + "%";
+  $("#bar-knob").style.left = pct + "%";
   bar.setAttribute("aria-valuenow", Math.round(pct));
   $("#t-cur").textContent = fmt(t);
   updateLyrics(t);

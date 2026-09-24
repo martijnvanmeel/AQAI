@@ -1284,7 +1284,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   background:radial-gradient(circle,
     #000000 0, #000000 4px,
     var(--artist-color, var(--active-green)) 4px, var(--artist-color, var(--active-green)) 100%);
-  left:-3px;transform:translateX(-50%);
+  left:0%;transform:translateX(-50%);
   margin-top:-2px;
   border:0.2px solid rgba(0,0,0,.5);
   transition:transform .15s ease;
