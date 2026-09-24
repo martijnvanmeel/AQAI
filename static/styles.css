@@ -1132,7 +1132,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
    placed in the grid individually. */
 @media (min-width:651px){
   .controls-row{
-    display:grid;grid-template-columns:1fr auto minmax(0,min(40%,560px)) 1fr;
+    display:grid;grid-template-columns:1fr auto minmax(0,clamp(220px,calc(80% - 426px),60%)) 1fr; /* middle column reproduces the progress bar's old width (80% of the row minus the fixed-size controls) */
     justify-content:normal;column-gap:0;
     /* .player has 20px side padding - pull the row out to the true screen edges */
     width:calc(100% + 40px);margin-left:-20px;margin-right:-20px;
