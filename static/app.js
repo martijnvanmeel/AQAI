@@ -553,8 +553,9 @@ function layoutLyricRows(li, before, after){
   activeRow.getBoundingClientRect();
   activeRow.style.transition = "";
   activeRow.style.scale = String(activeScale);
-  // while it eases down to its final size the newly-active sentence also
-  // drifts up 5px (translate shares the same slow transition as scale)
+  // it enters exactly where it always did (dead center, 130% size) and,
+  // as it eases down to its final size, also ends 5px higher (translate
+  // shares the same slow transition as scale). Neighbouring rows stay put.
   activeRow.style.translate = `-50% calc(-50% - ${ACTIVE_LINE_LIFT}px)`;
   activeRow.classList.add("active-row");
   activeRow.classList.remove("near");
@@ -582,7 +583,7 @@ function layoutLyricRows(li, before, after){
       const smallBreakpointNudge = (dir === -1 && window.innerWidth <= 480)
         ? -(depth === 3 ? 12 : depth === 2 ? 8 : 4)
         : 0;
-      const targetTranslate = `-50% calc(-50% + ${dir * y + shift + depthNudge + smallBreakpointNudge - ACTIVE_LINE_LIFT}px)`; // same 5px lift as the active line, so spacing between rows is unchanged
+      const targetTranslate = `-50% calc(-50% + ${dir * y + shift + depthNudge + smallBreakpointNudge}px)`;
       // previous sentences (and the one before that) move to their new,
       // smaller spot and size immediately - no transition at all - only
       // the newly-active line and the upcoming ("after") rows get the
