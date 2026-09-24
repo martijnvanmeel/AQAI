@@ -259,7 +259,7 @@ body.gate-active::after{display:none}
   position:fixed;inset:0;z-index:-1;pointer-events:none;
   background:color-mix(in srgb, var(--artist-color, var(--active-green)) 85%, transparent);
 }
-#stage{position:fixed;inset:0;z-index:0}
+#stage{position:fixed;inset:0;z-index:0;filter:brightness(.75)} /* every 3D background scene (sphere/panorama, tunnel, environments) 25% darker */
 /* the 3D environments' screen treatment: instead of the sphere's shader-
    retired: the vertical-grid/VCR overlay is gone - the 3D scenes render
    clean with no scanline treatment */
