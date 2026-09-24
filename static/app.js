@@ -1664,7 +1664,8 @@ function fitScreenTitles(){
   // WIDEST title still fits between the 22px side margins
   // the titles never get wider than the tab bar
   const navRect = document.querySelector("nav").getBoundingClientRect();
-  const avail = navRect.width;
+  // ...and, on narrow screens, keep the same 22px of space on the right as on the left
+  const avail = Math.min(navRect.width, window.innerWidth - 44);
   let common = Infinity;
   titles.forEach(h => {
     const cs = getComputedStyle(h);
