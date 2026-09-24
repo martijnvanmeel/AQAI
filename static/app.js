@@ -1626,21 +1626,29 @@ function updateUI(){
    screen's side margins: the font size is fitted so the text's left edge
    and right edge land exactly on them (the AQAI screen does the same with
    its logo, in CSS). Only measurable while the view is showing. */
+let _titleMeasureCtx = null;
 function fitScreenTitles(){
   const LS_PX = -4; // fixed letter-spacing of these titles
-  document.querySelectorAll("#view-list h2, #view-mixes h2").forEach(h => {
-    if (!h.offsetParent) return; // its view is hidden right now
+  const titles = [...document.querySelectorAll("#view-list h2, #view-mixes h2")];
+  if (!titles.length) return;
+  if (!_titleMeasureCtx) _titleMeasureCtx = document.createElement("canvas").getContext("2d");
+  // measured off-DOM (canvas), so it works while a screen is hidden and both
+  // titles always land on the same size: the largest one at which the
+  // WIDEST title still fits between the 22px side margins
+  const avail = window.innerWidth - 44;
+  let common = Infinity;
+  titles.forEach(h => {
+    const cs = getComputedStyle(h);
+    _titleMeasureCtx.font = `${cs.fontWeight} 100px ${cs.fontFamily}`;
+    const n = h.textContent.length;
+    const perPx = _titleMeasureCtx.measureText(h.textContent).width / 100; // glyph advance per 1px of font size
+    if (perPx > 0) common = Math.min(common, (avail - (n - 1) * LS_PX) / perPx);
+  });
+  if (!isFinite(common)) return;
+  titles.forEach(h => {
     h.style.whiteSpace = "nowrap";
     h.style.letterSpacing = LS_PX + "px";
-    h.style.fontSize = "14px";
-    const avail = h.clientWidth;
-    const n = h.textContent.length;
-    const range = document.createRange();
-    range.selectNodeContents(h);
-    // width = glyph advance (scales with font size) + n * letter-spacing (fixed px)
-    const glyphs14 = range.getBoundingClientRect().width - n * LS_PX;
-    const perPx = glyphs14 / 14;
-    if (perPx > 0 && avail > 0) h.style.fontSize = ((avail - (n - 1) * LS_PX) / perPx).toFixed(2) + "px"; // ink ends at the right margin (no trailing spacing)
+    h.style.fontSize = common.toFixed(2) + "px";
   });
 }
 window.addEventListener("resize", fitScreenTitles);
