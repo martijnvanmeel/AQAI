@@ -131,19 +131,22 @@ body.gate-active::after{display:none}
    mouse (see #gate-logo-tilt below), not the button/hint text */
 /* only the logo is in normal flow, so #gate's flex-centering puts it dead
    center (both axes); the button + hint float below it, offset 80px lower */
+/* the button is what #gate's flex-centering puts dead center (vertically and
+   horizontally); the logo hangs 15px above it (see #gate-logo-tilt) */
 #gate-content{
   position:relative;z-index:2;
-  top:-25px; /* logo + button sit 25px higher */
   display:flex;flex-direction:column;align-items:center;
 }
 .gate-actions{
-  position:absolute;top:calc(100% + 80px);left:50%;transform:translateX(-50%);
+  position:relative;
   display:flex;flex-direction:column;align-items:center;gap:34px;
   white-space:nowrap;
 }
 /* tilts in 3D with the mouse, same mechanism as the lyrics carousel */
 #gate-logo-tilt{
-  position:relative;perspective:800px;transform-style:preserve-3d;
+  /* 15px above the button; centered with margins because app.js owns this element's transform (mouse tilt) */
+  position:absolute;bottom:calc(100% + 15px);left:50%;width:487.5px;margin-left:-243.75px;
+  perspective:800px;transform-style:preserve-3d;
   /* fully opaque, no blend - the logo is solid black and the screen-blended
      reflection layer turns its front face into a full mirror of the sphere */
 }
