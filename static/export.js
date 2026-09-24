@@ -129,7 +129,9 @@ animateBgTitleWatermark = function(){
   el.textContent = TRACKS[cur].title;
   const targetY = watermarkTargetY();
   const elWidth = el.getBoundingClientRect().width;
-  const startX = window.innerWidth + elWidth;
+  // first sweep of a track starts already on screen (title visible from 0s)
+  const firstSweep = watermarkSweepTrack !== cur;
+  const startX = firstSweep ? window.innerWidth * 0.05 + elWidth / 2 : window.innerWidth + elWidth;
   const endX = -elWidth;
   watermarkSweepTrack = cur;
   el.style.transition = "none";

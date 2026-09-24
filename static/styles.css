@@ -507,7 +507,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   -webkit-background-clip:text;background-clip:text;
   /* 2200% of the normal song-title size (see .meta .title's own clamp()) */
   font-size:calc(22 * clamp(19.928847px, 6.227765vw, 34.875484px));
-  letter-spacing:-.04em; /* -4% of the (huge) font-size */
+  letter-spacing:-3px;
   transition:transform 160s ease-out;
 }
 

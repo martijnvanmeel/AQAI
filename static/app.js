@@ -307,7 +307,12 @@ function animateBgTitleWatermark(){
   const lyricsRect = lyricsEl.getBoundingClientRect();
   const targetY = lyricsRect.top + lyricsRect.height / 2 + window.innerHeight * 0.05 + 5; // 5%, +5%, then -5% (5% total) of viewport, +5px flat
   const elWidth = el.getBoundingClientRect().width;
-  const startX = window.innerWidth + elWidth; // fully clear of the right edge
+  // the first sweep of a track starts already on screen (left edge of the
+  // text 5% in), so the title is visible from second 0 instead of taking
+  // seconds to cross in from off the right edge; every later loop of the
+  // same track re-enters from the right as before
+  const firstSweep = watermarkSweepTrack !== cur;
+  const startX = firstSweep ? window.innerWidth * 0.05 + elWidth / 2 : window.innerWidth + elWidth; // (translate is -50%-anchored, so startX is the text's center)
   const endX = -elWidth; // fully clear of the left edge
   watermarkSweepTrack = cur;
   el.style.transition = "none";
