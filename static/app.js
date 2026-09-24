@@ -1489,7 +1489,8 @@ function updateUI(){
   const tr = TRACKS[cur], t = Math.min(elapsed(), tr.duration || 1);
   const pct = tr.duration ? (t / tr.duration) * 100 : 0;
   $("#bar-fill").style.width = pct + "%";
-  $("#bar-knob").style.left = pct + "%";
+  // knob starts 3px left of the bar's start, easing to 0 offset at the end
+  $("#bar-knob").style.left = `calc(${pct}% - ${(3 * (1 - pct / 100)).toFixed(2)}px)`;
   bar.setAttribute("aria-valuenow", Math.round(pct));
   $("#t-cur").textContent = fmt(t);
   updateLyrics(t);
