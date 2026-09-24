@@ -1566,8 +1566,9 @@ function renderMixes(){
     const head = document.createElement("div");
     head.className = "mix-head";
     head.innerHTML = `
+      <span class="mix-icon-box">${MIX_ICONS[mix.id] || ""}</span>
       <div class="mix-head-text">
-        <div class="mix-name">${MIX_ICONS[mix.id] || ""}<span></span><span class="mix-chev">&#9656;</span><span class="mix-toggle-label"></span></div>
+        <div class="mix-name"><span></span><span class="mix-chev">&#9656;</span><span class="mix-toggle-label"></span></div>
         <div class="mix-blurb"></div>
         <div class="mix-meta"></div>
       </div>
@@ -1602,7 +1603,16 @@ function renderMixes(){
     el.appendChild(card);
   });
   el.scrollTop = keepScroll;
+  sizeMixIcons();
 }
+// each icon is as tall as the text block beside it (title down to the track
+// count) and square - flexbox can't derive a stretched item's width from its
+// stretched height, so the width is set from the measured height here
+function sizeMixIcons(){
+  document.querySelectorAll(".mix-icon-box").forEach(b => { b.style.width = b.offsetHeight + "px"; });
+}
+window.addEventListener("resize", sizeMixIcons);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(sizeMixIcons);
 
 
 /* progress bar (drag + tap) */
@@ -1675,6 +1685,7 @@ function showView(name){
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "view-" + name));
   document.querySelectorAll(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.view === name));
   fitScreenTitles();
+  if (typeof sizeMixIcons === "function") sizeMixIcons();
   // #view-home (and everything anchored off it - the title/artist pill,
   // the wave visualiser) is display:none while another tab is active, so a
   // track change that happens off-tab (e.g. a song auto-advancing to the
