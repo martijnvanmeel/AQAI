@@ -1693,6 +1693,16 @@ function fitScreenTitles(){
     h.style.letterSpacing = LS_PX + "px";
     h.style.fontSize = common.toFixed(2) + "px";
     h.style.marginLeft = (SIDE - 22) + "px"; // 1% of the screen width closer to the left edge than the lists below
+    // the line under the title sits exactly 10px below the BOTTOM OF THE LETTERS
+    // (the baseline), not below the h2's box, which has font spacing under the caps
+    const cs = getComputedStyle(h);
+    _titleMeasureCtx.font = `${cs.fontWeight} 100px ${cs.fontFamily}`;
+    const mm = _titleMeasureCtx.measureText("H");
+    const asc = mm.fontBoundingBoxAscent / 100 * common, desc = mm.fontBoundingBoxDescent / 100 * common;
+    if (isFinite(asc) && isFinite(desc)){
+      const baselineFromTop = (common - (asc + desc)) / 2 + asc; // line-height is 1em
+      h.style.marginBottom = (10 - (common - baselineFromTop)) + "px";
+    }
   });
 }
 window.addEventListener("resize", fitScreenTitles);
@@ -7519,6 +7529,8 @@ updateGateLoadingState();
 // about to be load()'ed, without picking which one
 function dismissGate(){
   $("#gate").classList.add("hidden");
+  const gateCreatures = document.getElementById("gate-creatures");
+  if (gateCreatures) setTimeout(() => gateCreatures.pause(), 700); // once the gate has faded out, stop decoding it
   document.body.classList.remove("gate-active");
   // the (now hidden) password input may still hold keyboard focus, which
   // would swallow the arrow-key flight controls - release it
