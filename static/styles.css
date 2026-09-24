@@ -1122,6 +1122,31 @@ body.scene-hands #stage{background:linear-gradient(to top,
 .side-btns{display:flex;align-items:center;gap:10px;position:relative;top:-15px}
 .mobile-more-btn{display:none;flex:0 0 auto}
 
+/* wide layout (above the 650px stack): the controls row spans the full
+   width as four columns - [left gutter] [prev/play/next] [progress+volume]
+   [right gutter]. The shuffle button is centered inside the left gutter
+   (halfway between the screen's left edge and the prev/play/next
+   controls) and Lyrics/download/share are centered inside the right one
+   (halfway between the volume slider and the screen's right edge).
+   .transport becomes display:contents so shuffle and prev/play/next can be
+   placed in the grid individually. */
+@media (min-width:651px){
+  .controls-row{
+    display:grid;grid-template-columns:1fr auto minmax(0,min(40%,560px)) 1fr;
+    justify-content:normal;column-gap:0;
+    /* .player has 20px side padding - pull the row out to the true screen edges */
+    width:calc(100% + 40px);margin-left:-20px;margin-right:-20px;
+  }
+  .transport{display:contents}
+  #c-random{grid-column:1;justify-self:center;margin-right:0;position:relative;top:-15px}
+  .transport-center{grid-column:2;position:relative;top:-15px}
+  .bar-row{grid-column:3;margin-left:25px;max-width:none}
+  .side-btns{grid-column:4;justify-self:center}
+}
+/* Lyrics button: icon only (same square size as download/share) */
+#btn-fulllyrics{width:30.4px;padding:0}
+#btn-fulllyrics span{display:none}
+
 /* narrower still: not enough room for transport + duration/volume side by
    side, so the duration/volume block (with Lyrics/download/share riding
    along with it) drops to its own row, sitting between the transport
