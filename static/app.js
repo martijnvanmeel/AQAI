@@ -1641,10 +1641,11 @@ function fitScreenTitles(){
     const cs = getComputedStyle(h);
     _titleMeasureCtx.font = `${cs.fontWeight} 100px ${cs.fontFamily}`;
     const n = h.textContent.length;
-    const perPx = _titleMeasureCtx.measureText(h.textContent).width / 100; // glyph advance per 1px of font size
+    const perPx = _titleMeasureCtx.measureText(h.textContent.toUpperCase()).width / 100; // glyph advance per 1px of font size (titles are upper-case)
     if (perPx > 0) common = Math.min(common, (avail - (n - 1) * LS_PX) / perPx);
   });
   if (!isFinite(common)) return;
+  common = Math.min(common, 150); // never taller than 150px
   titles.forEach(h => {
     h.style.whiteSpace = "nowrap";
     h.style.letterSpacing = LS_PX + "px";
