@@ -710,7 +710,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
      the first once white-space allowed wrapping - 1.3em gives a wrapped row
      room to breathe while still reading tight on the common single-line case;
      5px shaved back off on top of that */
-  font-size:clamp(11.5px,calc(4.4vw - 5px),19.2px);line-height:calc(1.3em - 5px); /* 5px smaller than the original 24.2px */
+  font-size:clamp(10.5px,calc(4.4vw - 9px),15.2px);line-height:calc(1.3em - 5px); /* 9px smaller than the original 24.2px */
   padding:1px 0;
   color:#000000;
   transition:color .25s ease;

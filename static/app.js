@@ -800,7 +800,8 @@ function resizeLyricsFullCard(){
   const listPaddingX = 46; // #lf-list's own left+right padding (38 left + 8 right) - as tight as the 38px-left/close-button constraints allow
   const scrollbarW = 35.7; // custom scrollbar channel width (see #lf-list::-webkit-scrollbar)
   const viewportCap = window.innerWidth - 20; // 10px clear on each side, always
-  overlay.style.width = Math.min(maxWidth + listPaddingX + scrollbarW, viewportCap) + "px";
+  // the card always leaves 5% of the screen width clear on each side
+  overlay.style.width = (window.innerWidth * 0.9) + "px";
 }
 /* click-to-edit a sentence (local-only, see EDITABLE/#lf-list.editable):
    swaps the row's word spans for a plain input pre-filled with its text;
