@@ -1525,16 +1525,16 @@ fetch("playlists.json").then(r => r.ok ? r.json() : null).then(d => {
   MIXES = (d && d.playlists) || [];
   renderMixes();
 }).catch(() => {});
-// each mix is fronted by one of the artist animals (see CREATURE_SVG_CROP),
-// picked to match the mix's color/mood: violet Slow Burn = the night-blue
-// eel, orange Golden Hour = the phoenix, blue Open Road = the heron, pink
-// Bright Lights = the jellyfish, red Full Tilt = the fox
+// each mix is fronted by its own chibi creature (assets/mix/*.png, drawn in
+// the style of the artist animals): violet Slow Burn = a starry snail,
+// orange Golden Hour = a golden flamingo, blue Open Road = a horse, pink
+// Bright Lights = a glowing ant, red Full Tilt = a bear
 const MIX_ANIMALS = {
-  "slow-burn": "snake",
-  "golden-hour": "phoenix",
-  "open-road": "heron",
-  "bright-lights": "jellyfish",
-  "full-tilt": "fox",
+  "slow-burn": "snail",
+  "golden-hour": "flamingo",
+  "open-road": "horse",
+  "bright-lights": "ant",
+  "full-tilt": "bear",
 };
 function mixIndices(mix){
   if (mix._idxFor !== TRACKS.length){
@@ -1612,13 +1612,11 @@ function renderMixes(){
 // height, so the width is set from the measured height here
 function sizeMixIcons(){
   document.querySelectorAll(".mix-icon-box").forEach(b => {
-    const crop = CREATURE_SVG_CROP[b.dataset.creature];
     const H = b.offsetHeight;
-    if (!crop || !H) return;
-    const W = H * crop.w / crop.h; // the animal keeps its own proportions, full height
-    b.style.width = Math.max(W, H) + "px"; // every animal gets the same square slot, so all the titles start at the same x
-    b.style.backgroundImage = `url('assets/animals.svg#svgView(viewBox(${crop.x},${crop.y},${crop.w},${crop.h}))')`;
-    b.style.backgroundSize = `${W}px ${H}px`;
+    if (!b.dataset.creature || !H) return;
+    b.style.width = H + "px"; // one square slot per creature, so all the titles start at the same x
+    b.style.backgroundImage = `url('assets/mix/${b.dataset.creature}.png')`;
+    b.style.backgroundSize = "contain";
   });
 }
 window.addEventListener("resize", sizeMixIcons);
