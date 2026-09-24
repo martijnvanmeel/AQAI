@@ -1525,14 +1525,16 @@ fetch("playlists.json").then(r => r.ok ? r.json() : null).then(d => {
   MIXES = (d && d.playlists) || [];
   renderMixes();
 }).catch(() => {});
-// one small line icon per mix, drawn in the mix's own color (currentColor)
-const _mixSvg = p => `<svg class="mix-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
-const MIX_ICONS = {
-  "slow-burn":     _mixSvg('<path d="M12 2c1 4 5 6 5 11a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-6 1-10z"/>'),                       // flame
-  "golden-hour":   _mixSvg('<circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>'), // sun
-  "open-road":     _mixSvg('<path d="M9 3 4 21M15 3l5 18M12 6v2M12 12v2M12 18v2"/>'),                                                       // road
-  "bright-lights": _mixSvg('<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/>'),       // light bulb
-  "full-tilt":     _mixSvg('<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>'),                                                                        // lightning bolt
+// each mix is fronted by one of the artist animals (see CREATURE_SVG_CROP),
+// picked to match the mix's color/mood: violet Slow Burn = the night-blue
+// eel, orange Golden Hour = the phoenix, blue Open Road = the heron, pink
+// Bright Lights = the jellyfish, red Full Tilt = the fox
+const MIX_ANIMALS = {
+  "slow-burn": "snake",
+  "golden-hour": "phoenix",
+  "open-road": "heron",
+  "bright-lights": "jellyfish",
+  "full-tilt": "fox",
 };
 function mixIndices(mix){
   if (mix._idxFor !== TRACKS.length){
@@ -1566,7 +1568,7 @@ function renderMixes(){
     const head = document.createElement("div");
     head.className = "mix-head";
     head.innerHTML = `
-      <span class="mix-icon-box">${MIX_ICONS[mix.id] || ""}</span>
+      <span class="mix-icon-box" data-creature="${MIX_ANIMALS[mix.id] || ""}"></span>
       <div class="mix-head-text">
         <div class="mix-name"><span></span><span class="mix-chev">&#9656;</span><span class="mix-toggle-label"></span></div>
         <div class="mix-blurb"></div>
@@ -1605,11 +1607,19 @@ function renderMixes(){
   el.scrollTop = keepScroll;
   sizeMixIcons();
 }
-// each icon is as tall as the text block beside it (title down to the track
-// count) and square - flexbox can't derive a stretched item's width from its
-// stretched height, so the width is set from the measured height here
+// each animal is as tall as the text block beside it (title down to the track
+// count); flexbox can't derive a stretched item's width from its stretched
+// height, so the width is set from the measured height here
 function sizeMixIcons(){
-  document.querySelectorAll(".mix-icon-box").forEach(b => { b.style.width = b.offsetHeight + "px"; });
+  document.querySelectorAll(".mix-icon-box").forEach(b => {
+    const crop = CREATURE_SVG_CROP[b.dataset.creature];
+    const H = b.offsetHeight;
+    if (!crop || !H) return;
+    const W = H * crop.w / crop.h; // the animal keeps its own proportions, full height
+    b.style.width = Math.max(W, H) + "px"; // every animal gets the same square slot, so all the titles start at the same x
+    b.style.backgroundImage = `url('assets/animals.svg#svgView(viewBox(${crop.x},${crop.y},${crop.w},${crop.h}))')`;
+    b.style.backgroundSize = `${W}px ${H}px`;
+  });
 }
 window.addEventListener("resize", sizeMixIcons);
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(sizeMixIcons);
