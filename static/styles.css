@@ -1433,7 +1433,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
 
 /* ============================ LIST ============================ */
 #view-list,#view-mixes{padding:calc(env(safe-area-inset-top) + 18px) 0 0;overflow:hidden}
-.list-head{padding:0 22px 14px}
+.list-head{padding:0 22px 14px;position:relative;z-index:3}
 .list-head h2{font-family:var(--font-display);font-weight:900;font-size:14px;letter-spacing:-5px;text-transform:uppercase;
   /* Brice Black in dark grey, a touch lighter toward the top */
   color:#3a3a3a;
