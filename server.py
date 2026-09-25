@@ -1202,6 +1202,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not full_path.startswith(STATIC_DIR) or not os.path.isfile(full_path):
             self.send_error(404, "Not found")
             return
+        # video files go through the range-capable handler: iOS Safari flatly
+        # refuses to play a <video> whose server can't answer byte-range requests
+        if full_path.lower().endswith((".mov", ".webm", ".mp4", ".m4v")):
+            self._serve_audio(full_path)
+            return
         content_type = mimetypes.guess_type(full_path)[0] or "application/octet-stream"
         with open(full_path, "rb") as fh:
             body = fh.read()

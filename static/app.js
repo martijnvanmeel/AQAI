@@ -46,6 +46,21 @@ function themeIndexForTrack(track) {
   return hashString(track.id || track.title || "") % THEMES.length;
 }
 
+/* start-screen animals: a transparent-background video in whichever format the
+   browser can actually show transparency for - Apple's HEVC-with-alpha (.mov)
+   on iPhone/iPad/Safari (they can't do alpha in WebM and would show a black
+   box), VP9-with-alpha WebM everywhere else */
+(function(){
+  const v = document.getElementById("gate-creatures");
+  if (!v) return;
+  const ua = navigator.userAgent;
+  const apple = /iPad|iPhone|iPod/.test(ua)
+    || (navigator.vendor === "Apple Computer, Inc." && !/chrome|chromium|crios|fxios|edg/i.test(ua))
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  v.src = apple ? "assets/gate-creatures.mov" : "assets/gate-creatures.webm";
+  v.play().catch(() => {});
+})();
+
 /* ---- background panorama: one looping clip per track, mapped onto the
    inside of a sphere so the mouse can look around it (see panoVideoEl /
    panoSphere further down, near the 3D visualizer setup) ---- */

@@ -39,6 +39,8 @@
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overscroll-behavior:none}
+/* black behind everything: shows in the phone's safe areas / overscroll instead of the theme color */
+html{background:#000}
 /* owner-only editing controls (delete/edit/flag/video-export/creature-tune/
    color-picker/...) - hidden the instant CSS parses, before app.js even
    runs, let alone before its /api/tracks fetch resolves and confirms this
