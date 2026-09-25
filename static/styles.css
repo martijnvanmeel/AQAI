@@ -1519,6 +1519,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
 }
 .mix-play svg{width:16.9px;height:16.9px} /* the Player tab's icon, at the tab's icon-to-text proportion (23px : 20.41px) */
 .mix-play:hover{background:#fff}
+.mix-play-label{position:relative;top:3px;letter-spacing:-2px} /* 3px lower, tighter */
 .mix-card.active .mix-name::after{
   content:"";width:8px;height:8px;border-radius:50%;background:var(--mix-color, var(--artist-color, var(--active-green)));
   align-self:center;animation:pulse 2.4s ease-in-out infinite;
