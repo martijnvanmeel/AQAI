@@ -45,7 +45,7 @@ PLAYLIST_DEFS = [
 # one accent color per mix, same vibrancy as the artist palette's orange
 MIX_COLORS = {
     "Slow Burn": "#7FD672",     # green (the snail)
-    "Golden Hour": "#FF7F27",   # orange (the goldfish)
+    "Golden Hour": "#FFB02E",   # golden yellow-orange (the goldfish)
     "Open Road": "#C9A27A",     # brown (the horse)
     "Bright Lights": "#FF5A4E", # red (the ant)
     "Full Tilt": "#B85F30",     # warmer brown (the bear)
