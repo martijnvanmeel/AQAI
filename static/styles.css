@@ -92,6 +92,15 @@ html::before,html::after{
    at its very top and bottom edge, so a thin black band there keeps them black */
 html::before{top:0;height:max(env(safe-area-inset-top), 4px)}
 html::after{bottom:0;height:max(env(safe-area-inset-bottom), 4px)}
+/* phones/tablets only: the status bar (time, camera, battery) is tinted by the page
+   content underneath the whole bar, ~60px, not just its top edge - so the top is solid
+   black there, fading out into the app so nothing below it is cut off */
+@media (hover:none) and (pointer:coarse){
+  html::before{
+    height:calc(env(safe-area-inset-top) + 60px);
+    background:linear-gradient(to bottom, #000000 0, #000000 calc(env(safe-area-inset-top) + 24px), rgba(0,0,0,0) 100%);
+  }
+}
 button{font-family:inherit;color:inherit;background:none;border:0;cursor:pointer}
 button:focus-visible{outline:2px solid var(--fg);outline-offset:3px;border-radius:8px}
 /* belt-and-suspenders: every clickable/interactive control shows a hand
