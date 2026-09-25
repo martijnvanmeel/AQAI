@@ -140,6 +140,10 @@ body.gate-active::after{display:none}
   transform:translateX(-50%);
   pointer-events:none;
 }
+/* phones: 75% of the size it has above (570px wide minimum -> 427.5px) */
+@media (max-width:480px){
+  #gate-creatures{width:max(56.25%, 427.5px)}
+}
 /* logo/button/hint sit statically - only the logo itself tilts with the
    mouse (see #gate-logo-tilt below), not the button/hint text */
 /* only the logo is in normal flow, so #gate's flex-centering puts it dead
