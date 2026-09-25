@@ -2727,8 +2727,11 @@ function positionArtistPhoto(){
   const playBtn = document.querySelector("#c-play");
   const smallBreakpointGap = window.innerWidth <= 480 ? 15 : 40; // extra lift: 15px at the smallest breakpoint, 40px everywhere else
   const desiredBottom = playBtn ? playBtn.getBoundingClientRect().top - 50 - smallBreakpointGap : window.innerHeight * 0.75;
-  photo.style.top = (desiredBottom - photoRect.bottom) + "px";
+  photo.style.top = (desiredBottom - photoRect.bottom + mobileCreatureDrop()) + "px";
 }
+// mobile player screen: creature + circle sit 15px lower than the rest of
+// the group (visualiser, title pill), which keeps its old anchor
+const mobileCreatureDrop = () => window.innerWidth <= 480 ? 15 : 0;
 function positionWaveCanvas(){
   const lyrics = $("#lyrics");
   const canvas = $("#wave-canvas");
@@ -2748,7 +2751,7 @@ function positionWaveCanvas(){
   const heightMul = document.body.classList.contains("scene-sphere") ? 8 : 6;
   const height = baseHeight * heightMul;
   const photoRect = photo.getBoundingClientRect();
-  const centerY = photoRect.top + photoRect.height / 2;
+  const centerY = photoRect.top + photoRect.height / 2 - mobileCreatureDrop();
   const canvasCenterY = centerY + 40 - 15 + 5 + 10 - 22 + 20 - 20 + 10; // visualiser (only) moved 20px up, then 10px back down, from before
   const baselineY = (canvasCenterY - baseHeight / 2) + baseHeight * 0.65;
   const top = baselineY - height * 0.65;
