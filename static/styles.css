@@ -1512,12 +1512,12 @@ body.scene-hands #stage{background:linear-gradient(to top,
 .mix-blurb{font-family:var(--font-body);font-size:12px;color:rgba(255,255,255,.55)}
 .mix-meta{font-family:var(--font-body);font-size:11px;color:color-mix(in srgb, var(--mix-color, var(--artist-color, var(--active-green))) 60%, transparent)}
 .mix-play{
-  flex:0 0 auto;display:flex;align-items:center;gap:8.75px;
+  flex:0 0 auto;display:flex;align-items:center;gap:1px; /* same icon-to-label space as the Player tab */
   padding:11.25px 20px;border-radius:999px;border:none; /* 25% bigger */
   background:var(--mix-color, var(--artist-color, var(--active-green)));color:#000;
   font-family:var(--font-display);font-weight:600;font-size:15px;letter-spacing:.14em;text-transform:uppercase;
 }
-.mix-play svg{width:16.25px;height:16.25px}
+.mix-play svg{width:16.9px;height:16.9px} /* the Player tab's icon, at the tab's icon-to-text proportion (23px : 20.41px) */
 .mix-play:hover{background:#fff}
 .mix-card.active .mix-name::after{
   content:"";width:8px;height:8px;border-radius:50%;background:var(--mix-color, var(--artist-color, var(--active-green)));
