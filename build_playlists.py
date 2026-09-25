@@ -50,7 +50,7 @@ MIX_COLORS = {
     "Bright Lights": "#FF5A4E", # red (the ant)
     "Full Tilt": "#B85F30",     # warmer brown (the bear)
 }
-DISPLAY_ORDER = ["Slow Burn", "Golden Hour", "Open Road", "Bright Lights", "Full Tilt"]
+DISPLAY_ORDER = ["Slow Burn", "Golden Hour", "Bright Lights", "Full Tilt", "Open Road"]
 TEXTURES = {
     "piano": ["piano", "rhodes", "keys"],
     "guitar": ["guitar"],
