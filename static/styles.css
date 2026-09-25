@@ -75,7 +75,7 @@ body::before{
   background:#000000;
 }
 body::after{
-  content:"";position:fixed;left:0;right:0;bottom:env(safe-area-inset-bottom);z-index:60;
+  content:"";position:fixed;left:0;right:0;bottom:max(env(safe-area-inset-bottom), 4px);z-index:60;
   height:10px;background:var(--artist-color, var(--active-green));pointer-events:none;
 }
 /* the strips of screen OUTSIDE the app: under the phone's status bar / notch
@@ -85,10 +85,13 @@ body::after{
    green bars. env() is 0 wherever there is no such area, so this changes
    nothing on desktop. */
 html::before,html::after{
-  content:"";position:fixed;left:0;right:0;z-index:100;background:#000000;pointer-events:none;
+  content:"";position:fixed;left:0;right:0;z-index:1000;background:#000000;pointer-events:none;
 }
-html::before{top:0;height:env(safe-area-inset-top)}
-html::after{bottom:0;height:env(safe-area-inset-bottom)}
+/* at least 4px even where there is no safe area: Safari (iOS 26+ ignores
+   theme-color) tints its address bar / status bar from whatever the page draws
+   at its very top and bottom edge, so a thin black band there keeps them black */
+html::before{top:0;height:max(env(safe-area-inset-top), 4px)}
+html::after{bottom:0;height:max(env(safe-area-inset-bottom), 4px)}
 button{font-family:inherit;color:inherit;background:none;border:0;cursor:pointer}
 button:focus-visible{outline:2px solid var(--fg);outline-offset:3px;border-radius:8px}
 /* belt-and-suspenders: every clickable/interactive control shows a hand
