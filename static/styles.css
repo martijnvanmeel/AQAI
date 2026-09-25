@@ -92,6 +92,13 @@ html::before,html::after{
    at its very top and bottom edge, so a thin black band there keeps them black */
 html::before{top:0;height:max(env(safe-area-inset-top), 4px)}
 html::after{bottom:0;height:max(env(safe-area-inset-bottom), 4px)}
+/* everywhere except the start screen the bottom edge is the artist's color (this
+   band replaces the old 10px accent strip, so browsers tint their bottom bar with it) */
+html:has(body:not(.gate-active))::after{
+  background:var(--artist-color, var(--active-green));
+  height:max(env(safe-area-inset-bottom), 10px);
+}
+body:not(.gate-active)::after{display:none}
 /* phones/tablets only: the status bar (time, camera, battery) is tinted by the page
    content underneath the whole bar, ~60px, not just its top edge - so the top is solid
    black there, fading out into the app so nothing below it is cut off */
