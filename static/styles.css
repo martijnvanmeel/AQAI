@@ -1435,9 +1435,9 @@ body.scene-hands #stage{background:linear-gradient(to top,
 #view-list,#view-mixes{padding:calc(env(safe-area-inset-top) + 18px) 0 0;overflow:hidden}
 .list-head{padding:0 22px 14px;position:relative;z-index:3}
 .list-head h2{font-family:var(--font-display);font-weight:900;font-size:14px;letter-spacing:-5px;text-transform:uppercase;
-  /* Brice Black in dark grey, a touch lighter toward the top */
-  color:#3a3a3a;
-  background:linear-gradient(to top, #2f2f2f, #454545);
+  /* Brice Black in white */
+  color:#fff;
+  background:linear-gradient(to top, #fff, #fff);
   -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
   line-height:1; /* fitScreenTitles() sets the bottom margin so the line below sits 10px under the letters */
 }
