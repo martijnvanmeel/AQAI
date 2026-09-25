@@ -48,7 +48,7 @@ MIX_COLORS = {
     "Golden Hour": "#FF7F27",   # orange (the goldfish)
     "Open Road": "#C9A27A",     # brown (the horse)
     "Bright Lights": "#FF5A4E", # red (the ant)
-    "Full Tilt": "#B5713F",     # darker brown (the bear)
+    "Full Tilt": "#B85F30",     # warmer brown (the bear)
 }
 DISPLAY_ORDER = ["Slow Burn", "Golden Hour", "Open Road", "Bright Lights", "Full Tilt"]
 TEXTURES = {
