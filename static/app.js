@@ -1583,7 +1583,7 @@ function renderMixes(){
         <div class="mix-blurb"></div>
         <div class="mix-meta"></div>
       </div>
-      <button class="mix-play" aria-label="Play this mix"><svg viewBox="0 0 44.5 46.5" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M33.603,17.370 C36.980,19.286 36.980,24.152 33.603,26.068 L13.246,37.617 C9.913,39.508 5.779,37.100 5.779,33.268 L5.779,10.170 C5.779,6.338 9.913,3.930 13.246,5.821 L33.603,17.370 Z"/></svg><span class="mix-play-label">Play</span></button>`;
+      <button class="mix-play" aria-label="Play this mix"><svg viewBox="0 0 44.5 46.5" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M33.603,17.370 C36.980,19.286 36.980,24.152 33.603,26.068 L13.246,37.617 C9.913,39.508 5.779,37.100 5.779,33.268 L5.779,10.170 C5.779,6.338 9.913,3.930 13.246,5.821 L33.603,17.370 Z"/></svg>Play</button>`;
     head.querySelector(".mix-name span").textContent = mix.name;
     head.querySelector(".mix-toggle-label").textContent = mix.id === openMixId ? "hide songs" : "all songs";
     head.querySelector(".mix-blurb").textContent = mix.blurb;
