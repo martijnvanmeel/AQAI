@@ -237,9 +237,10 @@ body.gate-active::after{display:none}
   100%{-webkit-text-stroke:2px rgba(255,255,255,0)}
 }
 .gate-hint{
-  position:absolute;left:50%;bottom:10px;transform:translateX(-50%);z-index:2; /* at the bottom of the screen, 10px up from the edge */
+  /* 15px below the bottom of the button, at 75% of its old 11px size */
+  position:absolute;top:calc(100% + 15px);left:50%;transform:translateX(-50%);
   white-space:nowrap;
-  font-size:11px;color:var(--fg-soft);letter-spacing:.16em;text-transform:uppercase;
+  font-size:8.25px;color:var(--fg-soft);letter-spacing:.16em;text-transform:uppercase;
 }
 /* same white->yellow->green->blue->green->yellow->white->pause cycle as
    the button, just on text color, slower, and staggered per letter (see
