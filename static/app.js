@@ -1622,7 +1622,10 @@ function renderMixes(){
 function sizeMixIcons(){
   document.querySelectorAll(".mix-icon-box").forEach(b => {
     const crop = MIX_CREATURE_CROP[b.dataset.creature];
-    const H = b.offsetHeight;
+    // as tall as the text beside it, but never bigger than the 56px it has on
+    // a desktop screen, and shrinking in step with the screen below 700px wide
+    // (where the text wraps onto more lines and would otherwise blow it up)
+    const H = Math.min(b.offsetHeight, Math.max(24, 56 * Math.min(1, window.innerWidth / 700)));
     if (!crop || !H) return;
     b.style.width = H + "px"; // one square slot per creature, so all the titles start at the same x
     const s = H / Math.max(crop.w, crop.h); // fit the whole creature inside the slot, keeping its proportions
