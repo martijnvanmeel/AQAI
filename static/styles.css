@@ -101,9 +101,13 @@ html:has(body:not(.gate-active))::after{
 body:not(.gate-active)::after{display:none}
 /* phones/tablets only: the status bar (time, camera, battery) is tinted by the page
    content underneath the whole bar, ~60px, not just its top edge - so the top is solid
-   black there, fading out into the app so nothing below it is cut off */
+   black there, fading out into the app. It lives INSIDE #app (see #top-fade in
+   index.html), below the AQAI logo, so the logo sits in front of the fade instead of
+   being dimmed by it. */
+#top-fade{display:none}
 @media (hover:none) and (pointer:coarse){
-  html::before{
+  #top-fade{
+    display:block;position:fixed;top:0;left:0;right:0;z-index:2;pointer-events:none;
     height:calc(env(safe-area-inset-top) + 60px);
     background:linear-gradient(to bottom, #000000 0, #000000 calc(env(safe-area-inset-top) + 24px), rgba(0,0,0,0) 100%);
   }
