@@ -1685,7 +1685,7 @@ function updateUI(){
 let _titleMeasureCtx = null;
 function fitScreenTitles(){
   const LS_PX = -5; // fixed letter-spacing of these titles
-  const titles = [...document.querySelectorAll("#view-list h2, #view-mixes h2")];
+  const titles = [...document.querySelectorAll("#view-list h2, #view-mixes h2, #view-info .list-head h2")];
   if (!titles.length) return;
   if (!_titleMeasureCtx) _titleMeasureCtx = document.createElement("canvas").getContext("2d");
   // measured off-DOM (canvas), so it works while a screen is hidden and both
@@ -1695,7 +1695,7 @@ function fitScreenTitles(){
   const navRect = document.querySelector("nav").getBoundingClientRect();
   // ...and, on narrow screens, keep the same 22px of space on the right as on the left
   const SIDE = 22 - window.innerWidth * 0.01; // 22px of side space, less 1% of the screen width
-  const avail = Math.min(navRect.width, window.innerWidth - 2 * SIDE);
+  const avail = Math.min(navRect.width, window.innerWidth - 2 * SIDE) - 4; // small safety so the last glyph's overhang isn't clipped
   let common = Infinity;
   titles.forEach(h => {
     const cs = getComputedStyle(h);

@@ -1435,9 +1435,9 @@ body.scene-hands #stage{background:linear-gradient(to top,
 #view-list,#view-mixes{padding:calc(env(safe-area-inset-top) + 18px) 0 0;overflow:hidden}
 .list-head{padding:0 22px 14px;position:relative;z-index:3}
 .list-head h2{font-family:var(--font-display);font-weight:900;font-size:14px;letter-spacing:-5px;text-transform:uppercase;
-  /* Brice Black in white */
-  color:#fff;
-  background:linear-gradient(to top, #fff, #fff);
+  /* Brice Black in the artist color, ~30% lighter toward the top */
+  color:var(--artist-color,var(--active-green));
+  background:linear-gradient(to top, var(--artist-color,var(--active-green)), color-mix(in srgb, var(--artist-color,var(--active-green)) 70%, #fff));
   -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
   line-height:1; /* fitScreenTitles() sets the bottom margin so the line below sits 10px under the letters */
 }
@@ -1580,6 +1580,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
 .mix-card .track{--row-color:var(--mix-color, var(--artist-color, var(--active-green)))}
 /* ============================ INFO ============================ */
 #view-info{padding:calc(env(safe-area-inset-top) + 18px) 22px 0;overflow-y:auto}
+#view-info .list-head{padding-left:0;padding-right:0}
 #view-info .logo{width:min(200px,56vw);height:auto;margin:26px auto 26px}
 .info-block{max-width:560px;margin:0 auto 22px}
 .info-block h3{font-family:var(--font-display);font-weight:600;font-size:11px;letter-spacing:.26em;text-transform:uppercase;margin-bottom:8px;
