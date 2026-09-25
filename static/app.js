@@ -7443,7 +7443,7 @@ if (logo3dEl){
       const isEndCap = i === 0 || i === LOGO3D_DEPTH;
       const layer = document.createElement("div");
       layer.className = "logo3d-layer" + (i === 0 ? " logo3d-front" : "") + (i === LOGO3D_DEPTH ? " logo3d-back" : "");
-      layer.style.transform = `translateZ(${-i}px)`;
+      layer.style.transform = `translateZ(${-i * 0.7}px)`; // extrusion depth scaled with the 30% smaller logo
       const img = document.createElement("img");
       img.src = isEndCap ? blackSrc : sideSrc;
       img.alt = "";

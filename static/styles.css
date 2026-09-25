@@ -75,9 +75,20 @@ body::before{
   background:#000000;
 }
 body::after{
-  content:"";position:fixed;left:0;right:0;bottom:0;z-index:60;
+  content:"";position:fixed;left:0;right:0;bottom:env(safe-area-inset-bottom);z-index:60;
   height:10px;background:var(--artist-color, var(--active-green));pointer-events:none;
 }
+/* the strips of screen OUTSIDE the app: under the phone's status bar / notch
+   (top) and home-indicator / browser toolbar (bottom). viewport-fit=cover lets
+   the page draw there, and newer iPhones show whatever is under those bars, so
+   without these the artist-colored wash and accent strip bled through as
+   green bars. env() is 0 wherever there is no such area, so this changes
+   nothing on desktop. */
+html::before,html::after{
+  content:"";position:fixed;left:0;right:0;z-index:100;background:#000000;pointer-events:none;
+}
+html::before{top:0;height:env(safe-area-inset-top)}
+html::after{bottom:0;height:env(safe-area-inset-bottom)}
 button{font-family:inherit;color:inherit;background:none;border:0;cursor:pointer}
 button:focus-visible{outline:2px solid var(--fg);outline-offset:3px;border-radius:8px}
 /* belt-and-suspenders: every clickable/interactive control shows a hand
@@ -147,7 +158,7 @@ body.gate-active::after{display:none}
 /* tilts in 3D with the mouse, same mechanism as the lyrics carousel */
 #gate-logo-tilt{
   /* 15px above the button; centered with margins because app.js owns this element's transform (mouse tilt) */
-  position:absolute;bottom:calc(100% + 15px);left:50%;width:487.5px;margin-left:-243.75px;
+  position:absolute;bottom:calc(100% + 15px);left:50%;width:341.25px;margin-left:-170.625px; /* 30% smaller than the original 487.5px */
   perspective:800px;transform-style:preserve-3d;
   /* fully opaque, no blend - the logo is solid black and the screen-blended
      reflection layer turns its front face into a full mirror of the sphere */
@@ -165,11 +176,11 @@ body.gate-active::after{display:none}
      relative; pinned to the values they already capped out at on desktop
      (375px / 108px) so the logo now renders the same physical size on
      every screen instead of scaling down on mobile */
-  width:487.5px;aspect-ratio:8/3;
+  width:341.25px;aspect-ratio:8/3; /* 30% smaller (was 487.5px) */
   position:relative;transform-style:preserve-3d;
   animation:logo3dSpin 10.8s linear infinite; /* 20% heavier/slower spin */
   font-family:var(--font-display);font-weight:900;letter-spacing:-.02em;
-  font-size:140.4px;line-height:1;white-space:nowrap;
+  font-size:98.28px;line-height:1;white-space:nowrap;
 }
 @keyframes logo3dSpin{ to { transform:rotateY(360deg); } }
 /* every face (front/back end caps + side walls) is a canvas-rendered
