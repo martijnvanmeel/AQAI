@@ -1505,7 +1505,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   display:flex;align-items:baseline;gap:10px;
 }
 /* the icon is as tall as the whole text block: from the top of the title down to the bottom of the track count line */
-.mix-icon-box{align-self:stretch;flex:0 0 auto;background-repeat:no-repeat;background-position:center;pointer-events:none} /* an artist animal, as tall as the text next to it - sized in sizeMixIcons() */
+.mix-icon-box{align-self:stretch;flex:0 0 auto;background-repeat:no-repeat;background-position:center top;pointer-events:none} /* animal aligned to the top of the text block (level with the title) */ /* an artist animal, as tall as the text next to it - sized in sizeMixIcons() */
 .mix-name .mix-chev{font-size:18.2px;letter-spacing:0;opacity:.6;transition:transform .2s ease} /* 30% bigger than the original 14px */
 .mix-name .mix-toggle-label{font-family:var(--font-body);font-weight:400;font-size:11px;letter-spacing:0;text-transform:none;opacity:.7;align-self:center}
 .mix-card.open .mix-chev{transform:rotate(90deg)}
