@@ -908,6 +908,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   background:linear-gradient(to bottom,
     color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 20%, #000000) 50%, transparent) 0%,
     #000000 100%);
+  opacity:.8; /* 20% more transparent */
   transform:translateY(calc(-50% - 11.3636px)) scale(1.1859375); /* .825 x 1.25 x 1.15; 15px higher on screen (11.36px x the block's 1.32 scale) */
 }
 /* the real photo underneath is fully replaced by the solid colour fill

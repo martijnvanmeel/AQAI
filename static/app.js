@@ -6338,6 +6338,27 @@ function updateScanLine(){
     logo.style.setProperty("--glow-x", ((logoScreenX - r.left) / scale).toFixed(1) + "px");
   }
 }
+/* music player only: the audio visualiser line is not shown inside the circle behind the 3D animal - the canvas gets a
+   circular hole (a radial mask) exactly where that circle is, recomputed every frame from the circle's on-screen box so it
+   follows wherever the layout puts it. (The 9:16 export page has its own layout, so it is left alone there.) */
+function maskWaveAroundCircle(){
+  if (document.body.classList.contains("export-mode")) return;
+  const canvas = document.querySelector("#wave-canvas");
+  const circle = document.querySelector(".artist-photo-fill");
+  if (!canvas || !circle) return;
+  const cr = circle.getBoundingClientRect(), wr = canvas.getBoundingClientRect();
+  if (!cr.width || !wr.width) return;
+  const k = canvas.offsetWidth ? wr.width / canvas.offsetWidth : 1;      // screen px per local px (the canvas is a plain box here, so ~1)
+  const cx = ((cr.left + cr.width / 2) - wr.left) / k;
+  const cy = ((cr.top + cr.height / 2) - wr.top) / k;
+  const R = (cr.width / 2) / k;
+  const m = `radial-gradient(circle ${(R + 1).toFixed(1)}px at ${cx.toFixed(1)}px ${cy.toFixed(1)}px, transparent ${(R - 0.5).toFixed(1)}px, #000 ${(R + 0.5).toFixed(1)}px)`;
+  if (canvas._circleMask !== m){
+    canvas._circleMask = m;
+    canvas.style.webkitMaskImage = m;
+    canvas.style.maskImage = m;
+  }
+}
 let panoPingPong = false;
 // ping-pong clips are [forward][reverse] back to back (baked into the file by
 // the server) and simply play at a constant speed - no easing at the turnarounds
@@ -7337,6 +7358,7 @@ function animate(t){
 
   updatePanoPingPongSpeed();
   updateScanLine();
+  maskWaveAroundCircle();
   if (TRACKS.length) updateUI();
   renderer.render(scene, camera);
 
