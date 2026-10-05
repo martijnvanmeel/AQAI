@@ -1094,7 +1094,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
 .meta > *{vertical-align:middle;position:relative;top:3px}
 .meta .title{
   position:relative;z-index:0;
-  font-family:var(--font-title);font-weight:700;font-size:clamp(19.928847px,6.227765vw,34.875484px);
+  font-family:var(--font-title);font-weight:700;font-size:clamp(22.918174px,7.161930vw,40.106807px); /* 115% of the earlier clamp(19.93px, 6.23vw, 34.88px) */
   word-spacing:.15em;min-width:0;text-transform:uppercase;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   color:#ffffff;
