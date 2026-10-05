@@ -584,10 +584,11 @@ if (ASPECT === "vertical"){
   })();
 }
 
-/* 9:16 only: a subtle call-to-action at the bottom of the frame, over the shade - a small, faint "More songs at" line and,
-   a little bigger and in the artist's color (70%), the address. Sizes are fractions of the frame height so it looks the same at every export size.
-   It sits ~7% up from the bottom edge so phone UI (captions, buttons) that covers the very bottom doesn't hide it. */
-const EXPORT_CTA_SMALL = "More songs at";
+/* 9:16 only: a subtle call-to-action at the bottom of the frame, over the shade - ONE sentence on one line, "More songs at
+   aqaimusic.com", in capitals, condensed Brice, widely letter-spaced; the address in the artist's color. Its size is a
+   fraction of the frame height so it looks the same at every export size. It sits ~7% up from the bottom edge so phone UI
+   (captions, buttons) that covers the very bottom doesn't hide it. */
+const EXPORT_CTA_TEXT = "More songs at ";
 const EXPORT_CTA_URL = "aqaimusic.com";
 if (ASPECT === "vertical"){
   (function bottomCta(){
@@ -597,25 +598,22 @@ if (ASPECT === "vertical"){
     if (!box){
       box = document.createElement("div");
       box.id = "export-cta";
-      box.style.cssText = "position:absolute;left:0;right:0;bottom:7%;z-index:6;pointer-events:none;text-align:center;"
-        + "font-family:'Brice Condensed','Brice',sans-serif;text-transform:uppercase;line-height:1.15;"
-        + "text-shadow:0 1px 6px rgba(0,0,0,.3);";
-      const small = document.createElement("div");
-      small.id = "export-cta-small";
-      small.textContent = EXPORT_CTA_SMALL;
-      small.style.cssText = "font-weight:600;letter-spacing:.32em;color:#fff;opacity:.5;";
-      const url = document.createElement("div");
+      box.style.cssText = "position:absolute;left:0;right:0;bottom:7%;z-index:6;pointer-events:none;text-align:center;white-space:nowrap;"
+        + "font-family:'Brice Condensed','Brice',sans-serif;font-weight:700;text-transform:uppercase;line-height:1.15;"
+        + "letter-spacing:.26em;text-shadow:0 1px 6px rgba(0,0,0,.3);";
+      const lead = document.createElement("span");
+      lead.id = "export-cta-lead";
+      lead.textContent = EXPORT_CTA_TEXT;
+      lead.style.cssText = "color:#fff;opacity:.55;";
+      const url = document.createElement("span");
       url.id = "export-cta-url";
       url.textContent = EXPORT_CTA_URL;
-      url.style.cssText = "font-weight:700;letter-spacing:.1em;color:var(--artist-color, #fff);opacity:.7;text-transform:uppercase;";
-      box.appendChild(small); box.appendChild(url);
+      url.style.cssText = "color:var(--artist-color, #fff);opacity:.75;";
+      box.appendChild(lead); box.appendChild(url);
       app.appendChild(box);
     }
     const h = app.getBoundingClientRect().height;
-    if (h){
-      box.firstChild.style.fontSize = (h * 0.0105).toFixed(2) + "px";
-      box.lastChild.style.fontSize = (h * 0.022).toFixed(2) + "px";
-    }
+    if (h) box.style.fontSize = (h * 0.0253).toFixed(2) + "px";   // 15% bigger than the earlier .022
     requestAnimationFrame(bottomCta);
   })();
 }
