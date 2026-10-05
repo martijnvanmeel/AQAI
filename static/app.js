@@ -690,12 +690,27 @@ function renderLyricRows(li, dl){
       row.className = "lyric-row";
       row.innerHTML = dl[idx].words.map(w => `<span class="w">${w.w}</span>`).join("");
       wrap.appendChild(row);
-      // fit against the ACTIVE size (its biggest use, x1.3), not the
-      // natural size - otherwise a row that just barely fit unscaled
-      // would still overflow the screen once promoted to active
-      const avail = wrap.parentElement.clientWidth - 44;
+      // the row's size is fitted in two steps:
+      // 1) the long-standing fit against #lyrics' own box (kept as it was, so normal sentences look exactly as before), and
+      // 2) a screen check on the sentence's REAL text width: at its biggest (natural width x the active scale 1.3 x the
+      //    130% entrance overshoot x the 10%-smaller phone factor x the 1.5 that #lyrics itself is scaled up by in
+      //    styles.css) it must stay within 92% of the frame's width, so a sentence is always shown fully with room left and
+      //    right. (The old fit measured scrollWidth, which is never less than the box width, and #lyrics really renders
+      //    120% of the screen wide - so long sentences ran off both edges, most at the entrance.)
+      const lyr = wrap.parentElement;
+      const avail = lyr.clientWidth - 44;
       const maxNaturalWidth = avail / ACTIVE_LINE_SCALE;
-      row._fitScale = row.scrollWidth > maxNaturalWidth ? maxNaturalWidth / row.scrollWidth : 1;
+      let fit = row.scrollWidth > maxNaturalWidth ? maxNaturalWidth / row.scrollWidth : 1;
+      const kids = row.children;
+      if (kids.length){
+        const textW = kids[kids.length - 1].offsetLeft + kids[kids.length - 1].offsetWidth - kids[0].offsetLeft;
+        const renderScale = lyr.clientWidth ? lyr.getBoundingClientRect().width / lyr.clientWidth : 1;
+        const frameW = (document.querySelector("#app") || document.documentElement).getBoundingClientRect().width || window.innerWidth;
+        const smallScale = window.innerWidth <= 480 ? 0.9 : 1;
+        const screenMax = (frameW * 0.92) / (renderScale * ACTIVE_LINE_SCALE * 1.3 * smallScale);
+        if (textW > 0 && textW * fit > screenMax) fit = screenMax / textW;
+      }
+      row._fitScale = fit;
       lyricRowEls[idx] = row;
       row.style.transition = "none";
       row.style.translate = "-50% -50%";

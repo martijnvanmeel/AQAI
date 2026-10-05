@@ -640,7 +640,9 @@ body.scene-hands #stage{background:linear-gradient(to top,
 }
 #lyric-rows{position:relative;width:100%;height:100%}
 .lyric-row{
-  position:absolute;left:50%;top:50%;width:100%;max-width:100%;
+  /* as wide as its own text (at least the box): text wider than the box used to overflow to the RIGHT only, so a long
+     sentence sat off-centre and its last letters ran off the edge - now the row grows and stays centred */
+  position:absolute;left:50%;top:50%;width:max-content;min-width:100%;max-width:none;
   white-space:nowrap;
   font-family:var(--font-title);font-weight:700;text-transform:uppercase;
   font-size:clamp(18px,calc(14vw - 10px),70px);line-height:calc(1.4em - 20px);
