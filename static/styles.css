@@ -278,8 +278,10 @@ body.gate-active::after{display:none}
    startActiveLineFade() in app.js), but with its own fixed 0.5s duration
    instead of running for the word's whole active span */
 @keyframes wordActiveStroke{
-  0%{-webkit-text-stroke:2px rgba(255,255,255,1)}
-  100%{-webkit-text-stroke:2px rgba(255,255,255,0)}
+  /* only the stroke COLOR is animated (the 2px width is static on .lyric-row .w): Safari/iOS doesn't
+     reliably animate the combined -webkit-text-stroke shorthand, so the effect was missing there */
+  0%{-webkit-text-stroke-color:rgba(255,255,255,1)}
+  100%{-webkit-text-stroke-color:rgba(255,255,255,0)}
 }
 .gate-hint{
   /* 15px below the bottom of the button, at 75% of its old 11px size */
@@ -625,6 +627,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
      "before" rows, since upcoming lines are never shown): artist color
      40% darker, solid (not transparent) */
   color:color-mix(in srgb, var(--artist-color, var(--active-green)) 60%, black);opacity:1;
+  -webkit-text-stroke-width:2px;-webkit-text-stroke-color:transparent; /* invisible until wordActiveStroke lights it */
   transition:transform .3s ease;
 }
 /* second sentence back (the most recent previous sentence): artist color
