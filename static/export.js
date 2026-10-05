@@ -584,6 +584,42 @@ if (ASPECT === "vertical"){
   })();
 }
 
+/* 9:16 only: a call-to-action at the bottom of the frame, over the shade - a small "More songs at" line and, bigger and in
+   the artist's color, the address. Sizes are fractions of the frame height so it looks the same at every export size.
+   It sits ~7% up from the bottom edge so phone UI (captions, buttons) that covers the very bottom doesn't hide it. */
+const EXPORT_CTA_SMALL = "More songs at";
+const EXPORT_CTA_URL = "aqaimusic.com";
+if (ASPECT === "vertical"){
+  (function bottomCta(){
+    const app = document.querySelector("#app");
+    if (!app){ requestAnimationFrame(bottomCta); return; }
+    let box = document.getElementById("export-cta");
+    if (!box){
+      box = document.createElement("div");
+      box.id = "export-cta";
+      box.style.cssText = "position:absolute;left:0;right:0;bottom:7%;z-index:6;pointer-events:none;text-align:center;"
+        + "font-family:'Brice',sans-serif;text-transform:uppercase;line-height:1.15;"
+        + "text-shadow:0 2px 10px rgba(0,0,0,.45);";
+      const small = document.createElement("div");
+      small.id = "export-cta-small";
+      small.textContent = EXPORT_CTA_SMALL;
+      small.style.cssText = "font-weight:600;letter-spacing:.32em;color:#fff;opacity:.85;";
+      const url = document.createElement("div");
+      url.id = "export-cta-url";
+      url.textContent = EXPORT_CTA_URL;
+      url.style.cssText = "font-weight:900;letter-spacing:.06em;color:var(--artist-color, #fff);text-transform:none;";
+      box.appendChild(small); box.appendChild(url);
+      app.appendChild(box);
+    }
+    const h = app.getBoundingClientRect().height;
+    if (h){
+      box.firstChild.style.fontSize = (h * 0.0125).toFixed(2) + "px";
+      box.lastChild.style.fontSize = (h * 0.034).toFixed(2) + "px";
+    }
+    requestAnimationFrame(bottomCta);
+  })();
+}
+
 /* 9:16 only: the circle behind the animal and the 3D animal itself are cut off below the audio visualiser's resting line
    (65% down its own canvas - see drawWaveCanvas() in app.js), wherever the sliders have put things. Each element is
    clipped with an inset() clip-path in its OWN box: its slider transform is just a scale + translate, so the cut line's
