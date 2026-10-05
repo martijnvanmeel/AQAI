@@ -563,8 +563,8 @@ body.scene-hands #stage{background:linear-gradient(to top,
      paints inside the element's box) room over the caps' overshoot */
   line-height:.75;
   padding:.3em .1em 0; /* .1em of room left and right: the first/last letters stick out past the text box (negative letter spacing), and the fill/outline only paint inside it, so they were clipped */
-  /* fill inside the letters: the artist's color at 50% at the top, already 0% at halfway down (plus the outline layer, ::before) */
-  background:linear-gradient(to bottom, color-mix(in srgb, var(--artist-color, var(--active-green)) 50%, transparent) 0%, transparent 50%);
+  /* fill inside the letters: black, 50% at the bottom, already 0% at halfway up (plus the outline layer, ::before) */
+  background:linear-gradient(to top, rgba(0,0,0,.5) 0%, rgba(0,0,0,0) 50%);
   -webkit-background-clip:text;background-clip:text;
   /* (the outline is its own layer, ::before below, so it can fade independently of this fill) */
   /* 2750% of the normal song-title size (see .meta .title's own clamp()) - 125% of the earlier 2200%; the baseline stays
