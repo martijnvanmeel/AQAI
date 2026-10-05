@@ -1010,7 +1010,8 @@ function updateLyrics(t){
   // home carousel tracks the re-flowed <=33-char display lines (each
   // sentence's window is contiguous with the next, incl. blank ones)
   const dl = computeDisplayLines(tr, LYRIC_LINE_MAX_CHARS);
-  const dli = dl.findIndex(L => tt >= L.t0 - .3 && tt < L.t1);
+  // a sentence only appears once its first word is sung (tt already carries the small LYRIC_LEAD)
+  const dli = dl.findIndex(L => tt >= L.t0 && tt < L.t1);
   if (dli === -1) return; // before the first sentence or after the last
   if (dli !== dlLineIdx){
     dlLineIdx = dli;
