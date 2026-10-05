@@ -176,7 +176,7 @@ body.gate-active::after{display:none}
 #gate-content{
   position:relative;z-index:2;
   display:flex;flex-direction:column;align-items:center;
-  transform:translateY(-25vh); /* logo + button + hint live in the top half of the screen */
+  transform:translateY(-14vh); /* logo + button + hint live in the top half of the screen */
 }
 .gate-actions{
   position:relative;
@@ -186,7 +186,7 @@ body.gate-active::after{display:none}
 /* tilts in 3D with the mouse, same mechanism as the lyrics carousel */
 #gate-logo-tilt{
   /* 15px above the button; centered with margins because app.js owns this element's transform (mouse tilt) */
-  position:absolute;bottom:calc(100% + 15px);left:50%;width:341.25px;margin-left:-170.625px; /* 30% smaller than the original 487.5px */
+  position:absolute;bottom:calc(100% - 20px);left:50%;width:511.875px;margin-left:-255.9375px; /* 150% of the earlier 341.25px (30% smaller than the original 487.5px), 25px lower */
   perspective:800px;transform-style:preserve-3d;
   /* fully opaque, no blend - the logo is solid black and the screen-blended
      reflection layer turns its front face into a full mirror of the sphere */
@@ -204,13 +204,19 @@ body.gate-active::after{display:none}
      relative; pinned to the values they already capped out at on desktop
      (375px / 108px) so the logo now renders the same physical size on
      every screen instead of scaling down on mobile */
-  width:341.25px;aspect-ratio:8/3; /* 30% smaller (was 487.5px) */
+  width:511.875px;aspect-ratio:8/3; /* 150% of 341.25px */
   position:relative;transform-style:preserve-3d;
   animation:logo3dSpin 10.8s linear infinite; /* 20% heavier/slower spin */
   font-family:var(--font-display);font-weight:900;letter-spacing:-.02em;
-  font-size:98.28px;line-height:1;white-space:nowrap;
+  font-size:147.42px;line-height:1;white-space:nowrap;
 }
 @keyframes logo3dSpin{ to { transform:rotateY(360deg); } }
+/* phones: 150% (512px) is wider than the screen and the letters would be cropped
+   mid-spin, so it scales with the screen instead - the largest size that still fits */
+@media (max-width:480px){
+  #gate-logo-tilt{width:118vw;margin-left:-59vw}
+  .logo3d{width:118vw;font-size:calc(118vw * .288)}
+}
 /* every face (front/back end caps + side walls) is a canvas-rendered
    bitmap <img> - gradient + specular sheen (+ bevel on the end caps)
    baked in, see renderLogoFace() in app.js - rather than a live CSS/SVG
