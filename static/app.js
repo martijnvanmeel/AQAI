@@ -6300,16 +6300,25 @@ function isGifFile(file){ return /\.gif$/i.test(file); }
 const SCAN_PERIOD_MS = 12000;
 const SCAN_OVERSHOOT_PX = 400;
 function updateScanLine(){
-  const wm = document.querySelector("#bg-title-watermark");
-  if (!wm) return;
   const app = document.querySelector("#app");
   const ar = app ? app.getBoundingClientRect() : { left: 0, width: window.innerWidth };
   const frac = (performance.now() % SCAN_PERIOD_MS) / SCAN_PERIOD_MS;
   const screenX = ar.left - SCAN_OVERSHOOT_PX + frac * (ar.width + 2 * SCAN_OVERSHOOT_PX);
-  if (wm.dataset.text !== wm.textContent) wm.dataset.text = wm.textContent;
-  const r = wm.getBoundingClientRect();
-  const scale = (wm.offsetWidth ? r.width / wm.offsetWidth : 1) || 1;
-  wm.style.setProperty("--glow-x", ((screenX - r.left) / scale).toFixed(1) + "px");
+  const wm = document.querySelector("#bg-title-watermark");
+  if (wm){
+    if (wm.dataset.text !== wm.textContent) wm.dataset.text = wm.textContent;
+    const r = wm.getBoundingClientRect();
+    const scale = (wm.offsetWidth ? r.width / wm.offsetWidth : 1) || 1;
+    wm.style.setProperty("--glow-x", ((screenX - r.left) / scale).toFixed(1) + "px");
+  }
+  // the AQAI logo at the top of the player gets the same white light, from the same clock - so the light crosses the
+  // logo at the very moment it crosses that part of the screen on the big title
+  const logo = document.querySelector(".home-top .logo-text");
+  if (logo){
+    const r = logo.getBoundingClientRect();
+    const scale = (logo.offsetWidth ? r.width / logo.offsetWidth : 1) || 1;
+    logo.style.setProperty("--glow-x", ((screenX - r.left) / scale).toFixed(1) + "px");
+  }
 }
 let panoPingPong = false;
 // ping-pong clips are [forward][reverse] back to back (baked into the file by
