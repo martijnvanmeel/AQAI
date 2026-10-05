@@ -565,9 +565,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   /* black fill inside the letters: 25% at the top fading down to 0% at the bottom (plus the outline below) */
   background:linear-gradient(to bottom, rgba(0,0,0,.25) 0%, rgba(0,0,0,0) 100%);
   -webkit-background-clip:text;background-clip:text;
-  -webkit-text-stroke:1px color-mix(in srgb, var(--artist-color, var(--active-green)) 50%, transparent);
-  -webkit-mask-image:linear-gradient(to top, transparent .125em, #000 .825em);
-  mask-image:linear-gradient(to top, transparent .125em, #000 .825em);
+  /* (the outline is its own layer, ::before below, so it can fade independently of this fill) */
   /* 2200% of the normal song-title size (see .meta .title's own clamp()) */
   font-size:calc(22 * clamp(19.928847px, 6.227765vw, 34.875484px));
   letter-spacing:-.05em; /* -5% of the (huge) font-size */
@@ -575,6 +573,17 @@ body.scene-hands #stage{background:linear-gradient(to top,
   transition:transform 160s ease-out;
 }
 
+/* the outline: 1px in the artist color (50%). Fades in from nothing at the baseline up to full at the middle of the
+   letters, then back out to 0% at the top (the mask box is the element's own: .125em = baseline, .475em = middle of the
+   caps, .825em = cap height) */
+#bg-title-watermark::before{
+  content:attr(data-text);
+  position:absolute;inset:0;padding-top:.3em;
+  color:transparent;background:none;
+  -webkit-text-stroke:1px color-mix(in srgb, var(--artist-color, var(--active-green)) 50%, transparent);
+  -webkit-mask-image:linear-gradient(to top, transparent .125em, #000 .475em, transparent .825em);
+  mask-image:linear-gradient(to top, transparent .125em, #000 .475em, transparent .825em);
+}
 /* the lit-up outline on the big title (see updateScanLine() in app.js): a
    stroke-only copy of the text, revealed only inside a diagonal band
    (--glow-x, set every frame) that sweeps across. The mask box is 700px
@@ -585,12 +594,14 @@ body.scene-hands #stage{background:linear-gradient(to top,
   color:transparent;background:none;
   /* the artist color rotated +90deg in hue */
   -webkit-text-stroke:1px hsl(from var(--artist-color, var(--active-green)) calc(h + 90) s l);
-  -webkit-mask-image:linear-gradient(110deg, transparent 34%, #000 50%, transparent 66%);
-  mask-image:linear-gradient(110deg, transparent 34%, #000 50%, transparent 66%);
-  -webkit-mask-size:700px 100%;mask-size:700px 100%;
-  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
-  -webkit-mask-position:calc(var(--glow-x, -9999px) - 350px) 0;
-  mask-position:calc(var(--glow-x, -9999px) - 350px) 0;
+  /* two masks intersected: the diagonal band that sweeps across, and the same vertical profile as the outline above */
+  -webkit-mask-image:linear-gradient(110deg, transparent 34%, #000 50%, transparent 66%), linear-gradient(to top, transparent .125em, #000 .475em, transparent .825em);
+  mask-image:linear-gradient(110deg, transparent 34%, #000 50%, transparent 66%), linear-gradient(to top, transparent .125em, #000 .475em, transparent .825em);
+  -webkit-mask-size:700px 100%, 100% 100%;mask-size:700px 100%, 100% 100%;
+  -webkit-mask-repeat:no-repeat, no-repeat;mask-repeat:no-repeat, no-repeat;
+  -webkit-mask-position:calc(var(--glow-x, -9999px) - 350px) 0, 0 0;
+  mask-position:calc(var(--glow-x, -9999px) - 350px) 0, 0 0;
+  -webkit-mask-composite:source-in;mask-composite:intersect;
 }
 /* lyrics — 3-row carousel: the real previous/next lines sit 4px above and
    below the active line, all at the same size; only color/opacity marks
