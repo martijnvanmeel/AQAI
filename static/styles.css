@@ -176,7 +176,9 @@ body.gate-active::after{display:none}
 #gate-content{
   position:relative;z-index:2;
   display:flex;flex-direction:column;align-items:center;
-  transform:translateY(-14vh); /* logo + button + hint live in the top half of the screen */
+  /* the button + the sound text under it are centered vertically in the screen (the text adds ~30px below the
+     button, so the pair shifts up half of that); the logo hangs above the button */
+  transform:translateY(-15px);
 }
 .gate-actions{
   position:relative;
@@ -214,8 +216,8 @@ body.gate-active::after{display:none}
 /* phones: 150% (512px) is wider than the screen and the letters would be cropped
    mid-spin, so it scales with the screen instead - the largest size that still fits */
 @media (max-width:480px){
-  #gate-logo-tilt{width:118vw;margin-left:-59vw}
-  .logo3d{width:118vw;font-size:calc(118vw * .288)}
+  #gate-logo-tilt{width:105vw;margin-left:-52.5vw}
+  .logo3d{width:105vw;font-size:calc(105vw * .288)}
 }
 /* every face (front/back end caps + side walls) is a canvas-rendered
    bitmap <img> - gradient + specular sheen (+ bevel on the end caps)
