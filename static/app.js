@@ -283,6 +283,18 @@ function watermarkBaselineY(){
   const r = c.getBoundingClientRect();
   return r.top + r.height * 0.65 + watermarkBaselineGap();
 }
+// the player's huge title sits in the MIDDLE of the screen: the vertical middle of its capital letters on the middle of
+// the viewport (the box bottom is placed accordingly; see watermarkBaselineGap()). The export pages keep using
+// watermarkBaselineY() plus their own slider offsets (export.js), so they are unaffected.
+function watermarkCenteredY(){
+  const el = document.querySelector("#bg-title-watermark");
+  if (!el) return window.innerHeight / 2;
+  const cs = getComputedStyle(el);
+  if (!_wmMeasureCtx) _wmMeasureCtx = document.createElement("canvas").getContext("2d");
+  _wmMeasureCtx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  const cap = _wmMeasureCtx.measureText("H").actualBoundingBoxAscent;
+  return window.innerHeight / 2 + (isFinite(cap) ? cap / 2 : 0) + watermarkBaselineGap();
+}
 // distance from the bottom of the watermark's line box down to its actual
 // glyph baseline (line-height is tightened below the font's natural
 // ascent+descent, so the letters don't sit flush with the box bottom) -
@@ -309,7 +321,7 @@ function resetBgTitleWatermark(){
   const lyricsEl = $("#lyrics");
   if (!el || !lyricsEl) return;
   el.textContent = "";
-  const targetY = watermarkBaselineY();
+  const targetY = watermarkCenteredY();
   const elWidth = el.getBoundingClientRect().width;
   const startX = window.innerWidth + elWidth;
   el.style.transition = "none";
@@ -332,7 +344,7 @@ function animateBgTitleWatermark(){
   // vertical anchor stays tied to the lyrics carousel's own live position;
   // horizontal now sweeps the full width, edge to edge, rather than
   // stopping there
-  const targetY = watermarkBaselineY();
+  const targetY = watermarkCenteredY();
   const elWidth = el.getBoundingClientRect().width;
   // the first sweep of a track starts already on screen (left edge of the
   // text 5% in), so the title is visible from second 0 instead of taking
