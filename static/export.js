@@ -577,8 +577,31 @@ if (ASPECT === "vertical"){
       const top = Math.max(0, t.top - a.top - 10);
       shade.style.top = top + "px";
     }
+    cutBelowVisualiser();
     requestAnimationFrame(bottomShade);
   })();
+}
+
+/* 9:16 only: the circle behind the animal and the 3D animal itself are cut off below the audio visualiser's resting line
+   (65% down its own canvas - see drawWaveCanvas() in app.js), wherever the sliders have put things. Each element is
+   clipped with an inset() clip-path in its OWN box: its slider transform is just a scale + translate, so the cut line's
+   screen y maps linearly onto a fraction of the element's height, whatever the transform is. */
+function cutBelowVisualiser(){
+  const wave = document.querySelector("#wave-canvas");
+  if (!wave) return;
+  const w = wave.getBoundingClientRect();
+  if (!w.height) return;
+  const cutY = w.top + w.height * 0.65;
+  const clipBottom = (el, pad) => {
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (!r.height) return;
+    const f = Math.min(1, Math.max(0, (cutY - r.top) / r.height));      // fraction of the element above the cut
+    const p = (pad || 0) + "%";
+    el.style.clipPath = `inset(-${p} -${p} ${((1 - f) * 100).toFixed(3)}% -${p})`;
+  };
+  clipBottom(document.querySelector("#fox-3d-canvas"), 0);
+  clipBottom(document.querySelector(".artist-photo-wrap"), 400);       // its soft glow reaches well past its own box
 }
 
 (function waitForTracks(){

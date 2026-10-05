@@ -4,12 +4,12 @@
 window.EXPORT_DEFAULTS = {
   vertical: {
     targets: {
-      "Circle/creature": { x: 0, y: 448, scale: 1.41 },
+      "Circle/creature": { x: 0, y: 497, scale: 2.26 },
       "Visualiser": { x: 0, y: 454, scale: 1 },
-      "Song title": { x: 0, y: 376, scale: 1 },
-      "By/artist": { x: 0, y: 245, scale: 1.13 },
+      "Song title": { x: 0, y: 334, scale: 1 },
+      "By/artist": { x: 0, y: 245, scale: 0.94 },
       "AQAI logo": { x: 0, y: -35, scale: 1.51 },
-      "3D object": { x: 0, y: -58, scale: 1.4 },
+      "3D object": { x: 0, y: -211, scale: 1.63 },
       "Karaoke text": { x: 0, y: -54, scale: 0.82 }
     },
     watermark: { y: 900, scale: 1.14 }
