@@ -5579,6 +5579,8 @@ const dominoMirrorAltMats = [0, 1, 2, 3].map(() => new THREE.MeshBasicMaterial({
 // you fly "through" the tunnel instead of just along it: upright for most of each DOMINO_SPIN_PERIOD, then one smooth
 // ease-in/ease-out turn lasting DOMINO_SPIN_DURATION seconds at the end of the period. Continuous across periods
 // (each finished turn is exactly 2*PI, i.e. upright again).
+// the ceiling's height (was 15, then 11; now 25% lower than that); animate() keeps the camera just below it
+const DOMINO_CEILING_Y = 8.25;
 const DOMINO_SPIN_PERIOD = 40, DOMINO_SPIN_DURATION = 12;
 function dominoSpinRoll(sec){
   const n = Math.floor(sec / DOMINO_SPIN_PERIOD);
@@ -5682,7 +5684,6 @@ function dominoPathX(z){
   // a ceiling: the very same floor (same material + op-art overlay), mirrored to the top, well above the
   // camera's highest point (y~8.5) - so there is a ground AND a ceiling. Same materials as the floor, so the
   // mirror group below hides it automatically (it only reflects the stones)
-  const DOMINO_CEILING_Y = 11; // lower than before (was 15); the camera tops out around y=8.5
   // its underside gets no direct light (the light shines down on the floor), so a clone of the floor material with a
   // little glow of its own keeps it reading like the floor instead of going dark
   dominoCeilingMat = dominoFloorMat.clone();
@@ -7120,7 +7121,7 @@ function animate(t){
     dominoDirLight.target.position.set(hereX, 0, 8 - 30);
     const dive = Math.pow((Math.sin(swayT * 0.028) + 1) / 2, 2);
     camera.position.x = hereX + Math.sin(swayT * 0.018) * (4 - dive * 2.5);
-    camera.position.y = 7 - dive * 4.6 + Math.sin(swayT * 0.014 + 1) * 1.5 * (1 - dive * 0.6);
+    camera.position.y = Math.min(DOMINO_CEILING_Y - 1, 7 - dive * 4.6 + Math.sin(swayT * 0.014 + 1) * 1.5 * (1 - dive * 0.6)); // never above the ceiling
     camera.rotation.x = -0.18 + dive * 0.12 + Math.sin(swayT * 0.011) * 0.04;
     camera.rotation.y = -Math.atan2(aheadX - hereX, 32) * 0.5 + Math.sin(swayT * 0.013) * 0.04;
     camera.rotation.z = Math.sin(swayT * 0.01 + 2) * 0.05 + cameraRollOffset + dominoSpinRoll(animSec);
