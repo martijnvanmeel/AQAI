@@ -186,7 +186,7 @@ body.gate-active::after{display:none}
 /* tilts in 3D with the mouse, same mechanism as the lyrics carousel */
 #gate-logo-tilt{
   /* 15px above the button; centered with margins because app.js owns this element's transform (mouse tilt) */
-  position:absolute;bottom:calc(100% - 20px + 10vh);left:50%;width:639.84px;margin-left:-319.92px; /* 125% of the earlier 511.875px, and 10% of the screen height higher */
+  position:absolute;bottom:calc(100% - 20px);left:50%;width:639.84px;margin-left:-319.92px; /* 125% of the earlier 511.875px (and 10% of the screen height lower than a moment ago) */
   perspective:800px;transform-style:preserve-3d;
   /* fully opaque, no blend - the logo is solid black and the screen-blended
      reflection layer turns its front face into a full mirror of the sphere */
