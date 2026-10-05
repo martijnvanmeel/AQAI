@@ -80,8 +80,7 @@ fetch("/api/panoramas2").then(r => r.json()).then(data => {
 // every 5th background pick swaps the video-panorama sphere for a random
 // fully-3D environment instead (see sceneChoice / updateArtistBackground
 // further down) - the other 4 out of 5 keep picking a random panorama clip
-// (the DOMINO scene is out of the rotation; its code below stays dormant, like EYES/HANDS)
-const ENVIRONMENT_SCENES = ["road", "mist", "maze", "tiles", "beams", "prism", "rings", "check", "cube", "portal"];
+const ENVIRONMENT_SCENES = ["road", "mist", "maze", "tiles", "beams", "prism", "rings", "check", "cube", "portal", "domino"];
 let bgPickCount = 0;
 let sceneChoice = "sphere";
 
