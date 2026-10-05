@@ -904,10 +904,10 @@ body.scene-hands #stage{background:linear-gradient(to top,
      old oval, centered on the same spot, so it grows upward/downward
      instead of moving - black, tinted 20% toward the artist's color */
   border-radius:50%;
-  /* top: the artist's color at 50%, fading down to black at 50% at the bottom */
+  /* top: 50% of the artist-tinted black, fading down to solid 100% black at the bottom */
   background:linear-gradient(to bottom,
-    color-mix(in srgb, var(--artist-color, var(--active-green)) 50%, transparent) 0%,
-    rgba(0,0,0,.5) 100%);
+    color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 20%, #000000) 50%, transparent) 0%,
+    #000000 100%);
   transform:translateY(-50%) scale(.825);
 }
 /* the real photo underneath is fully replaced by the solid colour fill
