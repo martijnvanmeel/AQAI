@@ -592,8 +592,8 @@ body.scene-hands #stage{background:linear-gradient(to top,
   content:attr(data-text);
   position:absolute;inset:0;padding-top:.3em;
   color:transparent;background:none;
-  /* the artist color rotated +90deg in hue */
-  -webkit-text-stroke:1px hsl(from var(--artist-color, var(--active-green)) calc(h + 90) s l);
+  /* white */
+  -webkit-text-stroke:1px #ffffff;
   /* two masks intersected: the diagonal band that sweeps across, and the same vertical profile as the outline above */
   -webkit-mask-image:linear-gradient(110deg, transparent 34%, #000 50%, transparent 66%), linear-gradient(to top, transparent .125em, #000 .475em, transparent .825em);
   mask-image:linear-gradient(110deg, transparent 34%, #000 50%, transparent 66%), linear-gradient(to top, transparent .125em, #000 .475em, transparent .825em);
