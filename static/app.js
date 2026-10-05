@@ -584,6 +584,8 @@ function realNeighbors(dl, li, reach){
   }
   return { before, after };
 }
+const LYRIC_EASE_SECONDS = 9.3;                    // the active line's slow scale/translate ease (see .lyric-row in styles.css)
+const LYRIC_DEPTH_SLOWDOWN = [1.12, 1.26, 1.42];   // previous sentences 1, 2, 3 back: each a little slower than the one before (perspective)
 const ACTIVE_LINE_LIFT = 5; // px the active sentence moves up while it scales in
 function layoutLyricRows(li, before, after){
   const activeRow = lyricRowEls[li];
@@ -608,6 +610,7 @@ function layoutLyricRows(li, before, after){
   // as it eases down to its final size, also ends 5px higher (translate
   // shares the same slow transition as scale). Neighbouring rows stay put.
   activeRow.style.translate = `-50% calc(-50% - ${ACTIVE_LINE_LIFT}px)`;
+  activeRow._fresh = false; // from now on it eases (as the previous sentence it will ease out, not snap)
   activeRow.classList.add("active-row");
   activeRow.classList.remove("near");
   [[1, after], [-1, before]].forEach(([dir, list]) => {
@@ -639,15 +642,26 @@ function layoutLyricRows(li, before, after){
       // smaller spot and size immediately - no transition at all - only
       // the newly-active line and the upcoming ("after") rows get the
       // slow eased motion
-      if (dir === -1){
+      if (dir === -1 && row._fresh){
+        // a row that was only just created (first draw, or after a seek) is placed instantly
         row.style.transition = "none";
         row.style.translate = targetTranslate;
         row.style.scale = String(scale);
         row.getBoundingClientRect();
         row.style.transition = "";
-      } else {
+        row._fresh = false;
+      } else if (dir === -1){
+        // the previous sentences now scale/move out on the same slow ease as the active line did (LYRIC_EASE_SECONDS,
+        // matching .lyric-row in styles.css) - with perspective: the further back a sentence is, the slower it goes
+        const secs = (LYRIC_EASE_SECONDS * (LYRIC_DEPTH_SLOWDOWN[depth - 1] || LYRIC_DEPTH_SLOWDOWN[LYRIC_DEPTH_SLOWDOWN.length - 1])).toFixed(2);
+        row.style.transition = `translate ${secs}s ease-in-out, scale ${secs}s ease-in-out`;
         row.style.translate = targetTranslate;
         row.style.scale = String(scale);
+      } else {
+        row.style.transition = "";
+        row.style.translate = targetTranslate;
+        row.style.scale = String(scale);
+        row._fresh = false;
       }
       row.classList.remove("active-row");
       row.classList.toggle("near", depth === 1);
@@ -711,6 +725,7 @@ function renderLyricRows(li, dl){
         if (textW > 0 && textW * fit > screenMax) fit = screenMax / textW;
       }
       row._fitScale = fit;
+      row._fresh = true; // just created: its first placement is instant (no slow ease from scale 0)
       lyricRowEls[idx] = row;
       row.style.transition = "none";
       row.style.translate = "-50% -50%";
