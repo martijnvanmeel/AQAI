@@ -612,7 +612,7 @@ if (ASPECT === "vertical"){
         + "letter-spacing:.26em;";
       const pill = document.createElement("div");
       pill.id = "export-cta-pill";
-      pill.style.cssText = "position:relative;display:inline-block;background:color-mix(in srgb, var(--artist-color, #fff) 20%, transparent);border-radius:.75em;padding:.841em 1.25em .559em 1.5em;"
+      pill.style.cssText = "position:relative;display:inline-block;background:color-mix(in srgb, var(--artist-color, #fff) 80%, transparent);border-radius:.75em;padding:.841em 1.25em .559em 1.5em;"
         + "animation:exportCtaPill 3.2s ease-in-out infinite;";
       const lead = document.createElement("span");
       lead.id = "export-cta-lead";
