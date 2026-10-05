@@ -599,7 +599,7 @@ if (ASPECT === "vertical"){
       box = document.createElement("div");
       box.id = "export-cta";
       box.style.cssText = "position:absolute;left:0;right:0;bottom:7%;z-index:6;pointer-events:none;text-align:center;white-space:nowrap;"
-        + "font-family:'Brice Condensed','Brice',sans-serif;font-weight:700;text-transform:uppercase;line-height:1.15;"
+        + "font-family:'Brice Condensed','Brice',sans-serif;font-weight:600;text-transform:uppercase;line-height:1.15;"
         + "letter-spacing:.26em;text-shadow:0 1px 6px rgba(0,0,0,.3);";
       const lead = document.createElement("span");
       lead.id = "export-cta-lead";
@@ -613,7 +613,7 @@ if (ASPECT === "vertical"){
       app.appendChild(box);
     }
     const h = app.getBoundingClientRect().height;
-    if (h) box.style.fontSize = (h * 0.0253).toFixed(2) + "px";   // 15% bigger than the earlier .022
+    if (h) box.style.fontSize = (h * 0.019).toFixed(2) + "px";   // 25% smaller than the earlier .0253
     requestAnimationFrame(bottomCta);
   })();
 }
