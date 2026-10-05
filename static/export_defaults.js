@@ -22,12 +22,12 @@ window.EXPORT_DEFAULTS = {
       },
       "By/artist": {
         "x": 0.0,
-        "y": 245.0,
-        "scale": 0.94
+        "y": 246.0,
+        "scale": 1.04
       },
       "AQAI logo": {
         "x": 0.0,
-        "y": -35.0,
+        "y": -22.0,
         "scale": 1.51
       },
       "3D object": {
