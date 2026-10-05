@@ -584,9 +584,7 @@ function realNeighbors(dl, li, reach){
   }
   return { before, after };
 }
-const LYRIC_EASE_SECONDS = 9.3;                    // the active line's slow scale/translate ease (see .lyric-row in styles.css)
-const LYRIC_BACK_EASE = "cubic-bezier(.02,.95,.2,1)";   // the previous sentences' curve: fast start, long soft tail
-const LYRIC_DEPTH_SLOWDOWN = [1.12, 1.26, 1.42];   // previous sentences 1, 2, 3 back: each a little slower than the one before (perspective)
+const LYRIC_DEPTH_SECONDS = [3.2, 3.6, 4.0];       // previous sentences 1, 2, 3 back: how long each takes to shrink to its new size - the further back, the longer (slower)
 const ACTIVE_LINE_LIFT = 5; // px the active sentence moves up while it scales in
 function layoutLyricRows(li, before, after){
   const activeRow = lyricRowEls[li];
@@ -629,7 +627,7 @@ function layoutLyricRows(li, before, after){
       // symmetrically so the previous sentences get the same spacing as
       // the upcoming ones (upcoming sit below → pulled up; previous sit
       // above → pulled down).
-      const shift = -dir * (depth === 3 ? 25 : depth === 2 ? 20 : 15);
+      const shift = -dir * (depth === 3 ? 32.2 : depth === 2 ? 26.1 : 19.3); // was 25/20/15: each previous sentence now sits only ~4px above the one below it (the gaps were 10.4/6.7/5.7px)
       // per-depth vertical nudges, "before" rows only: second sentence
       // (depth 1) 2px up; third sentence (depth 2) net +1px lower (+3px,
       // then -2px). At the smallest breakpoint, the second/third/fourth
@@ -652,12 +650,19 @@ function layoutLyricRows(li, before, after){
         row.style.transition = "";
         row._fresh = false;
       } else if (dir === -1){
-        // the previous sentences now scale/move out on the same slow ease as the active line did (LYRIC_EASE_SECONDS,
-        // matching .lyric-row in styles.css) - with perspective: the further back a sentence is, the slower it goes
-        const secs = (LYRIC_EASE_SECONDS * (LYRIC_DEPTH_SLOWDOWN[depth - 1] || LYRIC_DEPTH_SLOWDOWN[LYRIC_DEPTH_SLOWDOWN.length - 1])).toFixed(2);
-        // ease-OUT (most of the distance early, a slow drift at the end): new sentences arrive every few seconds, so with the
-        // active line's ease-in-out these rows would hardly ever get near their own (smaller) size and would look too big
-        row.style.transition = `translate ${secs}s ${LYRIC_BACK_EASE}, scale ${secs}s ${LYRIC_BACK_EASE}`;
+        // the previous sentences scale/move out at a CONSTANT speed (linear - no ease in or out). Each starts from the
+        // SMALLER of the size it has right now and the resting size of the slot it just left (so a row that is still
+        // mid-way never starts bigger than that slot's size), then shrinks steadily to its new, smaller size. For
+        // perspective each sentence further back takes a bit longer (LYRIC_DEPTH_SECONDS), i.e. moves slower.
+        const prevSlot = depth === 1 ? (row._fitScale || 1) * ACTIVE_LINE_SCALE * smallBreakpointScale
+                                     : (row._fitScale || 1) * inactiveScaleForDepth(depth - 1);
+        const curScale = parseFloat(getComputedStyle(row).scale) || prevSlot;
+        const startScale = Math.min(curScale, prevSlot);
+        row.style.transition = "none";
+        row.style.scale = String(startScale);
+        row.getBoundingClientRect();
+        const secs = (LYRIC_DEPTH_SECONDS[depth - 1] || LYRIC_DEPTH_SECONDS[LYRIC_DEPTH_SECONDS.length - 1]).toFixed(2);
+        row.style.transition = `translate ${secs}s linear, scale ${secs}s linear`;
         row.style.translate = targetTranslate;
         row.style.scale = String(scale);
       } else {
