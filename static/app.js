@@ -2478,7 +2478,7 @@ if (foxCanvasEl){
 // tuned/default t.scale) - 0.75 = 75% of what it used to render at,
 // applied here so it affects live playback and the tuner's own drag-to-
 // resize alike, without touching any of the saved per-creature values
-const CREATURE_GLOBAL_SCALE = 0.75;
+const CREATURE_GLOBAL_SCALE = 0.75 * 1.15; // was 0.75; +15%. The model is centred on its own bounding box, so it grows around its middle and stays on the same y-position
 function applyCreatureTransform(t){
   if (!currentInnerGroup || !currentRawSize || !t) return;
   const scale = (t.scale * CREATURE_GLOBAL_SCALE) / Math.max(currentRawSize.x, currentRawSize.y, currentRawSize.z, 0.0001);
