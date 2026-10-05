@@ -585,6 +585,7 @@ function realNeighbors(dl, li, reach){
   return { before, after };
 }
 const LYRIC_EASE_SECONDS = 9.3;                    // the active line's slow scale/translate ease (see .lyric-row in styles.css)
+const LYRIC_BACK_EASE = "cubic-bezier(.02,.95,.2,1)";   // the previous sentences' curve: fast start, long soft tail
 const LYRIC_DEPTH_SLOWDOWN = [1.12, 1.26, 1.42];   // previous sentences 1, 2, 3 back: each a little slower than the one before (perspective)
 const ACTIVE_LINE_LIFT = 5; // px the active sentence moves up while it scales in
 function layoutLyricRows(li, before, after){
@@ -654,7 +655,9 @@ function layoutLyricRows(li, before, after){
         // the previous sentences now scale/move out on the same slow ease as the active line did (LYRIC_EASE_SECONDS,
         // matching .lyric-row in styles.css) - with perspective: the further back a sentence is, the slower it goes
         const secs = (LYRIC_EASE_SECONDS * (LYRIC_DEPTH_SLOWDOWN[depth - 1] || LYRIC_DEPTH_SLOWDOWN[LYRIC_DEPTH_SLOWDOWN.length - 1])).toFixed(2);
-        row.style.transition = `translate ${secs}s ease-in-out, scale ${secs}s ease-in-out`;
+        // ease-OUT (most of the distance early, a slow drift at the end): new sentences arrive every few seconds, so with the
+        // active line's ease-in-out these rows would hardly ever get near their own (smaller) size and would look too big
+        row.style.transition = `translate ${secs}s ${LYRIC_BACK_EASE}, scale ${secs}s ${LYRIC_BACK_EASE}`;
         row.style.translate = targetTranslate;
         row.style.scale = String(scale);
       } else {
