@@ -5544,6 +5544,7 @@ const dominoGroup = new THREE.Group();
 const dominoPivots = [];
 const dominoDarkMat = new THREE.MeshPhongMaterial({ color: 0x101010, specular: 0xcccccc, shininess: 80 });
 const dominoAltMats = [0, 1, 2, 3].map(() => new THREE.MeshPhongMaterial({ color: 0x101010, specular: 0xcccccc, shininess: 80 }));
+let dominoCeilingMat = null; // set where the ceiling is built (a clone of the floor material with a glow)
 const dominoFloorMat = new THREE.MeshPhongMaterial({ color: 0x992222, specular: 0xffffff, shininess: 110,
   transparent: true, opacity: 0.72, side: THREE.DoubleSide });
 // normal blending (was multiply) so fog actually fades this layer out with
@@ -5593,6 +5594,7 @@ function dominoPathX(z){
     mesh.position.y = 2.7 * sizeScale;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
+    mesh.visible = false; // the dominoes (stones) themselves are removed - floor, lights and the camera's run along the bends stay as they were
     tip.add(mesh);
     pv.add(tip);
     pv.userData.stagger = stagger;
@@ -5652,6 +5654,22 @@ function dominoPathX(z){
   floorOverlay.rotation.x = -Math.PI / 2;
   floorOverlay.position.set(0, 0.03, -200); // a hair above the real floor - no z-fighting
   dominoGroup.add(floorOverlay);
+  // a ceiling: the very same floor (same material + op-art overlay), mirrored to the top, well above the
+  // camera's highest point (y~8.5) - so there is a ground AND a ceiling. Same materials as the floor, so the
+  // mirror group below hides it automatically (it only reflects the stones)
+  const DOMINO_CEILING_Y = 15;
+  // its underside gets no direct light (the light shines down on the floor), so a clone of the floor material with a
+  // little glow of its own keeps it reading like the floor instead of going dark
+  dominoCeilingMat = dominoFloorMat.clone();
+  dominoCeilingMat.emissive = new THREE.Color(0x3a1010);
+  const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(400, 700), dominoCeilingMat);
+  ceiling.rotation.x = Math.PI / 2;
+  ceiling.position.set(0, DOMINO_CEILING_Y, -200);
+  dominoGroup.add(ceiling);
+  const ceilingOverlay = new THREE.Mesh(new THREE.PlaneGeometry(400, 700), dominoFloorOverlayMat);
+  ceilingOverlay.rotation.x = Math.PI / 2; // faces down, into the room
+  ceilingOverlay.position.set(0, DOMINO_CEILING_Y - 0.03, -200);
+  dominoGroup.add(ceilingOverlay);
 }
 dominoGroup.visible = false;
 scene.add(dominoGroup);
@@ -5662,7 +5680,7 @@ const dominoMirrorGroup = dominoGroup.clone(true);
 dominoMirrorGroup.scale.y = -1;
 dominoMirrorGroup.traverse(obj => {
   if (!obj.isMesh) return;
-  if (obj.material === dominoFloorMat || obj.material === dominoFloorOverlayMat){ obj.visible = false; return; }
+  if (obj.material === dominoFloorMat || obj.material === dominoCeilingMat || obj.material === dominoFloorOverlayMat){ obj.visible = false; return; }
   const altIdx = dominoAltMats.indexOf(obj.material);
   obj.material = altIdx >= 0 ? dominoMirrorAltMats[altIdx] : dominoMirrorDarkMat;
   obj.castShadow = false;
