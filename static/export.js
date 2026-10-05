@@ -584,10 +584,12 @@ if (ASPECT === "vertical"){
   })();
 }
 
-/* 9:16 only: a subtle call-to-action at the bottom of the frame, over the shade - ONE sentence on one line, "More songs at
-   aqaimusic.com", in capitals, condensed Brice, widely letter-spaced; the address in the artist's color. Its size is a
-   fraction of the frame height so it looks the same at every export size. It sits ~7% up from the bottom edge so phone UI
-   (captions, buttons) that covers the very bottom doesn't hide it. */
+/* 9:16 only: a subtle call-to-action at the bottom of the frame, over the shade: ONE sentence on one line, "More songs at
+   aqaimusic.com", in capitals, condensed Brice, widely letter-spaced, the address in the artist's color - sitting on a
+   black rounded rectangle (like a button), with a little pointing hand beside it that taps and lights up (a soft pulsing
+   glow and an expanding ring at the fingertip). Sizes are in em of one font size that is a fraction of the frame height,
+   so it looks the same at every export size. It sits ~7% up from the bottom edge so phone UI (captions, buttons) that
+   covers the very bottom doesn't hide it. */
 const EXPORT_CTA_TEXT = "More songs at ";
 const EXPORT_CTA_URL = "aqaimusic.com";
 if (ASPECT === "vertical"){
@@ -596,24 +598,48 @@ if (ASPECT === "vertical"){
     if (!app){ requestAnimationFrame(bottomCta); return; }
     let box = document.getElementById("export-cta");
     if (!box){
+      const st = document.createElement("style");
+      st.textContent = `
+        @keyframes exportCtaTap{0%,55%,100%{transform:translate(0,0) scale(1)}25%{transform:translate(-.12em,-.22em) scale(1.04)}38%{transform:translate(.02em,.06em) scale(.97)}}
+        @keyframes exportCtaGlow{0%,55%,100%{filter:drop-shadow(0 0 .1em rgba(255,255,255,.15))}30%{filter:drop-shadow(0 0 .55em rgba(255,255,255,.95))}}
+        @keyframes exportCtaRing{0%,28%{transform:translate(-50%,-50%) scale(.2);opacity:0}34%{opacity:.85}100%{transform:translate(-50%,-50%) scale(2.6);opacity:0}}
+        @keyframes exportCtaPill{0%,55%,100%{box-shadow:0 0 0 rgba(255,255,255,0)}32%{box-shadow:0 0 1.1em rgba(255,255,255,.22)}}`;
+      document.head.appendChild(st);
       box = document.createElement("div");
       box.id = "export-cta";
       box.style.cssText = "position:absolute;left:0;right:0;bottom:7%;z-index:6;pointer-events:none;text-align:center;white-space:nowrap;"
         + "font-family:'Brice Condensed','Brice',sans-serif;font-weight:600;text-transform:uppercase;line-height:1.15;"
-        + "letter-spacing:.26em;text-shadow:0 1px 6px rgba(0,0,0,.3);";
+        + "letter-spacing:.26em;";
+      const pill = document.createElement("div");
+      pill.id = "export-cta-pill";
+      pill.style.cssText = "position:relative;display:inline-block;background:#000;border-radius:.75em;padding:.7em 1.25em .7em 1.5em;"
+        + "animation:exportCtaPill 3.2s ease-in-out infinite;";
       const lead = document.createElement("span");
       lead.id = "export-cta-lead";
       lead.textContent = EXPORT_CTA_TEXT;
-      lead.style.cssText = "color:#fff;opacity:.55;";
+      lead.style.cssText = "color:#fff;opacity:.6;";
       const url = document.createElement("span");
       url.id = "export-cta-url";
       url.textContent = EXPORT_CTA_URL;
-      url.style.cssText = "color:var(--artist-color, #fff);opacity:.75;";
-      box.appendChild(lead); box.appendChild(url);
+      url.style.cssText = "color:var(--artist-color, #fff);opacity:.9;";
+      // the pointing hand: sits on the bottom-right corner of the button; the ring is centred on its fingertip
+      const hand = document.createElement("span");
+      hand.id = "export-cta-hand";
+      hand.style.cssText = "position:absolute;right:-.9em;bottom:-1.05em;width:2.1em;height:2.1em;display:block;"
+        + "animation:exportCtaTap 3.2s ease-in-out infinite;";
+      hand.innerHTML = `<svg viewBox="0 0 24 24" width="100%" height="100%" style="display:block;overflow:visible;animation:exportCtaGlow 3.2s ease-in-out infinite">`
+        + `<path d="M9 3.6a1.55 1.55 0 0 1 3.1 0v6.6l1.1-.35a1.5 1.5 0 0 1 1.9.95l.15.45 1-.3a1.5 1.5 0 0 1 1.8 1.05l.1.4.85-.2a1.5 1.5 0 0 1 1.7 1.3l.2 3.3c.1 2.8-1.7 5.2-4.4 5.9h-3.3c-1.7 0-3.2-.85-4.1-2.2l-3.1-4.6a1.5 1.5 0 0 1 2.4-1.8L9 15.3z" fill="#fff" stroke="#000" stroke-width=".7" stroke-linejoin="round"/></svg>`;
+      const ring = document.createElement("span");
+      ring.style.cssText = "position:absolute;left:44%;top:16%;width:1.4em;height:1.4em;border-radius:50%;"
+        + "border:.12em solid rgba(255,255,255,.9);box-sizing:border-box;transform:translate(-50%,-50%) scale(.2);opacity:0;"
+        + "animation:exportCtaRing 3.2s ease-out infinite;";
+      hand.appendChild(ring);
+      pill.appendChild(lead); pill.appendChild(url); pill.appendChild(hand);
+      box.appendChild(pill);
       app.appendChild(box);
     }
     const h = app.getBoundingClientRect().height;
-    if (h) box.style.fontSize = (h * 0.019).toFixed(2) + "px";   // 25% smaller than the earlier .0253
+    if (h) box.style.fontSize = (h * 0.019).toFixed(2) + "px";
     requestAnimationFrame(bottomCta);
   })();
 }
