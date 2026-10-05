@@ -598,7 +598,7 @@ if (ASPECT === "vertical"){
       box = document.createElement("div");
       box.id = "export-cta";
       box.style.cssText = "position:absolute;left:0;right:0;bottom:7%;z-index:6;pointer-events:none;text-align:center;"
-        + "font-family:'Brice',sans-serif;text-transform:uppercase;line-height:1.15;"
+        + "font-family:'Brice Condensed','Brice',sans-serif;text-transform:uppercase;line-height:1.15;"
         + "text-shadow:0 1px 6px rgba(0,0,0,.3);";
       const small = document.createElement("div");
       small.id = "export-cta-small";
@@ -607,7 +607,7 @@ if (ASPECT === "vertical"){
       const url = document.createElement("div");
       url.id = "export-cta-url";
       url.textContent = EXPORT_CTA_URL;
-      url.style.cssText = "font-weight:700;letter-spacing:.08em;color:var(--artist-color, #fff);opacity:.7;text-transform:none;";
+      url.style.cssText = "font-weight:700;letter-spacing:.1em;color:var(--artist-color, #fff);opacity:.7;text-transform:uppercase;";
       box.appendChild(small); box.appendChild(url);
       app.appendChild(box);
     }
