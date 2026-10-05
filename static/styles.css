@@ -571,6 +571,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
      on the visualiser line because watermarkBaselineGap() in app.js derives it from the actual font + size */
   font-size:calc(27.5 * clamp(19.928847px, 6.227765vw, 34.875484px));
   letter-spacing:-.05em; /* -5% of the (huge) font-size */
+  opacity:.5; /* the whole title (fill, outline and light sweep together) 50% transparent */
   transform-origin:50% 100%; /* scale (export slider) keeps the bottom on the baseline */
   transition:transform 160s ease-out;
 }
