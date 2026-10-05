@@ -432,8 +432,9 @@ function ensureLyricsLoaded(i){
   if (!tr.rawLyrics || !tr.rawLyrics.length){ tr._lyricsLoaded = true; return; }
   lyricsFetchInFlight[i] = true;
   fetch(`/api/sync/${tr.id}`).then(r => r.json()).then(data => {
-    if (data.lines && data.lines.length && data.lines[0].words){
-      tr.lines = data.lines;
+    if (data.lines && data.lines.length && data.lines.some(L => L && L.words && L.words.length)){
+      // empty lines (a hand-sync file can start with one) would crash updateLyrics() every frame and freeze the picture
+      tr.lines = data.lines.filter(L => L && L.words && L.words.length);
     } else {
       tr.lines = estimateWordTimings(tr.rawLyrics, tr.duration || 180);
     }
