@@ -568,7 +568,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   /* 2200% of the normal song-title size (see .meta .title's own clamp()); the baseline stays on the visualiser
      line because watermarkBaselineGap() in app.js derives it from the actual font + size */
   font-size:calc(22 * clamp(19.928847px, 6.227765vw, 34.875484px));
-  letter-spacing:0; /* was -5% of the (huge) font-size; +5% more spacing = 0 */
+  letter-spacing:-.05em; /* -5% of the (huge) font-size */
   transform-origin:50% 100%; /* scale (export slider) keeps the bottom on the baseline */
   transition:transform 160s ease-out;
 }
