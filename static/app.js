@@ -6298,6 +6298,7 @@ function isGifFile(file){ return /\.gif$/i.test(file); }
 // The sweep runs a little past both screen edges so the tilted band enters
 // and leaves fully.
 const SCAN_PERIOD_MS = 12000;
+const SCAN_PERIOD_LOGO_MS = 18000; // the AQAI logo's light: 50% slower than the title's
 const SCAN_OVERSHOOT_PX = 400;
 function updateScanLine(){
   const app = document.querySelector("#app");
@@ -6311,13 +6312,15 @@ function updateScanLine(){
     const scale = (wm.offsetWidth ? r.width / wm.offsetWidth : 1) || 1;
     wm.style.setProperty("--glow-x", ((screenX - r.left) / scale).toFixed(1) + "px");
   }
-  // the AQAI logo at the top of the player gets the same white light, from the same clock - so the light crosses the
-  // logo at the very moment it crosses that part of the screen on the big title
+  // the AQAI logo at the top of the player gets the same kind of white light
+  // (the logo's light runs on its own, slower clock now - SCAN_PERIOD_LOGO_MS, 50% slower than the title's)
   const logo = document.querySelector(".home-top .logo-text");
   if (logo){
+    const fracL = (performance.now() % SCAN_PERIOD_LOGO_MS) / SCAN_PERIOD_LOGO_MS;
+    const logoScreenX = ar.left - SCAN_OVERSHOOT_PX + fracL * (ar.width + 2 * SCAN_OVERSHOOT_PX);
     const r = logo.getBoundingClientRect();
     const scale = (logo.offsetWidth ? r.width / logo.offsetWidth : 1) || 1;
-    logo.style.setProperty("--glow-x", ((screenX - r.left) / scale).toFixed(1) + "px");
+    logo.style.setProperty("--glow-x", ((logoScreenX - r.left) / scale).toFixed(1) + "px");
   }
 }
 let panoPingPong = false;
