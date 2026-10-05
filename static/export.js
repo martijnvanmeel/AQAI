@@ -585,11 +585,11 @@ if (ASPECT === "vertical"){
 }
 
 /* 9:16 only: a subtle call-to-action at the bottom of the frame, over the shade: ONE sentence on one line, "More songs at
-   aqaimusic.com", in capitals, condensed Brice, widely letter-spaced, the address in the artist's color - sitting on a
-   black rounded rectangle (like a button), with a little pointing hand beside it that taps and lights up (a soft pulsing
-   glow and an expanding ring at the fingertip). Sizes are in em of one font size that is a fraction of the frame height,
-   so it looks the same at every export size. It sits ~7% up from the bottom edge so phone UI (captions, buttons) that
-   covers the very bottom doesn't hide it. */
+   aqaimusic.com", in capitals, condensed Brice, widely letter-spaced, in black on a rounded rectangle in the artist's color
+   (like a button) - the address two weights heavier (Black) than the rest (Semi-Bold) - with a little pointing hand beside
+   it that taps and lights up (a soft pulsing glow and an expanding ring at the fingertip). Sizes are in em of one font size
+   that is a fraction of the frame height, so it looks the same at every export size. It sits ~7% up from the bottom edge so
+   phone UI (captions, buttons) that covers the very bottom doesn't hide it. */
 const EXPORT_CTA_TEXT = "More songs at ";
 const EXPORT_CTA_URL = "aqaimusic.com";
 if (ASPECT === "vertical"){
@@ -612,16 +612,16 @@ if (ASPECT === "vertical"){
         + "letter-spacing:.26em;";
       const pill = document.createElement("div");
       pill.id = "export-cta-pill";
-      pill.style.cssText = "position:relative;display:inline-block;background:#000;border-radius:.75em;padding:.7em 1.25em .7em 1.5em;"
+      pill.style.cssText = "position:relative;display:inline-block;background:var(--artist-color, #fff);border-radius:.75em;padding:.7em 1.25em .7em 1.5em;"
         + "animation:exportCtaPill 3.2s ease-in-out infinite;";
       const lead = document.createElement("span");
       lead.id = "export-cta-lead";
       lead.textContent = EXPORT_CTA_TEXT;
-      lead.style.cssText = "color:#fff;opacity:.6;";
+      lead.style.cssText = "color:#000;opacity:.75;";
       const url = document.createElement("span");
       url.id = "export-cta-url";
       url.textContent = EXPORT_CTA_URL;
-      url.style.cssText = "color:var(--artist-color, #fff);opacity:.9;";
+      url.style.cssText = "color:#000;font-weight:900;";
       // the pointing hand: sits on the bottom-right corner of the button; the ring is centred on its fingertip
       const hand = document.createElement("span");
       hand.id = "export-cta-hand";
