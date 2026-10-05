@@ -562,7 +562,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
      capital height, and the extra top padding gives the mask (which only
      paints inside the element's box) room over the caps' overshoot */
   line-height:.75;
-  padding-top:.3em;
+  padding:.3em .1em 0; /* .1em of room left and right: the first/last letters stick out past the text box (negative letter spacing), and the fill/outline only paint inside it, so they were clipped */
   /* fill inside the letters: the artist's color at 50% at the top, already 0% at halfway down (plus the outline layer, ::before) */
   background:linear-gradient(to bottom, color-mix(in srgb, var(--artist-color, var(--active-green)) 50%, transparent) 0%, transparent 50%);
   -webkit-background-clip:text;background-clip:text;
@@ -580,7 +580,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
    box is the element's own: .125em = baseline, .825em = cap height) */
 #bg-title-watermark::before{
   content:attr(data-text);
-  position:absolute;inset:0;padding-top:.3em;
+  position:absolute;inset:0;padding:.3em .1em 0;
   color:transparent;background:none;
   -webkit-text-stroke:1px var(--artist-color, var(--active-green));
   -webkit-mask-image:linear-gradient(to top, transparent .125em, #000 .825em);
@@ -592,7 +592,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
    wide so a band tilted 20deg still spans the title's full height. */
 #bg-title-watermark::after{
   content:attr(data-text);
-  position:absolute;inset:0;padding-top:.3em;
+  position:absolute;inset:0;padding:.3em .1em 0;
   color:transparent;background:none;
   /* white */
   -webkit-text-stroke:1px #ffffff;
