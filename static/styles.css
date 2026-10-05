@@ -159,13 +159,14 @@ body.gate-active::after{display:none}
    logo/button */
 #gate-creatures{
   position:absolute;left:50%;bottom:0;z-index:1;
-  width:max(75%, 570px);height:auto; /* 25% smaller than full width */
+  /* never taller than 25% of the screen: the clip is 16:9, so its width is capped at 25vh * 16/9 */
+  width:min(max(75%, 570px), calc(25vh * 16 / 9));height:auto;
   transform:translateX(-50%);
   pointer-events:none;
 }
 /* phones: 75% of the size it has above (570px wide minimum -> 427.5px) */
 @media (max-width:480px){
-  #gate-creatures{width:max(56.25%, 427.5px)}
+  #gate-creatures{width:min(max(56.25%, 427.5px), calc(25vh * 16 / 9))}
 }
 /* logo/button/hint sit statically - only the logo itself tilts with the
    mouse (see #gate-logo-tilt below), not the button/hint text */
