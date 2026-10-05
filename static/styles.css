@@ -157,9 +157,9 @@ body.gate-active::after{display:none}
    transparent-background WebM (black keyed out), centered, behind the logo/button */
 #gate-creatures{
   position:absolute;left:50%;bottom:0;z-index:1;
-  /* exactly 33% of the screen tall, at every size: the clip is 16:9, so its width is 33vh * 16/9
-     (a little wider than a phone screen - the sides crop) */
-  width:calc(33vh * 16 / 9);height:auto;
+  /* 33% of the screen tall (the clip is 16:9, so its width is 33vh * 16/9) - but on narrow screens, where
+     that would be wider than the screen, it uses the full screen width instead so nothing is cropped */
+  width:min(100%, calc(33vh * 16 / 9));height:auto;
   transform:translateX(-50%);
   pointer-events:none;
 }
