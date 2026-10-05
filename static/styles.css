@@ -554,7 +554,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
      weight 600 = Brice-Semi-Bold.woff2 */
   font-family:'Brice';font-weight:600;text-transform:uppercase;
   white-space:nowrap;color:transparent;
-  /* a 1px outline in the artist color (50%), fading in going up (no fill): the fade is one mask over the letters - nothing
+  /* a 1px outline in the artist color (50%), fading in going up: the fade is one mask over the letters - nothing
      at the baseline (the .125em of descender room under it is the line
      box's own spacing) up to fully opaque at cap height (~.7em above
      the baseline). line-height is tightened to roughly the
@@ -562,7 +562,9 @@ body.scene-hands #stage{background:linear-gradient(to top,
      paints inside the element's box) room over the caps' overshoot */
   line-height:.75;
   padding-top:.3em;
-  /* no fill - the letters are outline-only */
+  /* black fill inside the letters: 25% at the top fading down to 0% at the bottom (plus the outline below) */
+  background:linear-gradient(to bottom, rgba(0,0,0,.25) 0%, rgba(0,0,0,0) 100%);
+  -webkit-background-clip:text;background-clip:text;
   -webkit-text-stroke:1px color-mix(in srgb, var(--artist-color, var(--active-green)) 50%, transparent);
   -webkit-mask-image:linear-gradient(to top, transparent .125em, #000 .825em);
   mask-image:linear-gradient(to top, transparent .125em, #000 .825em);
