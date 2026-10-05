@@ -124,6 +124,27 @@ def track_id(path: str) -> str:
     return hashlib.sha1(path.encode("utf-8")).hexdigest()[:16]
 
 
+# Track ids hash the absolute audio path, so the same song has a different id
+# on the Mac (where sync/ and lyrics_auto/ were generated) than on the server.
+# These files are looked up under the track's own id AND under the id it has
+# on the machine that wrote them, so timing made locally also works online.
+LEGACY_LIBRARY_ROOT = os.environ.get("AQAI_LEGACY_ROOT", "/Users/eigenaar/Documents/AQAI Music")
+
+
+def lyrics_file(directory: str, tid: str, track=None):
+    """Existing <id>.json in `directory` for this track (own id first, then
+    the id it has under LEGACY_LIBRARY_ROOT), or None."""
+    ids = [tid]
+    if track and track.get("_path"):
+        rel = os.path.relpath(track["_path"], LIBRARY_ROOT)
+        ids.append(track_id(os.path.join(LEGACY_LIBRARY_ROOT, rel)))
+    for i in ids:
+        p = os.path.join(directory, f"{i}.json")
+        if os.path.exists(p):
+            return p
+    return None
+
+
 def load_folder_artist_map():
     """song_names.json's top-level "folders" list holds one renamed
     artist display name per real library folder, in the same order as
@@ -724,18 +745,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # (hand-authored/verified lyric timing dropped into the library).
             # Then Whisper-aligned auto timing. Otherwise the client falls
             # back to its own rough word-count estimate.
-            manual_path = os.path.join(SYNC_DIR, f"{tid}.json")
-            auto_path = os.path.join(AUTO_LYRICS_DIR, f"{tid}.json")
-            if os.path.exists(manual_path):
+            if tid not in _track_index:
+                refresh_index()
+            track = _track_index.get(tid)
+            manual_path = lyrics_file(SYNC_DIR, tid, track)
+            if manual_path:
                 with open(manual_path, "r", encoding="utf-8") as fh:
                     payload = json.load(fh)
                 payload["source"] = "manual"
                 self._send_json(payload)
                 return
 
-            if tid not in _track_index:
-                refresh_index()
-            track = _track_index.get(tid)
             karaoke_path = track.get("_karaoke_path") if track else None
             if karaoke_path:
                 karaoke_data = load_karaoke_file(karaoke_path)
@@ -746,7 +766,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         self._send_json(payload)
                         return
 
-            if os.path.exists(auto_path):
+            auto_path = lyrics_file(AUTO_LYRICS_DIR, tid, track)
+            if auto_path:
                 with open(auto_path, "r", encoding="utf-8") as fh:
                     payload = json.load(fh)
                 payload["source"] = "auto"
