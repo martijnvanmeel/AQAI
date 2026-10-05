@@ -550,8 +550,8 @@ body.scene-hands #stage{background:linear-gradient(to top,
    self-centering -50%/-50% baked into that same translate() */
 #bg-title-watermark{
   position:fixed;top:0;left:0;z-index:1;pointer-events:none;
-  /* Brice Condensed at weight 900 = Brice-Black-Condensed.woff2 (the heaviest condensed cut) */
-  font-family:'Brice Condensed';font-weight:900;text-transform:uppercase;
+  /* Brice Black (weight 900 = Brice-Black.woff2), the heaviest regular-width cut */
+  font-family:'Brice';font-weight:900;text-transform:uppercase;
   white-space:nowrap;color:transparent;
   /* a 1px outline in the artist color (50%), fading in going up: the fade is one mask over the letters - nothing
      at the baseline (the .125em of descender room under it is the line
