@@ -344,8 +344,11 @@ const CONTROL_TARGETS = [
 // saved set, never shared)
 const STORAGE_KEY = "aqai_export_ctrl_" + ASPECT;
 function loadSavedControls(){
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
-  catch (e){ return {}; }
+  // this browser's own saved set wins; otherwise the shared per-aspect defaults (export_defaults.js) -
+  // which is what the headless recorder (empty localStorage) uses
+  try { const s = JSON.parse(localStorage.getItem(STORAGE_KEY)); if (s) return s; }
+  catch (e){}
+  return (window.EXPORT_DEFAULTS && window.EXPORT_DEFAULTS[ASPECT]) || {};
 }
 // builds one labeled slider row inside `box` for state[key], calling
 // onChange() on every drag - shared by every control block below
