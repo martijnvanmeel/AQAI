@@ -600,10 +600,10 @@ if (ASPECT === "vertical"){
     if (!box){
       const st = document.createElement("style");
       st.textContent = `
-        @keyframes exportCtaTap{0%,55%,100%{transform:translate(0,0) scale(1)}25%{transform:translate(-.12em,-.22em) scale(1.04)}38%{transform:translate(.02em,.06em) scale(.97)}}
-        @keyframes exportCtaGlow{0%,55%,100%{filter:drop-shadow(0 0 .1em rgba(255,255,255,.15))}30%{filter:drop-shadow(0 0 .55em rgba(255,255,255,.95))}}
-        @keyframes exportCtaRing{0%,28%{transform:translate(-50%,-50%) scale(.2);opacity:0}34%{opacity:.85}100%{transform:translate(-50%,-50%) scale(2.6);opacity:0}}
-        @keyframes exportCtaPill{0%,55%,100%{box-shadow:0 0 0 rgba(255,255,255,0)}32%{box-shadow:0 0 1.1em rgba(255,255,255,.22)}}`;
+        @keyframes exportCtaHand{0%{transform:translate(4.5em,4em) scale(1);opacity:0}10%{opacity:1}34%{transform:translate(0,0) scale(1);opacity:1}42%{transform:translate(-.1em,-.2em) scale(1.04)}48%{transform:translate(.03em,.08em) scale(.96)}56%{transform:translate(0,0) scale(1);opacity:1}62%{opacity:1}100%{transform:translate(4.5em,4em) scale(1);opacity:0}}
+        @keyframes exportCtaGlow{0%,38%{filter:drop-shadow(0 0 .1em rgba(255,255,255,.1))}48%{filter:drop-shadow(0 0 .6em rgba(255,255,255,.95))}66%,100%{filter:drop-shadow(0 0 .1em rgba(255,255,255,.1))}}
+        @keyframes exportCtaRing{0%,46%{transform:translate(-50%,-50%) scale(.2);opacity:0}50%{opacity:.85}78%,100%{transform:translate(-50%,-50%) scale(2.6);opacity:0}}
+        @keyframes exportCtaPill{0%,44%{box-shadow:0 0 0 rgba(255,255,255,0)}50%{box-shadow:0 0 1.1em rgba(255,255,255,.28)}70%,100%{box-shadow:0 0 0 rgba(255,255,255,0)}}`;
       document.head.appendChild(st);
       box = document.createElement("div");
       box.id = "export-cta";
@@ -613,7 +613,7 @@ if (ASPECT === "vertical"){
       const pill = document.createElement("div");
       pill.id = "export-cta-pill";
       pill.style.cssText = "position:relative;display:inline-block;background:color-mix(in srgb, var(--artist-color, #fff) 80%, transparent);border-radius:.75em;padding:.841em 1.25em .559em 1.5em;"
-        + "animation:exportCtaPill 3.2s ease-in-out infinite;";
+        + "animation:exportCtaPill 3.4s ease-in-out 2s 1 both;";
       const lead = document.createElement("span");
       lead.id = "export-cta-lead";
       lead.textContent = EXPORT_CTA_TEXT;
@@ -626,13 +626,13 @@ if (ASPECT === "vertical"){
       const hand = document.createElement("span");
       hand.id = "export-cta-hand";
       hand.style.cssText = "position:absolute;right:-.9em;bottom:-1.05em;width:2.1em;height:2.1em;display:block;"
-        + "animation:exportCtaTap 3.2s ease-in-out infinite;";
-      hand.innerHTML = `<svg viewBox="0 0 24 24" width="100%" height="100%" style="display:block;overflow:visible;animation:exportCtaGlow 3.2s ease-in-out infinite">`
+        + "animation:exportCtaHand 3.4s ease-in-out 2s 1 both;opacity:0;";
+      hand.innerHTML = `<svg viewBox="0 0 24 24" width="100%" height="100%" style="display:block;overflow:visible;animation:exportCtaGlow 3.4s linear 2s 1 both">`
         + `<path d="M9 3.6a1.55 1.55 0 0 1 3.1 0v6.6l1.1-.35a1.5 1.5 0 0 1 1.9.95l.15.45 1-.3a1.5 1.5 0 0 1 1.8 1.05l.1.4.85-.2a1.5 1.5 0 0 1 1.7 1.3l.2 3.3c.1 2.8-1.7 5.2-4.4 5.9h-3.3c-1.7 0-3.2-.85-4.1-2.2l-3.1-4.6a1.5 1.5 0 0 1 2.4-1.8L9 15.3z" fill="#fff" stroke="#000" stroke-width=".7" stroke-linejoin="round"/></svg>`;
       const ring = document.createElement("span");
       ring.style.cssText = "position:absolute;left:44%;top:16%;width:1.4em;height:1.4em;border-radius:50%;"
         + "border:.12em solid rgba(255,255,255,.9);box-sizing:border-box;transform:translate(-50%,-50%) scale(.2);opacity:0;"
-        + "animation:exportCtaRing 3.2s ease-out infinite;";
+        + "animation:exportCtaRing 3.4s ease-out 2s 1 both;";
       hand.appendChild(ring);
       pill.appendChild(lead); pill.appendChild(url); pill.appendChild(hand);
       box.appendChild(pill);
