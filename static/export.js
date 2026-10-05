@@ -519,6 +519,8 @@ function buildControlPanel(){
     const data = { targets: {}, watermark: { y: wmYOffset, scale: wmScale } };
     panelEntries.forEach(({ label, state }) => { data.targets[label] = state; });
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e){}
+    // ...and as the shared defaults for every fresh browser (the headless recorder included) - see export_defaults.js
+    fetch("/api/export-defaults", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ aspect: ASPECT, data }) }).catch(() => {});
     const orig = saveBtn.textContent;
     saveBtn.textContent = "Saved!";
     setTimeout(() => { saveBtn.textContent = orig; }, 1200);

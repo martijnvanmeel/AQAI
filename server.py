@@ -923,6 +923,44 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send_json({"ok": True})
             return
 
+        if path == "/api/export-defaults":
+            # the export pages' "Save values" button also stores its slider values here, as the shared per-aspect
+            # defaults (static/export_defaults.js) that every fresh browser - incl. the headless recorder - starts from
+            if self._is_public_request():
+                self.send_error(403, "Editing is only available locally")
+                return
+            length = int(self.headers.get("Content-Length", 0))
+            raw = self.rfile.read(length)
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                self.send_error(400, "Invalid JSON")
+                return
+            aspect = payload.get("aspect") if isinstance(payload, dict) else None
+            data = payload.get("data") if isinstance(payload, dict) else None
+            if aspect not in ("vertical", "square", "portrait", "horizontal") or not isinstance(data, dict):
+                self._send_json({"ok": False, "error": "Bad aspect or data"})
+                return
+            def num(v, default):
+                return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else default
+            clean = {"targets": {}, "watermark": {}}
+            for label, st in (data.get("targets") or {}).items():
+                if isinstance(label, str) and len(label) <= 60 and isinstance(st, dict):
+                    clean["targets"][label] = {"x": num(st.get("x"), 0), "y": num(st.get("y"), 0), "scale": num(st.get("scale"), 1)}
+            wm = data.get("watermark") or {}
+            clean["watermark"] = {"y": num(wm.get("y"), 0), "scale": num(wm.get("scale"), 1)}
+            path_js = os.path.join(STATIC_DIR, "export_defaults.js")
+            with open(path_js, "r", encoding="utf-8") as fh:
+                text = fh.read()
+            m = re.search(r"window\.EXPORT_DEFAULTS\s*=\s*(\{.*\})\s*;\s*$", text, re.S)
+            current = json.loads(m.group(1)) if m else {}
+            current[aspect] = clean
+            header = text[: m.start()] if m else ""
+            with open(path_js, "w", encoding="utf-8") as fh:
+                fh.write(header + "window.EXPORT_DEFAULTS = " + json.dumps(current, indent=2) + ";\n")
+            self._send_json({"ok": True})
+            return
+
         if path == "/api/folder-colors":
             # one folder's color at a time, from the player's owner-only
             # color picker panel - merges into the saved overrides rather
