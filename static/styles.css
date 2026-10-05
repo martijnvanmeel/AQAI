@@ -479,6 +479,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   letter-spacing:-.02em;
   position:absolute;left:50%;transform:translate(-50%, -50%);
   z-index:3;
+  text-shadow:0 2px 6px rgba(0,0,0,.2); /* a very light drop shadow */
   animation:logoGreenArtistCycle 4s ease-in-out infinite;
 }
 /* artist color <-> a 20%-brighter version of it, looping */
