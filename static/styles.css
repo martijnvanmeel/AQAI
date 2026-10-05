@@ -552,8 +552,8 @@ body.scene-hands #stage{background:linear-gradient(to top,
    self-centering -50%/-50% baked into that same translate() */
 #bg-title-watermark{
   position:fixed;top:0;left:0;z-index:1;pointer-events:none;
-  /* Brice Black (weight 900 = Brice-Black.woff2), the heaviest regular-width cut */
-  font-family:'Brice';font-weight:900;text-transform:uppercase;
+  /* Brice Bold (weight 700 = Brice-Bold.woff2), one weight lighter than Black */
+  font-family:'Brice';font-weight:700;text-transform:uppercase;
   white-space:nowrap;color:transparent;
   /* a 1px outline in the artist color (50%), fading in going up: the fade is one mask over the letters - nothing
      at the baseline (the .125em of descender room under it is the line
@@ -567,9 +567,9 @@ body.scene-hands #stage{background:linear-gradient(to top,
   background:linear-gradient(to bottom, color-mix(in srgb, var(--artist-color, var(--active-green)) 50%, transparent) 0%, transparent 50%);
   -webkit-background-clip:text;background-clip:text;
   /* (the outline is its own layer, ::before below, so it can fade independently of this fill) */
-  /* 2200% of the normal song-title size (see .meta .title's own clamp()); the baseline stays on the visualiser
-     line because watermarkBaselineGap() in app.js derives it from the actual font + size */
-  font-size:calc(22 * clamp(19.928847px, 6.227765vw, 34.875484px));
+  /* 2750% of the normal song-title size (see .meta .title's own clamp()) - 125% of the earlier 2200%; the baseline stays
+     on the visualiser line because watermarkBaselineGap() in app.js derives it from the actual font + size */
+  font-size:calc(27.5 * clamp(19.928847px, 6.227765vw, 34.875484px));
   letter-spacing:-.05em; /* -5% of the (huge) font-size */
   transform-origin:50% 100%; /* scale (export slider) keeps the bottom on the baseline */
   transition:transform 160s ease-out;
