@@ -6298,20 +6298,12 @@ function loadPanoFile(file, base = "/panorama2/"){
 // a per-track background as usual
 loadPanoFile(INTRO_PANO_FILE);
 
-let mouseNX = 0, mouseNY = 0;
-let lastMouseMoveT = -Infinity; // performance.now() of the last real mouse move
-addEventListener("mousemove", e => {
-  mouseNX = (e.clientX / window.innerWidth) * 2 - 1;
-  mouseNY = (e.clientY / window.innerHeight) * 2 - 1;
-  lastMouseMoveT = performance.now();
-});
-
 /* sphere background's automatic tour: a virtual mouse that rests in the middle, then travels to
    top-left -> top-right -> bottom-right -> bottom-left -> back to the middle, and repeats. It is fed
-   through exactly the same yaw/pitch mapping as the real mouse (see animate()). The real mouse takes
-   over as soon as it moves; after TOUR_IDLE_MS without movement the tour restarts from the middle. */
+   through the same yaw/pitch mapping the mouse used to drive (see animate()). The mouse itself no longer
+   moves the sphere. */
 const TOUR_PTS = [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, 0]];
-const TOUR_LEAD = 1.5, TOUR_TRAVEL = 4.5, TOUR_HOLD = 1.2, TOUR_AMP = 0.85, TOUR_IDLE_MS = 4000;
+const TOUR_LEAD = 1.5, TOUR_TRAVEL = 4.5, TOUR_HOLD = 1.2, TOUR_AMP = 0.85;
 function tourPos(sec){
   const leg = TOUR_TRAVEL + TOUR_HOLD;
   let s = sec % (TOUR_LEAD + TOUR_PTS.length * leg);
@@ -6453,15 +6445,10 @@ function animate(t){
     // the cursor (roll keeps spinning independently, set above), so the
     // view turns *toward* the side the cursor is on, and with a longer
     // trailing lag so it visibly trails behind instead of tracking tightly
-    let steerX = mouseNX, steerY = mouseNY;
+    // the mouse no longer steers the sphere: it only ever follows the automatic corner tour (always beginning in the middle)
     const nowMs = performance.now();
-    if (nowMs - lastMouseMoveT > TOUR_IDLE_MS){
-      // mouse idle (or none, e.g. touch): the automatic corner tour, always beginning in the middle
-      if (tourStartT === null) tourStartT = nowMs;
-      [steerX, steerY] = tourPos((nowMs - tourStartT) / 1000);
-    } else {
-      tourStartT = null;
-    }
+    if (tourStartT === null) tourStartT = nowMs;
+    const [steerX, steerY] = tourPos((nowMs - tourStartT) / 1000);
     targetYaw = steerX * 1.1;
     targetPitch = steerY * 0.7;
     camSmooth = 0.015;
