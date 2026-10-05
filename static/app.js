@@ -5575,6 +5575,17 @@ const dominoMirrorAltMats = [0, 1, 2, 3].map(() => new THREE.MeshBasicMaterial({
 // the run's curved centerline - periodic over the chunk so the endless
 // wrap lands on itself; also drives the camera follow in animate(). Bends
 // much harder now (more degrees of turn) than the original gentle S-curve
+// every so often the camera rolls one full turn clockwise (a positive camera roll, same as the other scenes' spins) so
+// you fly "through" the tunnel instead of just along it: upright for most of each DOMINO_SPIN_PERIOD, then one smooth
+// ease-in/ease-out turn lasting DOMINO_SPIN_DURATION seconds at the end of the period. Continuous across periods
+// (each finished turn is exactly 2*PI, i.e. upright again).
+const DOMINO_SPIN_PERIOD = 40, DOMINO_SPIN_DURATION = 12;
+function dominoSpinRoll(sec){
+  const n = Math.floor(sec / DOMINO_SPIN_PERIOD);
+  const into = sec - n * DOMINO_SPIN_PERIOD - (DOMINO_SPIN_PERIOD - DOMINO_SPIN_DURATION);
+  const k = Math.min(1, Math.max(0, into / DOMINO_SPIN_DURATION));
+  return (n + k * k * (3 - 2 * k)) * Math.PI * 2;
+}
 function dominoPathX(z){
   const a = (z / DOMINO_CHUNK_LENGTH) * Math.PI * 2;
   // a new, more winding route - three integer-multiple sine terms so it
@@ -5671,7 +5682,7 @@ function dominoPathX(z){
   // a ceiling: the very same floor (same material + op-art overlay), mirrored to the top, well above the
   // camera's highest point (y~8.5) - so there is a ground AND a ceiling. Same materials as the floor, so the
   // mirror group below hides it automatically (it only reflects the stones)
-  const DOMINO_CEILING_Y = 15;
+  const DOMINO_CEILING_Y = 11; // lower than before (was 15); the camera tops out around y=8.5
   // its underside gets no direct light (the light shines down on the floor), so a clone of the floor material with a
   // little glow of its own keeps it reading like the floor instead of going dark
   dominoCeilingMat = dominoFloorMat.clone();
@@ -7112,7 +7123,7 @@ function animate(t){
     camera.position.y = 7 - dive * 4.6 + Math.sin(swayT * 0.014 + 1) * 1.5 * (1 - dive * 0.6);
     camera.rotation.x = -0.18 + dive * 0.12 + Math.sin(swayT * 0.011) * 0.04;
     camera.rotation.y = -Math.atan2(aheadX - hereX, 32) * 0.5 + Math.sin(swayT * 0.013) * 0.04;
-    camera.rotation.z = Math.sin(swayT * 0.01 + 2) * 0.05 + cameraRollOffset;
+    camera.rotation.z = Math.sin(swayT * 0.01 + 2) * 0.05 + cameraRollOffset + dominoSpinRoll(animSec);
     camera.position.z = 5; // a little closer to the toppling row (was the unset 8 default)
   } else if (eyesGroup.visible){
     // floating eye field: quick winks (a third of the eyes sometimes
