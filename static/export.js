@@ -588,7 +588,7 @@ if (ASPECT === "vertical"){
    aqaimusic.com", in capitals, condensed Brice, widely letter-spaced, in black on a rounded rectangle in the artist's color
    (like a button) - the address two weights heavier (Black) than the rest (Semi-Bold) - with a little pointing hand beside
    it that taps and lights up (a soft pulsing glow and an expanding ring at the fingertip). Sizes are in em of one font size
-   that is a fraction of the frame height, so it looks the same at every export size. It sits ~7% up from the bottom edge so
+   that is a fraction of the frame height, so it looks the same at every export size. It sits ~5.5% up from the bottom edge (15px lower than before, at a 992px frame) so
    phone UI (captions, buttons) that covers the very bottom doesn't hide it. */
 const EXPORT_CTA_TEXT = "More songs at ";
 const EXPORT_CTA_URL = "aqaimusic.com";
@@ -607,7 +607,7 @@ if (ASPECT === "vertical"){
       document.head.appendChild(st);
       box = document.createElement("div");
       box.id = "export-cta";
-      box.style.cssText = "position:absolute;left:0;right:0;bottom:7%;z-index:6;pointer-events:none;text-align:center;white-space:nowrap;"
+      box.style.cssText = "position:absolute;left:0;right:0;bottom:5.5%;z-index:6;pointer-events:none;text-align:center;white-space:nowrap;"
         + "font-family:'Brice Condensed','Brice',sans-serif;font-weight:600;text-transform:uppercase;line-height:1.15;"
         + "letter-spacing:.26em;";
       const pill = document.createElement("div");
@@ -639,7 +639,7 @@ if (ASPECT === "vertical"){
       app.appendChild(box);
     }
     const h = app.getBoundingClientRect().height;
-    if (h) box.style.fontSize = (h * 0.019).toFixed(2) + "px";
+    if (h) box.style.fontSize = (h * 0.01425).toFixed(2) + "px";   // 25% smaller than the earlier .019 (the whole button scales: everything is in em)
     requestAnimationFrame(bottomCta);
   })();
 }
