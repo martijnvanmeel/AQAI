@@ -855,17 +855,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
      (all of which anchor off that live rect) along with it */
   transform:translateY(-50%) scale(.825);
 }
-/* 2px stroke around the disc, in the artist's own colour: the same
-   profilepic.png silhouette, filled solid and sized 2px larger on every
-   side, sitting just behind .artist-photo-fill so only a 2px rim of it
-   shows around the edge - same trick as the glow above, just solid and
-   tighter to the shape */
-.artist-photo-wrap::after{
-  content:"";position:absolute;left:-2px;top:50%;width:calc(100% + 4px);aspect-ratio:1/1;z-index:1;pointer-events:none;
-  border-radius:50%;
-  background:color-mix(in srgb, var(--artist-color, var(--active-green)) 50%, black);
-  transform:translateY(-50%) scale(.825);
-}
+/* (no stroke around the disc any more) */
 .artist-photo{
   display:block;width:100%;height:auto;position:relative;z-index:1;
 }
@@ -879,7 +869,10 @@ body.scene-hands #stage{background:linear-gradient(to top,
      old oval, centered on the same spot, so it grows upward/downward
      instead of moving - black, tinted 20% toward the artist's color */
   border-radius:50%;
-  background:color-mix(in srgb, var(--artist-color, var(--active-green)) 20%, #000000);
+  /* top: 50% of the artist-tinted black, fading down to solid 100% black at the bottom */
+  background:linear-gradient(to bottom,
+    color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 20%, #000000) 50%, transparent) 0%,
+    #000000 100%);
   transform:translateY(-50%) scale(.825);
 }
 /* the real photo underneath is fully replaced by the solid colour fill
