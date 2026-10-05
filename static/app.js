@@ -70,8 +70,8 @@ const INTRO_PANO_FILE = "From Klickpin.com- 68749462254-pin-id-68749462254.mp4";
 // test source: Panoramas2 (mix of .mp4 clips and .gif animations), served
 // via /api/panoramas2 + /panorama2/ instead of the original panoramas folder
 // clips listed here (the anims/ folder) are baked forward+reversed server-
-// side, so they ping-pong - their playback speed is eased on top of that,
-// see updatePanoPingPongSpeed()
+// side, so they ping-pong at a constant playback speed
+// (see updatePanoPingPongSpeed())
 let PINGPONG_FILES = new Set();
 fetch("/api/panoramas2").then(r => r.json()).then(data => {
   PANORAMAS = (data.files || []).filter(f => f !== INTRO_PANO_FILE);
@@ -6266,18 +6266,10 @@ function updateScanLine(){
   wm.style.setProperty("--glow-x", ((screenX - r.left) / scale).toFixed(1) + "px");
 }
 let panoPingPong = false;
-// ping-pong clips are [forward][reverse] back to back, so each half is
-// half the file's duration; speed follows a sine over each half - crawling
-// (floor, never a dead stop) at both turnarounds, fastest mid-half - which
-// reads as the motion easing in and out of each reversal. Averages ~1x.
-const PINGPONG_MIN_RATE = 0.12, PINGPONG_MAX_RATE = 1.7;
+// ping-pong clips are [forward][reverse] back to back (baked into the file by
+// the server) and simply play at a constant speed - no easing at the turnarounds
 function updatePanoPingPongSpeed(){
-  if (!panoPingPong || currentPanoKind !== "video") { if (panoVideoEl.playbackRate !== 1) panoVideoEl.playbackRate = 1; return; }
-  const d = panoVideoEl.duration;
-  if (!d || !isFinite(d)) return;
-  const half = d / 2;
-  const phase = (panoVideoEl.currentTime % half) / half;
-  panoVideoEl.playbackRate = PINGPONG_MIN_RATE + (PINGPONG_MAX_RATE - PINGPONG_MIN_RATE) * Math.sin(Math.PI * phase);
+  if (panoVideoEl.playbackRate !== 1) panoVideoEl.playbackRate = 1;
 }
 function loadPanoFile(file, base = "/panorama2/"){
   panoPingPong = PINGPONG_FILES.has(file);
