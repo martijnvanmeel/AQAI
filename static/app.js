@@ -6299,10 +6299,30 @@ function loadPanoFile(file, base = "/panorama2/"){
 loadPanoFile(INTRO_PANO_FILE);
 
 let mouseNX = 0, mouseNY = 0;
+let lastMouseMoveT = -Infinity; // performance.now() of the last real mouse move
 addEventListener("mousemove", e => {
   mouseNX = (e.clientX / window.innerWidth) * 2 - 1;
   mouseNY = (e.clientY / window.innerHeight) * 2 - 1;
+  lastMouseMoveT = performance.now();
 });
+
+/* sphere background's automatic tour: a virtual mouse that rests in the middle, then travels to
+   top-left -> top-right -> bottom-right -> bottom-left -> back to the middle, and repeats. It is fed
+   through exactly the same yaw/pitch mapping as the real mouse (see animate()). The real mouse takes
+   over as soon as it moves; after TOUR_IDLE_MS without movement the tour restarts from the middle. */
+const TOUR_PTS = [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, 0]];
+const TOUR_LEAD = 1.5, TOUR_TRAVEL = 4.5, TOUR_HOLD = 1.2, TOUR_AMP = 0.85, TOUR_IDLE_MS = 4000;
+function tourPos(sec){
+  const leg = TOUR_TRAVEL + TOUR_HOLD;
+  let s = sec % (TOUR_LEAD + TOUR_PTS.length * leg);
+  if (s < TOUR_LEAD) return [0, 0];
+  s -= TOUR_LEAD;
+  const i = Math.floor(s / leg), r = s - i * leg;
+  const from = i === 0 ? [0, 0] : TOUR_PTS[i - 1], to = TOUR_PTS[i];
+  const k = Math.min(1, r / TOUR_TRAVEL), e = k * k * (3 - 2 * k);
+  return [(from[0] + (to[0] - from[0]) * e) * TOUR_AMP, (from[1] + (to[1] - from[1]) * e) * TOUR_AMP];
+}
+let tourStartT = null; // performance.now() the current tour run began (null = mouse is in control)
 
 // below the 1200px breakpoint the controls row no longer wraps (transport
 // pinned left, side-btns pinned right - see the @media rule), so on a
@@ -6433,11 +6453,21 @@ function animate(t){
     // the cursor (roll keeps spinning independently, set above), so the
     // view turns *toward* the side the cursor is on, and with a longer
     // trailing lag so it visibly trails behind instead of tracking tightly
-    targetYaw = mouseNX * 1.1;
-    targetPitch = mouseNY * 0.7;
+    let steerX = mouseNX, steerY = mouseNY;
+    const nowMs = performance.now();
+    if (nowMs - lastMouseMoveT > TOUR_IDLE_MS){
+      // mouse idle (or none, e.g. touch): the automatic corner tour, always beginning in the middle
+      if (tourStartT === null) tourStartT = nowMs;
+      [steerX, steerY] = tourPos((nowMs - tourStartT) / 1000);
+    } else {
+      tourStartT = null;
+    }
+    targetYaw = steerX * 1.1;
+    targetPitch = steerY * 0.7;
     camSmooth = 0.015;
     autoMotionStartT = null; // restart the centred ramp for when the gate returns
   } else {
+    tourStartT = null; // the sphere tour restarts from the middle next time
     if (autoMotionStartT === null) autoMotionStartT = t || 0;
     // always begin dead-centre: hold for 1s, then ease the movement in and
     // let it intensify to full over the following 4s (smoothstep ramp)
