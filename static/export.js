@@ -552,6 +552,35 @@ load = function(i, autoplay){
   }, 300);
 };
 
+/* 9:16 only: a light shade over the bottom of the frame - in FRONT of the 3D animal, BEHIND the song title and the
+   by/artist row (inside .player: the animal is layer 1, the title/by block layer 3, this layer 2). It starts 10px above
+   the song title (0%) and fades to 25% black at the bottom edge; its top edge is a circular arc (a wide ellipse centred
+   on the bottom edge) rather than a straight line. The title's own position (slider offset included) drives it, so it
+   follows the title wherever it sits. */
+if (ASPECT === "vertical"){
+  (function bottomShade(){
+    const app = document.querySelector("#app");
+    const player = document.querySelector(".player");
+    const title = document.querySelector("#m-title");
+    if (!app || !player || !title){ requestAnimationFrame(bottomShade); return; }
+    let shade = document.getElementById("export-bottom-shade");
+    if (!shade){
+      shade = document.createElement("div");
+      shade.id = "export-bottom-shade";
+      shade.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:2;pointer-events:none;"
+        + "background:linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,.25) 100%);"
+        + "clip-path:ellipse(130% 100% at 50% 100%);";
+      player.appendChild(shade);
+    }
+    const a = app.getBoundingClientRect(), t = title.getBoundingClientRect();
+    if (t.height){
+      const top = Math.max(0, t.top - a.top - 10);
+      shade.style.top = top + "px";
+    }
+    requestAnimationFrame(bottomShade);
+  })();
+}
+
 (function waitForTracks(){
   if (typeof tracksReady !== "undefined" && tracksReady) startExport();
   else setTimeout(waitForTracks, 50);
