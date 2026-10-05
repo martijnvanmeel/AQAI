@@ -114,7 +114,7 @@ resetBgTitleWatermark = function(){
   el.textContent = "";
   const targetY = watermarkTargetY();
   const elWidth = el.getBoundingClientRect().width;
-  const startX = window.innerWidth + elWidth;
+  const startX = window.innerWidth + elWidth / 2; // starts completely outside the screen, on the right
   el.style.transition = "none";
   el.style.transform = `translate(calc(${startX}px - 50%), calc(${targetY}px - 100%)) scale(${wmScale})`;
   el.getBoundingClientRect();
@@ -126,9 +126,8 @@ animateBgTitleWatermark = function(){
   el.textContent = TRACKS[cur].title;
   const targetY = watermarkTargetY();
   const elWidth = el.getBoundingClientRect().width;
-  // first sweep of a track starts already on screen (title visible from 0s)
-  const firstSweep = watermarkSweepTrack !== cur;
-  const startX = firstSweep ? window.innerWidth * 0.05 + elWidth / 2 : window.innerWidth + elWidth;
+  // always right to left: every sweep starts completely outside the screen on the right and travels left until it is clear
+  const startX = window.innerWidth + elWidth / 2;
   const endX = -elWidth;
   watermarkSweepTrack = cur;
   el.style.transition = "none";

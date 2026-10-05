@@ -61,6 +61,22 @@ function themeIndexForTrack(track) {
   v.play().catch(() => {});
 })();
 
+/* start screen: the animals video is as wide as the screen allows (the whole width on narrow screens, bigger on larger
+   ones), but its top must always stay at least 50px below the "Sound on..." line - the clip is 16:9, so that gap is a
+   height limit, i.e. a width limit of height * 16/9 */
+function sizeGateCreatures(){
+  const v = document.getElementById("gate-creatures");
+  const hint = document.querySelector("#gate .gate-hint");
+  if (!v || !hint) return;
+  const maxH = window.innerHeight - hint.getBoundingClientRect().bottom - 50;
+  if (maxH <= 0) return;
+  v.style.width = Math.min(window.innerWidth, maxH * 16 / 9).toFixed(1) + "px";
+}
+window.addEventListener("resize", sizeGateCreatures);
+window.addEventListener("load", sizeGateCreatures);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(sizeGateCreatures);
+sizeGateCreatures();
+
 /* ---- background panorama: one looping clip per track, mapped onto the
    inside of a sphere so the mouse can look around it (see panoVideoEl /
    panoSphere further down, near the 3D visualizer setup) ---- */
@@ -311,7 +327,7 @@ function resetBgTitleWatermark(){
   el.textContent = "";
   const targetY = watermarkBaselineY();
   const elWidth = el.getBoundingClientRect().width;
-  const startX = window.innerWidth + elWidth;
+  const startX = window.innerWidth + elWidth / 2; // starts completely outside the screen, on the right
   el.style.transition = "none";
   el.style.transform = `translate(calc(${startX}px - 50%), calc(${targetY}px - 100%))`;
   el.getBoundingClientRect();
@@ -334,12 +350,10 @@ function animateBgTitleWatermark(){
   // stopping there
   const targetY = watermarkBaselineY();
   const elWidth = el.getBoundingClientRect().width;
-  // the first sweep of a track starts already on screen (left edge of the
-  // text 5% in), so the title is visible from second 0 instead of taking
-  // seconds to cross in from off the right edge; every later loop of the
-  // same track re-enters from the right as before
-  const firstSweep = watermarkSweepTrack !== cur;
-  const startX = firstSweep ? window.innerWidth * 0.05 + elWidth / 2 : window.innerWidth + elWidth; // (translate is -50%-anchored, so startX is the text's center)
+  // the title always moves right to left. Every sweep - the first of a track included - starts completely outside the
+  // screen on the RIGHT (its left edge exactly at the right screen edge; translate is -50%-anchored, so startX is the
+  // text's center) and travels left until it is fully clear of the left edge
+  const startX = window.innerWidth + elWidth / 2;
   const endX = -elWidth; // fully clear of the left edge
   watermarkSweepTrack = cur;
   el.style.transition = "none";

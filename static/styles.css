@@ -157,9 +157,11 @@ body.gate-active::after{display:none}
    transparent-background WebM (black keyed out), centered, behind the logo/button */
 #gate-creatures{
   position:absolute;left:50%;bottom:0;z-index:1;
-  /* 33% of the screen tall (the clip is 16:9, so its width is 33vh * 16/9) - but on narrow screens, where
-     that would be wider than the screen, it uses the full screen width instead so nothing is cropped */
-  width:min(100%, calc(33vh * 16 / 9));height:auto;
+  /* as big as fits: the full screen width on narrow screens, bigger the larger the screen - but always at least 50px
+     of space between the "Sound on..." line and the top of the animation. The clip is 16:9, so that height limit is a
+     width limit of height * 16/9; the script in app.js (sizeGateCreatures) sets the exact value from the real hint
+     position, this is its fallback */
+  width:min(100%, calc((50vh - 90px) * 16 / 9));height:auto;
   transform:translateX(-50%);
   pointer-events:none;
 }
@@ -184,7 +186,7 @@ body.gate-active::after{display:none}
 /* tilts in 3D with the mouse, same mechanism as the lyrics carousel */
 #gate-logo-tilt{
   /* 15px above the button; centered with margins because app.js owns this element's transform (mouse tilt) */
-  position:absolute;bottom:calc(100% - 20px);left:50%;width:511.875px;margin-left:-255.9375px; /* 150% of the earlier 341.25px (30% smaller than the original 487.5px), 25px lower */
+  position:absolute;bottom:calc(100% - 20px + 10vh);left:50%;width:639.84px;margin-left:-319.92px; /* 125% of the earlier 511.875px, and 10% of the screen height higher */
   perspective:800px;transform-style:preserve-3d;
   /* fully opaque, no blend - the logo is solid black and the screen-blended
      reflection layer turns its front face into a full mirror of the sphere */
@@ -202,18 +204,18 @@ body.gate-active::after{display:none}
      relative; pinned to the values they already capped out at on desktop
      (375px / 108px) so the logo now renders the same physical size on
      every screen instead of scaling down on mobile */
-  width:511.875px;aspect-ratio:8/3; /* 150% of 341.25px */
+  width:639.84px;aspect-ratio:8/3; /* 125% of the earlier 511.875px */
   position:relative;transform-style:preserve-3d;
   animation:logo3dSpin 10.8s linear infinite; /* 20% heavier/slower spin */
   font-family:var(--font-display);font-weight:900;letter-spacing:-.02em;
-  font-size:147.42px;line-height:1;white-space:nowrap;
+  font-size:184.275px;line-height:1;white-space:nowrap;
 }
 @keyframes logo3dSpin{ to { transform:rotateY(360deg); } }
 /* phones: 150% (512px) is wider than the screen and the letters would be cropped
    mid-spin, so it scales with the screen instead - the largest size that still fits */
 @media (max-width:480px){
-  #gate-logo-tilt{width:105vw;margin-left:-52.5vw}
-  .logo3d{width:105vw;font-size:calc(105vw * .288)}
+  #gate-logo-tilt{width:131.25vw;margin-left:-65.625vw}
+  .logo3d{width:131.25vw;font-size:calc(131.25vw * .288)}
 }
 /* every face (front/back end caps + side walls) is a canvas-rendered
    bitmap <img> - gradient + specular sheen (+ bevel on the end caps)
