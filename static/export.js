@@ -556,7 +556,7 @@ load = function(i, autoplay){
 
 /* 9:16 only: a light shade over the bottom of the frame - in FRONT of the 3D animal, BEHIND the song title and the
    by/artist row (inside .player: the animal is layer 1, the title/by block layer 3, this layer 2). It starts 10px above
-   the song title (0%) and fades to 25% black at the bottom edge; its top edge is a circular arc (a wide ellipse centred
+   the song title (0%) and fades to ~33% black at the bottom edge (it was 25%; made 33% more solid); its top edge is a circular arc (a wide ellipse centred
    on the bottom edge) rather than a straight line. The title's own position (slider offset included) drives it, so it
    follows the title wherever it sits. */
 if (ASPECT === "vertical"){
@@ -570,7 +570,7 @@ if (ASPECT === "vertical"){
       shade = document.createElement("div");
       shade.id = "export-bottom-shade";
       shade.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:2;pointer-events:none;"
-        + "background:linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,.25) 100%);"
+        + "background:linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,.3325) 100%);"
         + "clip-path:ellipse(130% 100% at 50% 100%);";
       player.appendChild(shade);
     }
