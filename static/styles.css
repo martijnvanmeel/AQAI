@@ -888,7 +888,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
      the parent's own position/transform) doesn't touch .artist-photo-wrap's
      own bounding rect, so it doesn't drag the creature/visualiser/title
      (all of which anchor off that live rect) along with it */
-  transform:translateY(-50%) scale(1.03125); /* 125% of the earlier .825 */
+  transform:translateY(-50%) scale(1.1859375); /* .825 x 1.25 x 1.15 */
 }
 /* (no stroke around the disc any more) */
 .artist-photo{
@@ -908,7 +908,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   background:linear-gradient(to bottom,
     color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 20%, #000000) 50%, transparent) 0%,
     #000000 100%);
-  transform:translateY(-50%) scale(1.03125); /* 125% of the earlier .825 */
+  transform:translateY(-50%) scale(1.1859375); /* .825 x 1.25 x 1.15 */
 }
 /* the real photo underneath is fully replaced by the solid colour fill
    above it now (no more real people "pretending" to be the band) -
