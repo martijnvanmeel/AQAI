@@ -101,3 +101,7 @@ body.export-mode #bg-title-watermark::after{
   opacity:1;
   filter:drop-shadow(0 0 6px rgba(255,255,255,.85));
 }
+
+/* 16:9: the AQAI logo sits at the bottom next to the "More songs at" button, in the strip below the view's own height, so the
+   view must not clip it (the frame itself, #app, still clips everything at the frame edge) */
+body.aspect-horizontal #view-home{overflow:visible !important}
