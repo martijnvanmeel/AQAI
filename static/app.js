@@ -607,6 +607,7 @@ function realNeighbors(dl, li, reach){
   }
   return { before, after };
 }
+const WORD_SOFT_FADE_SEC = 1.2;   // an outline/colour that gets interrupted (next sentence, silence) fades out over this long instead of vanishing
 const ACTIVE_EASE_SEC = 2;        // the main sentence's scale/lift eases in and out over this long ...
 const ACTIVE_EASE_PORTION = 0.075; // ... covering this fraction of the way from its entrance size to its resting size
 const ACTIVE_LINE_LIFT = 5; // px the active sentence moves up while it scales in (it eases over 9.3s but is frozen after 2s, so only a small part of this is ever applied)
@@ -710,10 +711,19 @@ function layoutLyricRows(li, before, after){
       // rows exactly - same color and same opacity on both sides.
       if (dir === -1){
         row.querySelectorAll(".w").forEach(w => {
+          // the word's colour and outline are never cut off: they are frozen where the animation had got to and then fade
+          // smoothly into the resting look of a previous sentence (instead of snapping there when the next sentence starts)
+          const cs = getComputedStyle(w);
+          const fill = cs.color, stroke = cs.webkitTextStrokeColor;
           w.style.animation = "none";
           w.style.transform = "";
+          w.style.transition = "none";
+          w.style.color = fill;
+          w.style.webkitTextStrokeColor = stroke;
+          void w.offsetWidth;
+          w.style.transition = `color ${WORD_SOFT_FADE_SEC}s linear, -webkit-text-stroke-color ${WORD_SOFT_FADE_SEC}s linear`;
           w.style.color = "";
-          w.style.webkitTextStroke = ""; // no lingering outline once a word's sentence is no longer active
+          w.style.webkitTextStrokeColor = "transparent";
         });
       }
       edge = y + h / 2;
@@ -795,10 +805,16 @@ function fadeOutForGap(dl, dli){
   // wrong place instead of the already-sung words fading out from white
   const spans = row.querySelectorAll(".w");
   spans.forEach(w => {
-    const cur = getComputedStyle(w).color;
+    const cs = getComputedStyle(w);
+    const cur = cs.color, stroke = cs.webkitTextStrokeColor;
     w.style.transition = "none";
     w.style.animation = "none";
     w.style.color = cur;
+    // the outline does not vanish at once either: it fades out
+    w.style.webkitTextStrokeColor = stroke;
+    void w.offsetWidth;
+    w.style.transition = `-webkit-text-stroke-color ${WORD_SOFT_FADE_SEC}s linear`;
+    w.style.webkitTextStrokeColor = "transparent";
   });
 }
 /* whole sentence starts blue and fades to white over the exact time it
