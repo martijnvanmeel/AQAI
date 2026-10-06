@@ -670,7 +670,7 @@ function layoutLyricRows(li, before, after){
       if (dir === 1 && depth === 3) ty -= 2 / 1.5;   // 2 screen px less space between the coming 2nd and 3rd sentence
       (dir === -1 ? beforeTy : afterTy)[depth] = ty;     // (the chain for the sentences below continues from this un-nudged spot)
       if (dir === 1 && depth === 2) ty -= 6 / 1.5;       // the second coming sentence alone sits 6 screen px higher (2, then 4 more)
-      if (dir === 1 && depth === 1) ty += 15 / 1.5;      // the first coming sentence alone sits 15 screen px LOWER than its natural spot (was 10 px higher, then 3, 2, 2, 6 and 12 lower) (#lyrics renders 1.5x)
+      if (dir === 1 && depth === 1) ty += 10 / 1.5;      // the first coming sentence alone sits 10 screen px LOWER than its natural spot (was 10 px higher, then 3, 2, 2, 6 and 12 lower, then 5 back up) (#lyrics renders 1.5x)
       row._ty = ty; row._dir = dir;
       const targetTranslate = `-50% calc(-50% + ${ty}px)`;
       // previous sentences (and the one before that) move to their new,
