@@ -64,7 +64,7 @@ body.aspect-vertical .lyric-row.coming{visibility:hidden !important} /* (hidden,
 /* 1:1: 200% of that 55vh (export.js also re-centers it vertically for
    this aspect, since its default Y anchor is tied to the karaoke lyrics
    position, not frame-center) */
-body.aspect-square #bg-title-watermark{font-size:110vh !important}
+body.aspect-square #bg-title-watermark{font-size:82.5vh !important} /* 75% of the earlier 110vh */
 /* 1:1 and 4:5's karaoke-centering transform (previously an !important
    override here) now lives in export.js's applyLyricsBaseTransform() -
    it needs to be a plain inline style, not an !important stylesheet
