@@ -584,7 +584,8 @@ function realNeighbors(dl, li, reach){
   }
   return { before, after };
 }
-const ACTIVE_LINE_LIFT = 5 + 1 / 1.5 - 4 / 1.5; // (5, plus 1 screen px higher; #lyrics renders 1.5x) layout px // px the active sentence moves up while it scales in
+const ACTIVE_LINE_LIFT = 5; // px the active sentence moves up while it scales in (it eases over 9.3s but is frozen after 2s, so only a small part of this is ever applied)
+const MAIN_LINE_DOWN = 5 / 1.5; // the main sentence sits 5 screen px lower than its natural spot (#lyrics renders 1.5x); applied at the start AND the end of its motion so it is there from the first frame
 function layoutLyricRows(li, before, after){
   const activeRow = lyricRowEls[li];
   if (!activeRow) return;
@@ -599,7 +600,7 @@ function layoutLyricRows(li, before, after){
   // change (active -> near -> gone), so scaling back out afterward moves
   // at that identical slow speed instead of a separate, faster one
   activeRow.style.transition = "none";
-  activeRow.style.translate = "-50% -50%";
+  activeRow.style.translate = `-50% calc(-50% + ${MAIN_LINE_DOWN}px)`;
   activeRow.style.scale = String(activeScale * 1.3);
   activeRow.getBoundingClientRect();
   activeRow.style.transition = "";
@@ -607,7 +608,7 @@ function layoutLyricRows(li, before, after){
   // it enters exactly where it always did (dead center, 130% size) and,
   // as it eases down to its final size, also ends 5px higher (translate
   // shares the same slow transition as scale). Neighbouring rows stay put.
-  activeRow.style.translate = `-50% calc(-50% - ${ACTIVE_LINE_LIFT}px)`;
+  activeRow.style.translate = `-50% calc(-50% - ${ACTIVE_LINE_LIFT - MAIN_LINE_DOWN}px)`;
   // the main sentence only scales (and lifts) for its first 2 seconds, then stops and keeps whatever size it has reached
   clearTimeout(activeRow._freezeT);
   activeRow._freezeT = setTimeout(() => {
