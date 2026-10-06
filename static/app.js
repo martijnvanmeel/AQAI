@@ -584,7 +584,7 @@ function realNeighbors(dl, li, reach){
   }
   return { before, after };
 }
-const ACTIVE_LINE_LIFT = 5; // px the active sentence moves up while it scales in
+const ACTIVE_LINE_LIFT = 5 + 1 / 1.5; // (5, plus 1 screen px higher; #lyrics renders 1.5x) layout px // px the active sentence moves up while it scales in
 function layoutLyricRows(li, before, after){
   const activeRow = lyricRowEls[li];
   if (!activeRow) return;
