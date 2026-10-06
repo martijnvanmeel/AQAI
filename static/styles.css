@@ -588,14 +588,14 @@ body.scene-hands #stage{background:linear-gradient(to top,
   line-height:.75;
   padding:.3em .1em 0; /* .1em of room left and right: the first/last letters stick out past the text box (negative letter spacing), and the fill/outline only paint inside it, so they were clipped */
   /* fill inside the letters: the artist's color at 50% at the top, already 0% at halfway down (plus the outline layer, ::before) */
-  background:linear-gradient(to bottom, color-mix(in srgb, var(--artist-color, var(--active-green)) 50%, transparent) 0%, transparent 50%);
+  background:linear-gradient(to bottom, color-mix(in srgb, var(--artist-color, var(--active-green)) 25%, transparent) 0%, transparent 50%); /* 25% = the old 50% fill x the old whole-title opacity .5 */
   -webkit-background-clip:text;background-clip:text;
   /* (the outline is its own layer, ::before below, so it can fade independently of this fill) */
   /* 2750% of the normal song-title size (see .meta .title's own clamp()) - 125% of the earlier 2200%; the baseline stays
      on the visualiser line because watermarkBaselineGap() in app.js derives it from the actual font + size */
   font-size:calc(27.5 * clamp(19.928847px, 6.227765vw, 34.875484px));
   letter-spacing:-.05em; /* -5% of the (huge) font-size */
-  opacity:.5; /* the whole title (fill, outline and light sweep together) 50% transparent */
+  opacity:1; /* (the layers carry their own opacity now: fill .5 baked into its gradient, outline .75, light sweep .5) */
   transform-origin:50% 100%; /* scale (export slider) keeps the bottom on the baseline */
   transition:transform 200s ease-out; /* was 160s: 25% slower */
 }
@@ -607,6 +607,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   position:absolute;inset:0;padding:.3em .1em 0;
   color:transparent;background:none;
   -webkit-text-stroke:1px var(--artist-color, var(--active-green));
+  opacity:.75; /* the outline is 50% less transparent than before (was 50% opaque, now 75%) */
   -webkit-mask-image:linear-gradient(to top, transparent .125em, #000 .825em);
   mask-image:linear-gradient(to top, transparent .125em, #000 .825em);
 }
@@ -620,6 +621,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   color:transparent;background:none;
   /* white */
   -webkit-text-stroke:1px #ffffff;
+  opacity:.5; /* as before (it used to inherit the title's .5) */
   /* two masks intersected: the diagonal band that sweeps across, and the same vertical profile as the outline above */
   -webkit-mask-image:linear-gradient(110deg, transparent 34%, #000 50%, transparent 66%), linear-gradient(to top, transparent .125em, #000 .825em);
   mask-image:linear-gradient(110deg, transparent 34%, #000 50%, transparent 66%), linear-gradient(to top, transparent .125em, #000 .825em);
