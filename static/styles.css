@@ -363,6 +363,16 @@ body.gate-active #dim-overlay{display:block}
       transparent 0%, transparent 40%, rgba(0,0,0,.5) 100%);
 }
 body.scene-sphere #sphere-vignette{display:block}
+/* the background video sphere is stronger: no 25% darkening any more (the other 3D scenes keep it), brighter, more saturated and
+   punchier, with a lighter corner vignette (50% -> 30% black) */
+body.scene-sphere #stage{filter:brightness(1.15) saturate(1.25) contrast(1.08)}
+body.scene-sphere #sphere-vignette{
+  background-image:
+    repeating-linear-gradient(to bottom,
+      rgba(0,0,0,.15) 0px, rgba(0,0,0,.15) 1px, transparent 1px, transparent 3px),
+    radial-gradient(circle at center,
+      transparent 0%, transparent 40%, rgba(0,0,0,.3) 100%);
+}
 /* retired: the PRISM edge fade is gone - beams keep full brightness out
    to the frame edges */
 #prism-fade{display:none}
