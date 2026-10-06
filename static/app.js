@@ -558,6 +558,7 @@ function computeDisplayLines(tr, maxChars){
   return lines;
 }
 const ACTIVE_LINE_SCALE = 1.3;
+const ENTRANCE_SCALE = 1.3 * 1.05; // the main sentence STARTS at this multiple of its resting size (was 1.3; now 105% of that) and stops scaling after 2s
 // blank (silence) entries never get their own row - the carousel skips
 // straight past them to the nearest real sentence on either side, so a
 // gap never shows as an empty centered line or an empty preview row
@@ -601,7 +602,7 @@ function layoutLyricRows(li, before, after){
   // at that identical slow speed instead of a separate, faster one
   activeRow.style.transition = "none";
   activeRow.style.translate = `-50% calc(-50% + ${MAIN_LINE_DOWN}px)`;
-  activeRow.style.scale = String(activeScale * 1.3);
+  activeRow.style.scale = String(activeScale * ENTRANCE_SCALE);
   activeRow.getBoundingClientRect();
   activeRow.style.transition = "";
   activeRow.style.scale = String(activeScale);
@@ -659,7 +660,7 @@ function layoutLyricRows(li, before, after){
       }
       // the main sentence stays bigger than its resting size (it enters at 130% and stops scaling after 2s), so the coming
       // sentences start below ITS real bottom edge (the freeze timer in this function corrects it to the size it stops at)
-      if (dir === 1 && depth === 1) ty += (activeScale * 1.3 - activeScale) * rowBaseHeight(activeRow) / 2;
+      if (dir === 1 && depth === 1) ty += (activeScale * ENTRANCE_SCALE - activeScale) * rowBaseHeight(activeRow) / 2;
       if (dir === 1 && depth === 3) ty -= 2 / 1.5;   // 2 screen px less space between the coming 2nd and 3rd sentence
       (dir === -1 ? beforeTy : afterTy)[depth] = ty;     // (the chain for the sentences below continues from this un-nudged spot)
       if (dir === 1 && depth === 2) ty -= 2 / 1.5;       // the second coming sentence alone sits 2 screen px higher (2, 4 more, then 2 and 2 lower)
@@ -742,7 +743,7 @@ function renderLyricRows(li, dl){
         const renderScale = lyr.clientWidth ? lyr.getBoundingClientRect().width / lyr.clientWidth : 1;
         const frameW = (document.querySelector("#app") || document.documentElement).getBoundingClientRect().width || window.innerWidth;
         const smallScale = window.innerWidth <= 480 ? 0.9 : 1;
-        const screenMax = (frameW * 0.92) / (renderScale * ACTIVE_LINE_SCALE * 1.3 * smallScale);
+        const screenMax = (frameW * 0.92) / (renderScale * ACTIVE_LINE_SCALE * ENTRANCE_SCALE * smallScale);
         if (textW > 0 && textW * fit > screenMax) fit = screenMax / textW;
       }
       row._fitScale = fit;
