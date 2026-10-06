@@ -646,8 +646,12 @@ function layoutLyricRows(li, before, after){
         row.getBoundingClientRect();
         row.style.transition = "";
       } else {
+        // the coming sentences don't animate either: they snap straight to their slot
+        row.style.transition = "none";
         row.style.translate = targetTranslate;
         row.style.scale = String(scale);
+        row.getBoundingClientRect();
+        row.style.transition = "";
       }
       row.classList.remove("active-row");
       row.classList.toggle("near", depth === 1);
@@ -674,11 +678,9 @@ let dlActiveIdx = -1; // last display-line index actually rendered active (see f
 function renderLyricRows(li, dl){
   dlActiveIdx = li;
   const wrap = $("#lyric-rows");
-  // upcoming sentences are never shown ahead of time - a line only ever
-  // appears once the song actually reaches it (only past ones stay
-  // visible, scrolled up above the active line, for context)
-  const { before } = realNeighbors(dl, li, LYRIC_ROW_REACH);
-  const after = [];
+  // the three previous sentences stay visible above the active line, and the three coming ones are shown below it
+  // (mirrored: same sizes, brightness and spacing)
+  const { before, after } = realNeighbors(dl, li, LYRIC_ROW_REACH);
   const keep = new Set([li, ...before, ...after]);
   Object.keys(lyricRowEls).forEach(k => {
     const idx = +k;
