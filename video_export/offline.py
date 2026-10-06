@@ -27,6 +27,8 @@ import numpy as np
 
 from . import ASPECTS, CSS_VIEWPORTS, FFMPEG, pick_background  # noqa: F401  (ASPECTS/CSS_VIEWPORTS: same geometry as the realtime path)
 
+STALL_SECONDS = 240
+
 GPU_ARGS = [
     "--autoplay-policy=no-user-gesture-required",
     "--use-angle=metal", "--ignore-gpu-blocklist", "--enable-gpu-rasterization",
@@ -132,8 +134,9 @@ class AnalyserTables:
 SYNC_JS = r"""
 async (d) => {
   const R = window.__R;
-  if (d.freq) R.freq = Uint8Array.from(d.freq);
-  if (d.td) R.td = Uint8Array.from(d.td);
+  const un = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  if (d.freq) R.freq = un(d.freq);
+  if (d.td) R.td = un(d.td);
   // background <video> clips are paused and parked on the frame for the virtual time (they loop)
   const jobs = [];
   for (const v of document.querySelectorAll('video')){
@@ -160,7 +163,7 @@ ANIM_JS = r"""
 
 
 def render(track, aspect, out_path, static_dir, server_port, fps=60, seconds=None, start_at=0.0,
-           crf=14, preset="slow", progress_cb=None, log=print, shot_format="png"):
+           crf=14, preset="slow", progress_cb=None, log=print, shot_format="png", scene=None, maxrate=None, bufsize=None, jpeg_quality=95):
     """Render `track` (a server track dict with 'id' and '_path') in the given aspect to out_path (mp4).
     seconds: only render that many seconds of the song (testing); start_at: first second to render."""
     from playwright.sync_api import sync_playwright
@@ -180,6 +183,8 @@ def render(track, aspect, out_path, static_dir, server_port, fps=60, seconds=Non
     n_frames = int(round(seconds * fps))
     step_ms = 1000.0 / fps
     url = f"http://127.0.0.1:{server_port}/export.html?id={track['id']}&aspect={aspect}&record=1"
+    if scene:
+        url += f"&scene={scene}"
 
     cmd = [
         FFMPEG, "-y", "-v", "error",
@@ -188,6 +193,7 @@ def render(track, aspect, out_path, static_dir, server_port, fps=60, seconds=Non
         "-map", "0:v", "-map", "1:a",
         "-vf", f"scale={w}:{h}:flags=lanczos:in_range=full:out_range=tv:out_color_matrix=bt709,format=yuv420p",
         "-c:v", "libx264", "-preset", preset, "-crf", str(crf), "-profile:v", "high", "-level", "5.2",
+        *(["-maxrate", maxrate, "-bufsize", bufsize or maxrate] if maxrate else []),
         "-r", str(fps), "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv",
         "-c:a", "aac", "-b:a", "320k", "-ar", "48000",
         "-movflags", "+faststart", "-shortest",
@@ -195,6 +201,22 @@ def render(track, aspect, out_path, static_dir, server_port, fps=60, seconds=Non
     ]
     ff = subprocess.Popen(cmd, stdin=subprocess.PIPE)
     t_begin = time.time()
+    # watchdog: if the browser dies or hangs (it happens now and then with several GPU renders at once) nothing raises - the
+    # process would just sit there. No new frame for STALL_SECONDS -> kill everything and exit non-zero so the caller can retry.
+    import threading
+    last_progress = [time.time()]
+
+    def _watchdog():
+        while True:
+            time.sleep(10)
+            if time.time() - last_progress[0] > STALL_SECONDS:
+                log(f"[{aspect}] STALLED: no new frame for {STALL_SECONDS}s - aborting")
+                try:
+                    ff.kill()
+                except Exception:
+                    pass
+                os._exit(4)
+    threading.Thread(target=_watchdog, daemon=True).start()
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(channel="chrome", args=GPU_ARGS)
@@ -205,7 +227,7 @@ def render(track, aspect, out_path, static_dir, server_port, fps=60, seconds=Non
             # a capture through our own session only sees the right layout if it carries the same device metrics itself
             cdp.send("Emulation.setDeviceMetricsOverride", {"width": vp["css_w"], "height": vp["css_h"], "deviceScaleFactor": vp["scale"], "mobile": False})
             page.clock.install(time=0)
-            page.goto(url, wait_until="load")
+            page.goto(url, wait_until="load", timeout=240000)
             # let everything load while the fake clock runs on its own (3D model, panorama video, fonts, the track)
             page.wait_for_timeout(9000)
             page.evaluate("() => { window.__R.go = false; }")
@@ -228,7 +250,7 @@ def render(track, aspect, out_path, static_dir, server_port, fps=60, seconds=Non
                     page.evaluate("(t) => { const R = window.__R; R.base = t; R.t0 = performance.now(); }", t)
                 tm0 = time.time()
                 f, td = tables.frame(int(round(t * fps)))
-                page.evaluate(SYNC_JS, {"freq": f.tolist(), "td": td.tolist(), "t": t})
+                page.evaluate(SYNC_JS, {"freq": base64.b64encode(f.tobytes()).decode(), "td": base64.b64encode(td.tobytes()).decode(), "t": t})
                 tm1 = time.time()
                 # the clock takes whole milliseconds: advance to the rounded virtual time of this frame (no drift over the song)
                 target_ms = int(round((i + 1) * 1000.0 / fps))
@@ -238,10 +260,15 @@ def render(track, aspect, out_path, static_dir, server_port, fps=60, seconds=Non
                 page.evaluate(ANIM_JS)
                 tm3 = time.time()
                 # Chrome's own capture call, lossless PNG, optimised for speed (about 3x faster than page.screenshot())
-                png = base64.b64decode(cdp.send("Page.captureScreenshot", {"format": "png", "optimizeForSpeed": True, "clip": clip})["data"])
+                if shot_format == "png":
+                    shot_args = {"format": "png", "optimizeForSpeed": True, "clip": clip}
+                else:
+                    shot_args = {"format": "jpeg", "quality": jpeg_quality, "optimizeForSpeed": True, "clip": clip}
+                png = base64.b64decode(cdp.send("Page.captureScreenshot", shot_args)["data"])
                 tm4 = time.time()
                 prof[0] += tm1 - tm0; prof[1] += tm2 - tm1; prof[2] += tm3 - tm2; prof[3] += tm4 - tm3
                 ff.stdin.write(png)
+                last_progress[0] = time.time()
                 if progress_cb and i % 30 == 0:
                     progress_cb(i / n_frames)
                 if i % 120 == 0:
@@ -272,9 +299,13 @@ if __name__ == "__main__":
     ap.add_argument("--seconds", type=float, default=None, help="only the first N seconds (testing)")
     ap.add_argument("--start", type=float, default=0.0)
     ap.add_argument("--port", type=int, default=8420)
+    ap.add_argument("--scene", default=None)
+    ap.add_argument("--shot", default="png", choices=["png", "jpeg"])
+    ap.add_argument("--maxrate", default=None)
     a = ap.parse_args()
     import server
     trk = next(x for x in server.scan_library() if x["id"] == a.track_id)
     render(trk, a.aspect, a.out, server.STATIC_DIR, a.port, fps=a.fps, seconds=a.seconds, start_at=a.start,
-           crf=a.crf, preset=a.preset, log=lambda *m: print(*m, flush=True))
+           crf=a.crf, preset=a.preset, scene=a.scene, shot_format=a.shot, maxrate=a.maxrate,
+           log=lambda *m: print(*m, flush=True))
     print("DONE", a.out, flush=True)

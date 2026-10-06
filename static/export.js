@@ -20,6 +20,13 @@ const ASPECT = VALID_ASPECTS.includes(params.get("aspect")) ? params.get("aspect
 // contain that panel, so buildControlPanel() below skips creating it
 // (but still applies whatever's already saved) when this is true.
 const IS_RECORDING = params.get("record") === "1";
+// &scene=<name> (one of ENVIRONMENT_SCENES in app.js: road, mist, maze, tiles, beams, prism, rings, check, cube, portal, domino)
+// forces that fully-3D environment as the background of the export: no panorama/animation clips from the anims folder.
+// (setBgVideoForTrack is a plain function declaration in app.js, so reassigning it here replaces what load() calls.)
+const FORCED_SCENE = params.get("scene");
+if (FORCED_SCENE){
+  setBgVideoForTrack = function(){ sceneChoice = FORCED_SCENE; };
+}
 document.body.classList.add("export-mode", `aspect-${ASPECT}`);
 // index.html's markup starts every page with <body class="gate-active">
 // (see styles.css's body.gate-active rules), which hides .home-top/
