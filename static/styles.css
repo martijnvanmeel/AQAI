@@ -281,10 +281,10 @@ body.gate-active::after{display:none}
   35%{color:var(--lyric-yellow)}
   100%{color:var(--artist-color, var(--active-green))}
 }
-/* the word being sung is 103% of its normal size for as long as it is the active word (quick ease in and out) */
+/* the word being sung starts at 103% of its normal size and zooms out to normal size over the same time as its color fade
+   (WORD_WHITE_FADE_SEC in app.js), in step with it */
 @keyframes wordActiveGrow{
-  0%{transform:scale(1)}
-  12%,88%{transform:scale(1.03)}
+  0%{transform:scale(1.03)}
   100%{transform:scale(1)}
 }
 /* the word that's currently active also gets a 2px white outline the
