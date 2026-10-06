@@ -736,6 +736,26 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
     }
     const h = app.getBoundingClientRect().height;
     if (h) box.style.fontSize = (h * 0.01425).toFixed(2) + "px";   // 25% smaller than the earlier .019 (the whole button scales: everything is in em)
+    // 16:9: the AQAI logo beside the button and the button are centred horizontally AS A GROUP: both get the same sideways
+    // shift (the individual `translate` property, so it never fights the logo's slider transform) that puts the middle of
+    // logo + button in the middle of the frame. Measured from the un-shifted positions every frame.
+    if (ASPECT === "horizontal"){
+      const logo = document.querySelector(".home-top .logo-text"), pill = document.getElementById("export-cta-pill");
+      if (logo && pill){
+        const prev = box._groupShift || 0;
+        const rg = document.createRange(); rg.selectNodeContents(logo);
+        const lr = rg.getBoundingClientRect(), pr = pill.getBoundingClientRect(), ar = app.getBoundingClientRect();
+        if (lr.width && pr.width){
+          const groupCenter0 = ((lr.left - prev) + (pr.right - prev)) / 2;
+          const shift = Math.round((ar.left + ar.width / 2 - groupCenter0) * 10) / 10;
+          if (Math.abs(shift - prev) > 0.05){
+            box._groupShift = shift;
+            logo.style.translate = shift + "px 0";
+            box.style.translate = shift + "px 0";
+          }
+        }
+      }
+    }
     requestAnimationFrame(bottomCta);
   })();
 }
