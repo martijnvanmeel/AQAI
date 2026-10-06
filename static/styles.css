@@ -686,6 +686,9 @@ body.scene-hands #stage{background:linear-gradient(to top,
 .lyric-row:not(.active-row):not(.near):not(.far){filter:brightness(.6)}
 /* third sentence back: artist color 30% darker, solid (not transparent) */
 .lyric-row.far .w{color:color-mix(in srgb, var(--artist-color, var(--active-green)) 70%, black)}
+/* the active (main) sentence is always painted on top of every other sentence */
+.lyric-row{z-index:1}
+.lyric-row.active-row{z-index:10}
 /* the coming sentences: outline only, not filled */
 .lyric-row.coming .w{color:transparent;-webkit-text-stroke:2.1667px color-mix(in srgb, var(--artist-color, var(--active-green)) 70%, black)}
 .lyric-row.active-row .w{color:color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 70%, black) 75%, white);opacity:1}
