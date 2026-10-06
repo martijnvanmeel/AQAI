@@ -7,8 +7,8 @@ window.EXPORT_DEFAULTS = {
     "targets": {
       "Circle/creature": {
         "x": 0.0,
-        "y": 502.0,
-        "scale": 3.0
+        "y": 456.0,
+        "scale": 0.92
       },
       "Visualiser": {
         "x": 0.0,
@@ -32,17 +32,17 @@ window.EXPORT_DEFAULTS = {
       },
       "3D object": {
         "x": 0.0,
-        "y": -288.0,
-        "scale": 2.04
+        "y": -57.0,
+        "scale": 1.17
       },
       "Karaoke text": {
         "x": 0.0,
-        "y": -54.0,
-        "scale": 0.74
+        "y": -9.0,
+        "scale": 0.87
       }
     },
     "watermark": {
-      "y": 900.0,
+      "y": 0.0,
       "scale": 1.14
     }
   }

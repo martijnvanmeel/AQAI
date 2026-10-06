@@ -179,7 +179,43 @@ function startExport(){
   // regardless (Playwright's screen capture doesn't grab it), the actual
   // track audio is always muxed in afterward from the original file (see
   // video_export/__init__.py), so this can't affect a real export
-  el.volume = 0;
+  el.volume = IS_RECORDING ? 0 : 1;
+  if (!IS_RECORDING){
+    // a preview opened in a normal browser: the music plays and the visualiser moves. Browsers keep the audio engine
+    // suspended (and may block autoplay) until the page gets a click/key press, so kick it on any such gesture too and
+    // show a small hint until the sound is really running
+    const kick = () => {
+      try {
+        initAudio();
+        if (ctx.state === "suspended") ctx.resume();
+        if (el.paused) el.play().then(() => { playing = true; }).catch(() => {});
+      } catch (e){}
+      if (ctx && ctx.state === "running" && !el.paused && hint){ hint.remove(); hint = null; }
+    };
+    let hint = null;
+    ["pointerdown", "keydown", "click", "touchstart"].forEach(ev => window.addEventListener(ev, kick, { passive: true }));
+    kick();
+    setTimeout(() => {
+      if (ctx && ctx.state === "running" && !el.paused) return;
+      hint = document.createElement("div");
+      hint.textContent = "Click anywhere to start the music";
+      hint.style.cssText = "position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:99999;padding:8px 14px;border-radius:999px;background:rgba(0,0,0,.75);color:#fff;font:12px/1.2 sans-serif;pointer-events:none";
+      document.body.appendChild(hint);
+    }, 700);
+    const retry = setInterval(() => { kick(); if (ctx && ctx.state === "running" && !el.paused) clearInterval(retry); }, 1000);
+  }
+  // the very first sweep of the huge background title can start before the page is laid out (font not loaded yet / element not
+  // rendered), in which case its transition never runs and it jumps straight to its end spot off the left edge and stays there.
+  // A song that has only just started can't have finished a 200s sweep, so if the title is already clear of the left edge,
+  // start the sweep again (a few tries at most)
+  let wmRetries = 0;
+  const wmGuard = setInterval(() => {
+    const wm = document.querySelector("#bg-title-watermark"), app = document.querySelector("#app");
+    if (!wm || !app || !wm.textContent) return;
+    const r = wm.getBoundingClientRect(), a = app.getBoundingClientRect();
+    if (el.currentTime < 40 && r.width && r.right < a.left && wmRetries < 4){ wmRetries++; animateBgTitleWatermark(); }
+    if (el.currentTime >= 40 || wmRetries >= 4) clearInterval(wmGuard);
+  }, 600);
   el.addEventListener("playing", () => { document.title = "AQAI_EXPORT_PLAYING"; }, { once: true });
   el.addEventListener("ended", () => { document.title = "AQAI_EXPORT_DONE"; });
   el.addEventListener("error", () => { document.title = "AQAI_EXPORT_ERROR:audio failed"; });
@@ -492,7 +528,7 @@ function buildControlPanel(){
   const wmEl = document.querySelector("#bg-title-watermark");
   if (wmEl){
     if (saved.watermark){
-      wmYOffset = saved.watermark.y || 0;
+      wmYOffset = (saved.watermark.y >= 900 ? 0 : saved.watermark.y) || 0; // 900 was the old way of parking the title off-screen: it is shown again
       wmScale = saved.watermark.scale ?? 1;
     }
     if (panel){
@@ -603,6 +639,10 @@ if (ASPECT === "vertical"){
         @keyframes exportCtaHand{0%{transform:translate(4.5em,4em) scale(1);opacity:0}10%{opacity:1}34%{transform:translate(0,0) scale(1);opacity:1}42%{transform:translate(-.1em,-.2em) scale(1.04)}48%{transform:translate(.03em,.08em) scale(.96)}56%{transform:translate(0,0) scale(1);opacity:1}62%{opacity:1}100%{transform:translate(4.5em,4em) scale(1);opacity:0}}
         @keyframes exportCtaGlow{0%,38%{filter:drop-shadow(0 0 .1em rgba(255,255,255,.1))}48%{filter:drop-shadow(0 0 .6em rgba(255,255,255,.95))}66%,100%{filter:drop-shadow(0 0 .1em rgba(255,255,255,.1))}}
         @keyframes exportCtaRing{0%,46%{transform:translate(-50%,-50%) scale(.2);opacity:0}50%{opacity:.85}78%,100%{transform:translate(-50%,-50%) scale(2.6);opacity:0}}
+        @keyframes exportCtaLight{0%,78%{background-position:160% 0}100%{background-position:-60% 0}}
+        #export-cta-pill::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+          background:linear-gradient(110deg,rgba(255,255,255,0) 38%,rgba(255,255,255,.5) 50%,rgba(255,255,255,0) 62%);background-size:220% 100%;background-repeat:no-repeat;background-position:160% 0;
+          animation:exportCtaLight 17s ease-in-out 9s infinite}
         @keyframes exportCtaPill{0%,44%{box-shadow:0 0 0 rgba(255,255,255,0)}50%{box-shadow:0 0 1.1em rgba(255,255,255,.28)}70%,100%{box-shadow:0 0 0 rgba(255,255,255,0)}}`;
       document.head.appendChild(st);
       box = document.createElement("div");
