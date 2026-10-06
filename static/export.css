@@ -101,3 +101,14 @@ body.export-mode #bg-title-watermark::after{
   opacity:1;
   filter:drop-shadow(0 0 6px rgba(255,255,255,.85));
 }
+
+/* 16:9: the huge song title is solid text in the artist colour (no outline, no light running along an outline) instead of
+   an outline with a faint fill - same colour, 50% opaque */
+body.aspect-horizontal #bg-title-watermark{
+  background:none !important;
+  -webkit-background-clip:border-box;background-clip:border-box;
+  color:var(--artist-color, var(--active-green));
+  opacity:.5;
+}
+body.aspect-horizontal #bg-title-watermark::before,
+body.aspect-horizontal #bg-title-watermark::after{display:none}
