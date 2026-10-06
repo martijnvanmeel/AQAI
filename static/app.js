@@ -631,6 +631,7 @@ function layoutLyricRows(li, before, after){
     let edge = rowBaseHeight(activeRow) * activeScale / 2;
     if (dir === -1) edge += 4; // 4px more distance between active and previous sentences
     let chainEdge = null;   // where the previous row in this direction ended (see below)
+    let startEdge = null;   // the same chain for where the previous rows START (the new active sentence is still 130% big then)
     list.forEach((idx, i) => {
       const depth = i + 1;
       const row = lyricRowEls[idx];
@@ -699,7 +700,19 @@ function layoutLyricRows(li, before, after){
                                      : (row._fitScale || 1) * inactiveScaleForDepth(depth - 1);
         const curScale = parseFloat(getComputedStyle(row).scale) || prevSlot;
         const startScale = Math.min(curScale, prevSlot);
+        // start position: chained 2px above the letters of the sentence below AS IT IS AT THE START (the new main sentence
+        // is still at 130%, so the 2nd sentence has to start higher or it would overlap it), then it eases down to its slot
+        const rmS = lyricRowMetrics(row);
+        if (startEdge === null){
+          const amS = lyricRowMetrics(activeRow);
+          startEdge = activeScale * 1.3 * (amS.b - amS.cap);
+        }
+        const lyrS = activeRow.parentElement && activeRow.parentElement.parentElement;
+        const rsS = lyrS && lyrS.clientWidth ? lyrS.getBoundingClientRect().width / lyrS.clientWidth : 1;
+        const startCenterY = (startEdge - 2 / rsS) - startScale * rmS.b;
+        startEdge = startCenterY + startScale * (rmS.b - rmS.cap);
         row.style.transition = "none";
+        row.style.translate = `-50% calc(-50% + ${startCenterY.toFixed(3)}px)`;
         row.style.scale = String(startScale);
         row.getBoundingClientRect();
         const secs = (LYRIC_DEPTH_SECONDS[depth - 1] || LYRIC_DEPTH_SECONDS[LYRIC_DEPTH_SECONDS.length - 1]).toFixed(2);
