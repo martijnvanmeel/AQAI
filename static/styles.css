@@ -281,10 +281,10 @@ body.gate-active::after{display:none}
   35%{color:var(--lyric-yellow)}
   100%{color:var(--artist-color, var(--active-green))}
 }
-/* the word being sung is 110% of its normal size for as long as it is the active word (quick ease in and out) */
+/* the word being sung is 103% of its normal size for as long as it is the active word (quick ease in and out) */
 @keyframes wordActiveGrow{
   0%{transform:scale(1)}
-  12%,88%{transform:scale(1.1)}
+  12%,88%{transform:scale(1.03)}
   100%{transform:scale(1)}
 }
 /* the word that's currently active also gets a 2px white outline the
@@ -687,7 +687,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
      "before" rows, since upcoming lines are never shown): artist color
      40% darker, solid (not transparent) */
   color:color-mix(in srgb, var(--artist-color, var(--active-green)) 60%, black);opacity:1;
-  -webkit-text-stroke-width:3.3333px;-webkit-text-stroke-color:transparent; /* invisible until wordActiveStroke lights it; 2px (screen) thicker than the old 2px: the viewer renders at 1.5x */
+  -webkit-text-stroke-width:2px;-webkit-text-stroke-color:transparent; /* invisible until wordActiveStroke lights it (the viewer renders at 1.5x) */
   transition:transform .3s ease;
 }
 /* second sentence back (the most recent previous sentence): artist color
