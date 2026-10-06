@@ -475,53 +475,12 @@ body.scene-hands #stage{background:linear-gradient(to top,
    below the artist photo */
 #bg-gradient{
   position:fixed;left:0;right:0;top:0;bottom:0;z-index:1;pointer-events:none;
-  /* light blue at the bottom of the screen, 10% opaque, fading to nothing (0%) at the middle of the screen
-     (this replaced the earlier artist-colored scrim) */
+  /* the artist colour at the bottom of the screen: 90% transparent (10% opaque) at the very bottom, fading to 100% transparent
+     at one third of the screen height */
   background:linear-gradient(to top,
-    rgba(159, 216, 255, .10) 0%,
-    rgba(159, 216, 255, 0) 50%);
+    color-mix(in srgb, var(--artist-color, var(--active-green)) 10%, transparent) 0%,
+    color-mix(in srgb, var(--artist-color, var(--active-green)) 0%, transparent) 33.333%);
 }
-/* the full-screen gradient layers behind the UI are switched off: the gradient.mp4 colour-grade wash and the light-blue bottom gradient (their rules above are kept, so they can be switched back on by deleting this) */
-#gradient-overlay,
-#bg-gradient{display:none !important}   /* (the radial artist-colour tint behind the karaoke text is back on) */
-/* a slowly moving colour layer on top of the background scene, in the colours of the clip "From Klickpin.com- 937171003717724550"
-   (its dominant colours: deep blues #04389c #0677a3 #083d64, reds #62160b, orange #a75915, plum #42283a). It replaces the video:
-   two oversized gradient layers that only move with transform animations (composited on the graphics card, no repainting, no
-   video decoding), blended with `lighten`. */
-#overlay-gradient{
-  position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden;isolation:isolate;
-  mix-blend-mode:lighten;
-  opacity:.5;
-  background:#0d223c;
-}
-#overlay-gradient i{
-  position:absolute;inset:-40%;display:block;will-change:transform;
-}
-#overlay-gradient i:nth-child(1){
-  background:
-    radial-gradient(circle at 22% 28%, #04389c 0, transparent 38%),
-    radial-gradient(circle at 78% 22%, #a75915 0, transparent 34%),
-    radial-gradient(circle at 70% 78%, #0677a3 0, transparent 40%),
-    radial-gradient(circle at 26% 82%, #62160b 0, transparent 38%);
-  animation:overlayDriftA 34s ease-in-out infinite alternate;
-}
-#overlay-gradient i:nth-child(2){
-  background:
-    radial-gradient(circle at 60% 40%, #42283a 0, transparent 36%),
-    radial-gradient(circle at 30% 60%, #083d64 0, transparent 42%),
-    radial-gradient(circle at 85% 65%, #62160b 0, transparent 30%);
-  mix-blend-mode:lighten;
-  animation:overlayDriftB 23s ease-in-out infinite alternate;
-}
-@keyframes overlayDriftA{
-  0%{transform:translate3d(-6%,-4%,0) rotate(-14deg) scale(1)}
-  100%{transform:translate3d(7%,5%,0) rotate(22deg) scale(1.18)}
-}
-@keyframes overlayDriftB{
-  0%{transform:translate3d(8%,-6%,0) rotate(18deg) scale(1.15)}
-  100%{transform:translate3d(-7%,7%,0) rotate(-20deg) scale(.95)}
-}
-body.gate-active #overlay-gradient{display:none}
 #stage canvas{display:block;width:100%;height:100%}
 
 .home-top{
