@@ -585,7 +585,7 @@ function realNeighbors(dl, li, reach){
   return { before, after };
 }
 const ACTIVE_LINE_LIFT = 5; // px the active sentence moves up while it scales in (it eases over 9.3s but is frozen after 2s, so only a small part of this is ever applied)
-const MAIN_LINE_DOWN = 5 / 1.5; // the main sentence sits 5 screen px lower than its natural spot (#lyrics renders 1.5x); applied at the start AND the end of its motion so it is there from the first frame
+const MAIN_LINE_DOWN = 7 / 1.5; // the main sentence sits 7 screen px lower than its natural spot (#lyrics renders 1.5x); applied at the start AND the end of its motion so it is there from the first frame
 function layoutLyricRows(li, before, after){
   const activeRow = lyricRowEls[li];
   if (!activeRow) return;
@@ -669,7 +669,7 @@ function layoutLyricRows(li, before, after){
       if (dir === 1 && depth === 1) ty += (activeScale * 1.3 - activeScale) * rowBaseHeight(activeRow) / 2;
       if (dir === 1 && depth === 3) ty -= 2 / 1.5;   // 2 screen px less space between the coming 2nd and 3rd sentence
       (dir === -1 ? beforeTy : afterTy)[depth] = ty;     // (the chain for the sentences below continues from this un-nudged spot)
-      if (dir === 1 && depth === 2) ty -= 6 / 1.5;       // the second coming sentence alone sits 6 screen px higher (2, then 4 more)
+      if (dir === 1 && depth === 2) ty -= 4 / 1.5;       // the second coming sentence alone sits 4 screen px higher (2, 4 more, then 2 lower)
       if (dir === 1 && depth === 1) ty -= 2 / 1.5;       // the first coming sentence alone sits 2 screen px higher than its natural spot (2 more up) than its natural spot (was 10 px higher, then 3, 2, 2, 6 and 12 lower, then 5 back up) (#lyrics renders 1.5x)
       row._ty = ty; row._dir = dir;
       const targetTranslate = `-50% calc(-50% + ${ty}px)`;
