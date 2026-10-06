@@ -638,7 +638,7 @@ function layoutLyricRows(li, before, after){
       let ty = dir * y + shift + depthNudge + smallBreakpointNudge;
       if (dir === 1 && depth >= 2 && afterTy[depth - 1] !== undefined && beforeTy[depth] !== undefined){
         // the 2nd, 3rd... coming sentence sits exactly as far below the one above it as the matching previous sentence sits above its neighbour
-        ty = afterTy[depth - 1] + (beforeTy[depth - 1] - beforeTy[depth]);
+        ty = afterTy[depth - 1] + (beforeTy[depth - 1] - beforeTy[depth]) - (depth === 2 ? 1 / 1.5 : 0); // the 3rd+4th sentences (as a group) sit 1 screen px closer to the 2nd
       }
       (dir === -1 ? beforeTy : afterTy)[depth] = ty;
       const targetTranslate = `-50% calc(-50% + ${ty}px)`;
