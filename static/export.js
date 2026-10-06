@@ -319,7 +319,7 @@ function applyLyricsBaseTransform(){
   if (!lyrics) return;
   lyrics.style.transform = (ASPECT === "square" || ASPECT === "portrait")
     ? "translateY(calc(-50% + 27px)) scale(1.5)"
-    : "translateY(calc(-50% - 10vh)) scale(1.5)";
+    : "translateY(calc(-50% - 8px - 10vh)) scale(1.5)";
 }
 
 // manual X/Y/scale control panel for the key on-screen elements -

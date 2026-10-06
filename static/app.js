@@ -619,8 +619,19 @@ function layoutLyricRows(li, before, after){
     activeRow.style.translate = tr;
     activeRow.getBoundingClientRect();
     activeRow.style.transition = "";
+    // the coming sentences always sit below the main one: re-seat them for the size it actually stopped at
+    const delta = ((parseFloat(sc) || activeScale * 1.3) - activeScale * 1.3) * rowBaseHeight(activeRow) / 2;
+    Object.values(lyricRowEls).forEach(r => {
+      if (r._dir !== 1 || r === activeRow) return;
+      r.style.transition = "none";
+      r.style.translate = `-50% calc(-50% + ${r._ty + delta}px)`;
+      r.getBoundingClientRect();
+      r.style.transition = "";
+    });
   }, 2000);
   activeRow.classList.add("active-row");
+  activeRow.classList.remove("coming");
+  activeRow._dir = 0;
   activeRow.classList.remove("near");
   const beforeTy = [], afterTy = []; // each row's vertical offset by depth, so the coming sentences can copy the previous ones' spacing
   [[-1, before], [1, after]].forEach(([dir, list]) => {
@@ -652,7 +663,11 @@ function layoutLyricRows(li, before, after){
         // the 2nd, 3rd... coming sentence sits exactly as far below the one above it as the matching previous sentence sits above its neighbour
         ty = afterTy[depth - 1] + (beforeTy[depth - 1] - beforeTy[depth]) - (depth === 2 ? 1 / 1.5 : 0); // the 3rd+4th sentences (as a group) sit 1 screen px closer to the 2nd
       }
+      // the main sentence stays bigger than its resting size (it enters at 130% and stops scaling after 2s), so the coming
+      // sentences start below ITS real bottom edge (the freeze timer in this function corrects it to the size it stops at)
+      if (dir === 1 && depth === 1) ty += (activeScale * 1.3 - activeScale) * rowBaseHeight(activeRow) / 2;
       (dir === -1 ? beforeTy : afterTy)[depth] = ty;
+      row._ty = ty; row._dir = dir;
       const targetTranslate = `-50% calc(-50% + ${ty}px)`;
       // previous sentences (and the one before that) move to their new,
       // smaller spot and size immediately - no transition at all - only
@@ -674,6 +689,7 @@ function layoutLyricRows(li, before, after){
       }
       row.classList.remove("active-row");
       row.classList.toggle("near", depth === 1);
+      row.classList.toggle("coming", dir === 1);   // coming sentences are drawn as outlines only (styles.css)
       row.classList.toggle("far", depth === 2);
       // "before" rows are past sentences that just moved up off center
       // stage (making room for the new active one) - their per-word color
