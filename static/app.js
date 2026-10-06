@@ -65,12 +65,10 @@ function themeIndexForTrack(track) {
    ones), but its top must always stay at least 50px below the "Sound on..." line - the clip is 16:9, so that gap is a
    height limit, i.e. a width limit of height * 16/9 */
 function sizeGateCreatures(){
+  // the creatures sit in the bottom right corner of the start screen, at most 150px high (the clip is 16:9)
   const v = document.getElementById("gate-creatures");
-  const hint = document.querySelector("#gate .gate-hint");
-  if (!v || !hint) return;
-  const maxH = window.innerHeight - hint.getBoundingClientRect().bottom - 50;
-  if (maxH <= 0) return;
-  v.style.width = Math.min(window.innerWidth, maxH * 16 / 9).toFixed(1) + "px";
+  if (!v) return;
+  v.style.width = Math.min(window.innerWidth, 150 * 16 / 9).toFixed(1) + "px";
 }
 window.addEventListener("resize", sizeGateCreatures);
 window.addEventListener("load", sizeGateCreatures);

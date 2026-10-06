@@ -154,16 +154,12 @@ body.gate-active::after{display:none}
   overflow:hidden;
 }
 #gate.hidden{opacity:0;visibility:hidden}
-/* the artist creatures, standing along the bottom of the start screen: a
-   transparent-background WebM (black keyed out), centered, behind the logo/button */
+/* the artist creatures: a transparent-background WebM (black keyed out), in the bottom RIGHT corner of the start screen, at most
+   150px high (the clip is 16:9, so that is a width of 150 * 16/9 = 266.67px), behind the logo/button */
 #gate-creatures{
-  position:absolute;left:50%;bottom:0;z-index:1;
-  /* as big as fits: the full screen width on narrow screens, bigger the larger the screen - but always at least 50px
-     of space between the "Sound on..." line and the top of the animation. The clip is 16:9, so that height limit is a
-     width limit of height * 16/9; the script in app.js (sizeGateCreatures) sets the exact value from the real hint
-     position, this is its fallback */
-  width:min(100%, calc((50vh - 90px) * 16 / 9));height:auto;
-  transform:translateX(-50%);
+  position:absolute;right:0;left:auto;bottom:0;z-index:1;
+  width:min(100%, 266.67px);height:auto;max-height:150px;
+  transform:none;
   pointer-events:none;
 }
 /* logo/button/hint sit statically - only the logo itself tilts with the
