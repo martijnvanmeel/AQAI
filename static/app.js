@@ -584,6 +584,21 @@ function realNeighbors(dl, li, reach){
   }
   return { before, after };
 }
+// where a row's letters sit inside its box, relative to the row's own centre (row-local px, before its scale): `b` is the
+// baseline's offset (positive = below the centre), `cap` the capital height. Used to position the previous sentences by
+// their LETTERS (see layoutLyricRows) instead of by their boxes, whose line spacing hides the real gap.
+let _lyrMeasureCtx = null;
+function lyricRowMetrics(row){
+  if (row._m) return row._m;
+  if (!_lyrMeasureCtx) _lyrMeasureCtx = document.createElement("canvas").getContext("2d");
+  const cs = getComputedStyle(row);
+  _lyrMeasureCtx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  const m = _lyrMeasureCtx.measureText("H");
+  const A = m.fontBoundingBoxAscent, D = m.fontBoundingBoxDescent;
+  const L = parseFloat(cs.lineHeight) || (A + D);
+  row._m = { b: (L - (A + D)) / 2 + A - L / 2, cap: m.actualBoundingBoxAscent };
+  return row._m;
+}
 const LYRIC_DEPTH_SECONDS = [3.2, 3.6, 4.0];       // previous sentences 1, 2, 3 back: how long each takes to shrink to its new size - the further back, the longer (slower)
 const ACTIVE_LINE_LIFT = 5; // px the active sentence moves up while it scales in
 function layoutLyricRows(li, before, after){
@@ -615,6 +630,7 @@ function layoutLyricRows(li, before, after){
   [[1, after], [-1, before]].forEach(([dir, list]) => {
     let edge = rowBaseHeight(activeRow) * activeScale / 2;
     if (dir === -1) edge += 4; // 4px more distance between active and previous sentences
+    let chainEdge = null;   // where the previous row in this direction ended (see below)
     list.forEach((idx, i) => {
       const depth = i + 1;
       const row = lyricRowEls[idx];
@@ -636,7 +652,32 @@ function layoutLyricRows(li, before, after){
       const smallBreakpointNudge = (dir === -1 && window.innerWidth <= 480)
         ? -(depth === 3 ? 12 : depth === 2 ? 8 : 4)
         : 0;
-      const targetTranslate = `-50% calc(-50% + ${dir * y + shift + depthNudge + smallBreakpointNudge}px)`;
+      let targetTranslate = `-50% calc(-50% + ${dir * y + shift + depthNudge + smallBreakpointNudge}px)`;
+      // Both the previous and the coming sentences are placed by their LETTERS, chained one to the next with a 2px gap
+      // (measured on screen): each previous sentence has its baseline 2px above the top of the letters of the sentence below
+      // it (the 2nd is 2px from the top of the 1st, the 3rd 2px from the top of the 2nd, ...), and each coming sentence has
+      // its letter-tops 2px below the baseline of the sentence above it - the same, seen from the bottom. All lengths here
+      // are in #lyrics' own (unscaled) units, which render 1.5x bigger, hence the division by that scale.
+      {
+        const rm = lyricRowMetrics(row);
+        if (chainEdge === null){
+          const am = lyricRowMetrics(activeRow);
+          chainEdge = dir === -1 ? (-ACTIVE_LINE_LIFT + activeScale * (am.b - am.cap))   // top of the main sentence's letters
+                                 : (-ACTIVE_LINE_LIFT + activeScale * am.b);            // bottom (baseline) of the main sentence
+        }
+        const lyr = activeRow.parentElement && activeRow.parentElement.parentElement;
+        const renderScale = lyr && lyr.clientWidth ? lyr.getBoundingClientRect().width / lyr.clientWidth : 1;
+        const gap = 2 / renderScale;
+        let centerY;
+        if (dir === -1){
+          centerY = (chainEdge - gap) - scale * rm.b;                  // baseline = 2px above the sentence below's letter-top
+          chainEdge = centerY + scale * (rm.b - rm.cap);               // this sentence's own letter-top, for the next one up
+        } else {
+          centerY = (chainEdge + gap) - scale * (rm.b - rm.cap);       // letter-top = 2px below the sentence above's baseline
+          chainEdge = centerY + scale * rm.b;                          // this sentence's own baseline, for the next one down
+        }
+        targetTranslate = `-50% calc(-50% + ${centerY.toFixed(3)}px)`;
+      }
       // previous sentences (and the one before that) move to their new,
       // smaller spot and size immediately - no transition at all - only
       // the newly-active line and the upcoming ("after") rows get the
@@ -699,8 +740,7 @@ function renderLyricRows(li, dl){
   // upcoming sentences are never shown ahead of time - a line only ever
   // appears once the song actually reaches it (only past ones stay
   // visible, scrolled up above the active line, for context)
-  const { before } = realNeighbors(dl, li, LYRIC_ROW_REACH);
-  const after = [];
+  const { before, after } = realNeighbors(dl, li, LYRIC_ROW_REACH);   // the 3 previous AND the 3 coming sentences
   const keep = new Set([li, ...before, ...after]);
   Object.keys(lyricRowEls).forEach(k => {
     const idx = +k;
@@ -7563,7 +7603,7 @@ function renderLogoFace(fillColor, strokeColor, specular, specularPos){
 // animated), but at the 10%-darkest version of the same artist colors
 // the sides cycle through, instead of pure black
 const logo3dSideImgs = [];
-const logo3dCapImgs = []; // front/back - color stays fixed black, but the specular sheen sweeps across them
+const logo3dCapImgs = []; // front/back - black tinted 25% toward the cycling artist color (see startLogoColorCycle), with the specular sheen sweeping across them
 if (logo3dEl){
   (async () => {
     try { await document.fonts.load(`900 ${450 * 0.85}px Brice`); } catch (e) {}
@@ -7612,7 +7652,13 @@ function startLogoColorCycle(){
       // slowly across the letters, like light moving over the surface
       const CAP_SWEEP_SEC = 6;
       const sweepU = (1 - Math.cos(now / 1000 / CAP_SWEEP_SEC * Math.PI * 2)) / 2;
-      const capSrc = renderLogoFace("#000000", "#ffffff", true, sweepU);
+      // the faces are no longer pure black: they fade along with the sides' color cycle, at 25% of the current color
+      // (black mixed 25% of the way toward it), so the black tints through the artist colors
+      // once in a while (a short bump every ~70s) the faces fade up to 80% instead
+      const rare = Math.max(0, Math.sin((now / 1000 % 70) / 70 * Math.PI * 2 - Math.PI / 2 + 0.0)) ;
+      const bump = Math.pow(Math.max(0, (rare - 0.93) / 0.07), 1); // only the very peak of the cycle
+      const capColor = new THREE.Color(0x000000).lerp(c, 0.25 + 0.55 * Math.min(1, bump));
+      const capSrc = renderLogoFace("#" + capColor.getHexString(), "#ffffff", true, sweepU);
       logo3dCapImgs.forEach(img => { img.src = capSrc; });
     }
     requestAnimationFrame(tick);
