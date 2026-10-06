@@ -847,7 +847,7 @@ function startActiveLineFade(dl, li){
     // runs on its own fixed 1s duration (2x slower than its original 0.5s) -
     // the 2px white outline appears the instant the word becomes active,
     // then fades out to 0% over that 1s
-    spans[i].style.animation = `wordWhiteToArtist ${WORD_WHITE_FADE_SEC}s linear ${wordStart}s forwards, wordActiveStroke ${WORD_WHITE_FADE_SEC}s linear ${wordStart}s forwards, wordActiveGrow ${WORD_WHITE_FADE_SEC}s linear ${wordStart}s forwards`;
+    spans[i].style.animation = `wordWhiteToArtist ${WORD_WHITE_FADE_SEC}s linear ${wordStart}s forwards, wordActiveStroke ${WORD_WHITE_FADE_SEC}s linear ${wordStart}s forwards`;
   }
 }
 

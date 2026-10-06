@@ -281,12 +281,6 @@ body.gate-active::after{display:none}
   35%{color:var(--lyric-yellow)}
   100%{color:var(--artist-color, var(--active-green))}
 }
-/* the word being sung starts at 103% of its normal size and zooms out to normal size over the same time as its color fade
-   (WORD_WHITE_FADE_SEC in app.js), in step with it */
-@keyframes wordActiveGrow{
-  0%{transform:scale(1.03)}
-  100%{transform:scale(1)}
-}
 /* the word that's currently active also gets a 2px white outline the
    instant it's set, which then fades out to 0% opacity over a fixed 0.5s -
    started at the same delay as wordActiveWhite above (see
@@ -482,6 +476,14 @@ body.scene-hands #stage{background:linear-gradient(to top,
 #gradient-overlay,
 #artist-color-overlay,
 #bg-gradient{display:none !important}
+/* a video layer on top of the background scene: "From Klickpin.com- 937171003717724550", blended with `overlay`, 20% transparent */
+#overlay-video{
+  position:fixed;inset:0;z-index:1;pointer-events:none;
+  width:100%;height:100%;object-fit:cover;
+  mix-blend-mode:overlay;
+  opacity:.8;
+}
+body.gate-active #overlay-video{display:none}
 #stage canvas{display:block;width:100%;height:100%}
 
 .home-top{
