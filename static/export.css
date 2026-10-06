@@ -126,4 +126,5 @@ body.aspect-horizontal #export-cta-lead,
 body.aspect-horizontal #export-cta-url{
   color:color-mix(in srgb, var(--artist-color, #ffffff) 80%, transparent) !important;
   opacity:1 !important;
+  position:relative;top:1px;      /* the text sits 1px lower */
 }
