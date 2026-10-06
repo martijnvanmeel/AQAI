@@ -6530,7 +6530,7 @@ addEventListener("keyup", e => {
   else if (e.key === "ArrowRight") flightKeys.right = false;
 });
 
-// keeps the 500px glow centred on the karaoke viewer's live box (#lyrics is moved and scaled by CSS/JS transforms, so read its real
+// keeps the glow centred on the karaoke viewer's live box (#lyrics is moved and scaled by CSS/JS transforms, so read its real
 // on-screen rect instead of repeating the transform)
 let _lyricsGlowEl = null, _lyricsEl = null;
 function syncLyricsGlow(){
@@ -6544,8 +6544,8 @@ function syncLyricsGlow(){
   const lr = l.getBoundingClientRect();
   const cx = (lr.left + lr.width / 2 - pr.left) / sc, cy = (lr.top + lr.height / 2 - pr.top) / sc;
   g.style.visibility = l.style.visibility; // hidden whenever the lyrics themselves are
-  g.style.left = (cx - 250).toFixed(1) + "px";
-  g.style.top = (cy - 250).toFixed(1) + "px";
+  g.style.left = (cx - g.offsetWidth / 2).toFixed(1) + "px";
+  g.style.top = (cy - g.offsetHeight / 2).toFixed(1) + "px";
 }
 function animate(t){
   requestAnimationFrame(animate);

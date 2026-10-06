@@ -639,10 +639,10 @@ body.scene-hands #stage{background:linear-gradient(to top,
   /* very soft, light drop shadow lifting the karaoke text off the 3D scenes */
   filter:drop-shadow(0 6px 36.4px rgba(0,0,0,.42));
 }
-/* a soft black glow (500 x 500px, 20% black in the middle fading out) exactly in the middle of the karaoke viewer; its position is
+/* a soft black glow (575 x 575px = 500 +15%, 20% black in the middle fading out) exactly in the middle of the karaoke viewer; its position is
    synced to #lyrics' live box in app.js (syncLyricsGlow) since #lyrics is moved/scaled by transforms */
 #lyrics-glow{
-  position:absolute;left:0;top:0;width:500px;height:500px;z-index:1;pointer-events:none;
+  position:absolute;left:0;top:0;width:575px;height:575px;z-index:1;pointer-events:none;
   background:radial-gradient(circle closest-side, rgba(0,0,0,.20), rgba(0,0,0,0));
 }
 #lyric-rows{position:relative;width:100%;height:100%}
