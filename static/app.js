@@ -630,7 +630,7 @@ function layoutLyricRows(li, before, after){
       // (depth 1) 2px up; third sentence (depth 2) net +1px lower (+3px,
       // then -2px). At the smallest breakpoint, the second/third/fourth
       // sentences (depth 1/2/3) additionally move up 4px/8px/12px
-      const depthNudge = dir !== -1 ? (depth === 1 ? -4 / 1.5 : 0) /* first coming sentence: 4 screen px up (2, then 2 more) (#lyrics renders 1.5x) */ : depth === 1 ? -2 : depth === 2 ? 1 : 0;
+      const depthNudge = dir !== -1 ? (depth === 1 ? -6 / 1.5 : 0) /* first coming sentence: 6 screen px up (2, then 2 more, then 2 more) (#lyrics renders 1.5x) */ : depth === 1 ? -2 : depth === 2 ? 1 : 0;
       const smallBreakpointNudge = (dir === -1 && window.innerWidth <= 480)
         ? -(depth === 3 ? 12 : depth === 2 ? 8 : 4)
         : 0;
