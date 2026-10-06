@@ -584,23 +584,7 @@ function realNeighbors(dl, li, reach){
   }
   return { before, after };
 }
-// where a row's letters sit inside its box, relative to the row's own centre (row-local px, before its scale): `b` is the
-// baseline's offset (positive = below the centre), `cap` the capital height. Used to position the previous sentences by
-// their LETTERS (see layoutLyricRows) instead of by their boxes, whose line spacing hides the real gap.
-let _lyrMeasureCtx = null;
-function lyricRowMetrics(row){
-  if (row._m) return row._m;
-  if (!_lyrMeasureCtx) _lyrMeasureCtx = document.createElement("canvas").getContext("2d");
-  const cs = getComputedStyle(row);
-  _lyrMeasureCtx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
-  const m = _lyrMeasureCtx.measureText("H");
-  const A = m.fontBoundingBoxAscent, D = m.fontBoundingBoxDescent;
-  const L = parseFloat(cs.lineHeight) || (A + D);
-  row._m = { b: (L - (A + D)) / 2 + A - L / 2, cap: m.actualBoundingBoxAscent };
-  return row._m;
-}
-const LYRIC_DEPTH_SECONDS = [3.2, 3.6, 4.0];       // previous sentences 1, 2, 3 back: how long each takes to shrink to its new size - the further back, the longer (slower)
-const ACTIVE_LINE_LIFT = 5 - 2 / 1.5; // (2 screen px lower than the old 5; #lyrics renders 1.5x) layout px the active sentence moves up while it scales in
+const ACTIVE_LINE_LIFT = 5; // px the active sentence moves up while it scales in
 function layoutLyricRows(li, before, after){
   const activeRow = lyricRowEls[li];
   if (!activeRow) return;
@@ -624,14 +608,11 @@ function layoutLyricRows(li, before, after){
   // as it eases down to its final size, also ends 5px higher (translate
   // shares the same slow transition as scale). Neighbouring rows stay put.
   activeRow.style.translate = `-50% calc(-50% - ${ACTIVE_LINE_LIFT}px)`;
-  activeRow._fresh = false; // from now on it eases (as the previous sentence it will ease out, not snap)
   activeRow.classList.add("active-row");
   activeRow.classList.remove("near");
   [[1, after], [-1, before]].forEach(([dir, list]) => {
     let edge = rowBaseHeight(activeRow) * activeScale / 2;
     if (dir === -1) edge += 4; // 4px more distance between active and previous sentences
-    let chainEdge = null;   // where the previous row in this direction ended (see below)
-    let startEdge = null;   // the same chain for where the previous rows START (the new active sentence is still 130% big then)
     list.forEach((idx, i) => {
       const depth = i + 1;
       const row = lyricRowEls[idx];
@@ -644,7 +625,7 @@ function layoutLyricRows(li, before, after){
       // symmetrically so the previous sentences get the same spacing as
       // the upcoming ones (upcoming sit below → pulled up; previous sit
       // above → pulled down).
-      const shift = -dir * (depth === 3 ? 36.2 : depth === 2 ? 28.77 : 20.63); // was 25/20/15 (gaps 10.4/6.7/5.7px), then 32.2/26.1/19.3 (4px): now each previous sentence sits 2px above the one below it
+      const shift = -dir * (depth === 3 ? 25 : depth === 2 ? 20 : 15);
       // per-depth vertical nudges, "before" rows only: second sentence
       // (depth 1) 2px up; third sentence (depth 2) net +1px lower (+3px,
       // then -2px). At the smallest breakpoint, the second/third/fourth
@@ -653,77 +634,20 @@ function layoutLyricRows(li, before, after){
       const smallBreakpointNudge = (dir === -1 && window.innerWidth <= 480)
         ? -(depth === 3 ? 12 : depth === 2 ? 8 : 4)
         : 0;
-      let targetTranslate = `-50% calc(-50% + ${dir * y + shift + depthNudge + smallBreakpointNudge}px)`;
-      // Both the previous and the coming sentences are placed by their LETTERS, chained one to the next with a 2px gap
-      // (measured on screen): each previous sentence has its baseline 2px above the top of the letters of the sentence below
-      // it (the 2nd is 2px from the top of the 1st, the 3rd 2px from the top of the 2nd, ...), and each coming sentence has
-      // its letter-tops 2px below the baseline of the sentence above it - the same, seen from the bottom. All lengths here
-      // are in #lyrics' own (unscaled) units, which render 1.5x bigger, hence the division by that scale.
-      {
-        const rm = lyricRowMetrics(row);
-        if (chainEdge === null){
-          const am = lyricRowMetrics(activeRow);
-          chainEdge = dir === -1 ? (-ACTIVE_LINE_LIFT + activeScale * (am.b - am.cap))   // top of the main sentence's letters
-                                 : (-ACTIVE_LINE_LIFT + activeScale * am.b);            // bottom (baseline) of the main sentence
-        }
-        const lyr = activeRow.parentElement && activeRow.parentElement.parentElement;
-        const renderScale = lyr && lyr.clientWidth ? lyr.getBoundingClientRect().width / lyr.clientWidth : 1;
-        const gap = 2 / renderScale;
-        let centerY;
-        if (dir === -1){
-          centerY = (chainEdge - gap) - scale * rm.b;                  // baseline = 2px above the sentence below's letter-top
-          chainEdge = centerY + scale * (rm.b - rm.cap);               // this sentence's own letter-top, for the next one up
-        } else {
-          centerY = (chainEdge + gap) - scale * (rm.b - rm.cap);       // letter-top = 2px below the sentence above's baseline
-          chainEdge = centerY + scale * rm.b;                          // this sentence's own baseline, for the next one down
-        }
-        targetTranslate = `-50% calc(-50% + ${centerY.toFixed(3)}px)`;
-      }
+      const targetTranslate = `-50% calc(-50% + ${dir * y + shift + depthNudge + smallBreakpointNudge}px)`;
       // previous sentences (and the one before that) move to their new,
       // smaller spot and size immediately - no transition at all - only
       // the newly-active line and the upcoming ("after") rows get the
       // slow eased motion
-      if (dir === -1 && row._fresh){
-        // a row that was only just created (first draw, or after a seek) is placed instantly
+      if (dir === -1){
         row.style.transition = "none";
         row.style.translate = targetTranslate;
         row.style.scale = String(scale);
         row.getBoundingClientRect();
         row.style.transition = "";
-        row._fresh = false;
-      } else if (dir === -1){
-        // the previous sentences scale/move out at a CONSTANT speed (linear - no ease in or out). Each starts from the
-        // SMALLER of the size it has right now and the resting size of the slot it just left (so a row that is still
-        // mid-way never starts bigger than that slot's size), then shrinks steadily to its new, smaller size. For
-        // perspective each sentence further back takes a bit longer (LYRIC_DEPTH_SECONDS), i.e. moves slower.
-        const prevSlot = depth === 1 ? (row._fitScale || 1) * ACTIVE_LINE_SCALE * smallBreakpointScale
-                                     : (row._fitScale || 1) * inactiveScaleForDepth(depth - 1);
-        const curScale = parseFloat(getComputedStyle(row).scale) || prevSlot;
-        const startScale = Math.min(curScale, prevSlot);
-        // start position: chained 2px above the letters of the sentence below AS IT IS AT THE START (the new main sentence
-        // is still at 130%, so the 2nd sentence has to start higher or it would overlap it), then it eases down to its slot
-        const rmS = lyricRowMetrics(row);
-        if (startEdge === null){
-          const amS = lyricRowMetrics(activeRow);
-          startEdge = activeScale * 1.3 * (amS.b - amS.cap);
-        }
-        const lyrS = activeRow.parentElement && activeRow.parentElement.parentElement;
-        const rsS = lyrS && lyrS.clientWidth ? lyrS.getBoundingClientRect().width / lyrS.clientWidth : 1;
-        const startCenterY = (startEdge - 2 / rsS) - startScale * rmS.b;
-        startEdge = startCenterY + startScale * (rmS.b - rmS.cap);
-        row.style.transition = "none";
-        row.style.translate = `-50% calc(-50% + ${startCenterY.toFixed(3)}px)`;
-        row.style.scale = String(startScale);
-        row.getBoundingClientRect();
-        const secs = (LYRIC_DEPTH_SECONDS[depth - 1] || LYRIC_DEPTH_SECONDS[LYRIC_DEPTH_SECONDS.length - 1]).toFixed(2);
-        row.style.transition = `translate ${secs}s linear, scale ${secs}s linear`;
-        row.style.translate = targetTranslate;
-        row.style.scale = String(scale);
       } else {
-        row.style.transition = "";
         row.style.translate = targetTranslate;
         row.style.scale = String(scale);
-        row._fresh = false;
       }
       row.classList.remove("active-row");
       row.classList.toggle("near", depth === 1);
@@ -753,7 +677,8 @@ function renderLyricRows(li, dl){
   // upcoming sentences are never shown ahead of time - a line only ever
   // appears once the song actually reaches it (only past ones stay
   // visible, scrolled up above the active line, for context)
-  const { before, after } = realNeighbors(dl, li, LYRIC_ROW_REACH);   // the 3 previous AND the 3 coming sentences
+  const { before } = realNeighbors(dl, li, LYRIC_ROW_REACH);
+  const after = [];
   const keep = new Set([li, ...before, ...after]);
   Object.keys(lyricRowEls).forEach(k => {
     const idx = +k;
