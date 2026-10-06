@@ -813,7 +813,7 @@ function fadeOutForGap(dl, dli){
 }
 /* whole sentence starts blue and fades to white over the exact time it
    stays active, instead of highlighting word-by-word */
-const WORD_WHITE_FADE_SEC = 4; // (was 2.5) the same as the outline fade // a word that has turned white fades back to the artist color over this long
+const WORD_WHITE_FADE_SEC = 1; // fill AND outline: white -> yellow -> artist color over this long (was 2.5s, then 4s) // a word that has turned white fades back to the artist color over this long
 function startActiveLineFade(dl, li){
   const row = lyricRowEls[li];
   if (!row) return;

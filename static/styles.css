@@ -293,7 +293,7 @@ body.gate-active::after{display:none}
      fades out completely as it gets to the artist color */
   0%{-webkit-text-stroke-color:var(--fg)}
   35%{-webkit-text-stroke-color:var(--lyric-yellow)}
-  75%{-webkit-text-stroke-color:var(--artist-color, var(--active-green))}
+  90%{-webkit-text-stroke-color:var(--artist-color, var(--active-green))}
   100%{-webkit-text-stroke-color:rgba(0,0,0,0)}  /* (fully transparent: the outline is gone once the word is back to the artist color) */
 }
 .gate-hint{
