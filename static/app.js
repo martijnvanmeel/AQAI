@@ -627,7 +627,7 @@ function layoutLyricRows(li, before, after){
       // symmetrically so the previous sentences get the same spacing as
       // the upcoming ones (upcoming sit below → pulled up; previous sit
       // above → pulled down).
-      const shift = -dir * (depth === 3 ? 32.2 : depth === 2 ? 26.1 : 19.3); // was 25/20/15: each previous sentence now sits only ~4px above the one below it (the gaps were 10.4/6.7/5.7px)
+      const shift = -dir * (depth === 3 ? 36.2 : depth === 2 ? 28.77 : 20.63); // was 25/20/15 (gaps 10.4/6.7/5.7px), then 32.2/26.1/19.3 (4px): now each previous sentence sits 2px above the one below it
       // per-depth vertical nudges, "before" rows only: second sentence
       // (depth 1) 2px up; third sentence (depth 2) net +1px lower (+3px,
       // then -2px). At the smallest breakpoint, the second/third/fourth
