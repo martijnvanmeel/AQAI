@@ -3240,6 +3240,7 @@ function buildTunnelGeometry(){
   return geo;
 }
 const tunnelGroup = new THREE.Group();
+let tunnelSurfaceNI = null, tunnelBaseColors = null; // the wall mesh's own geometry (one separate triangle each) + its resting colours
 {
   const tunnelGeo = buildTunnelGeometry();
 
@@ -3247,6 +3248,9 @@ const tunnelGroup = new THREE.Group();
   // standing in for the AQAI logo (see tunnelLight below) glints off it
   const surfaceGeo = tunnelGeo.clone();
   recolorTunnelGeometryByZ(surfaceGeo, tunnelSurfaceColorForRing);
+  // every triangle gets its own three vertices, so a single triangle can change colour without bleeding into its neighbours
+  tunnelSurfaceNI = surfaceGeo.toNonIndexed();
+  tunnelBaseColors = tunnelSurfaceNI.attributes.color.array.slice();
   const tunnelSurfMat = new THREE.MeshPhongMaterial({
     color: 0xffffff, vertexColors: true,
     // dim grey specular + low shininess = a broad, diffuse sheen across the
@@ -3254,7 +3258,7 @@ const tunnelGroup = new THREE.Group();
     specular: 0x555555, shininess: 12, flatShading: true, side: THREE.DoubleSide,
   });
   applyTunnelProximityGrow(tunnelSurfMat);
-  tunnelGroup.add(new THREE.Mesh(surfaceGeo, tunnelSurfMat));
+  tunnelGroup.add(new THREE.Mesh(tunnelSurfaceNI, tunnelSurfMat));
 
   // wireframe: thick, camera-facing colored ribbons (see buildTunnelFatLineMaterial)
   const tunnelEdgesGeo = new THREE.EdgesGeometry(tunnelGeo, 8);
@@ -3269,6 +3273,50 @@ const tunnelGroup = new THREE.Group();
   const tunnelDotsMat = new THREE.PointsMaterial({ size: 0.16, vertexColors: true, sizeAttenuation: true });
   applyTunnelProximityGrow(tunnelDotsMat);
   tunnelGroup.add(new THREE.Points(tunnelDotsGeo, tunnelDotsMat));
+}
+// the colour of the AQAI logo's sides at this moment (kept current by startLogoColorCycle)
+const tunnelLogoColor = new THREE.Color(1, 1, 1);
+// Every so often a few wall triangles fade up to the logo's current colour and then fade back to normal. They are picked among
+// the triangles that are in view (ahead of the camera); a triangle keeps its place on the wall, so it travels toward the camera
+// while it glows.
+const TUNNEL_GLOW_MAX = 9, TUNNEL_GLOW_IN = 0.8, TUNNEL_GLOW_HOLD = 0.5, TUNNEL_GLOW_OUT = 1.8;
+const tunnelGlows = [];
+let tunnelNextGlowAt = 0;
+function updateTunnelGlows(nowSec, groupZ){
+  if (!tunnelSurfaceNI) return;
+  const col = tunnelSurfaceNI.attributes.color, arr = col.array;
+  // new ones
+  if (tunnelGlows.length < TUNNEL_GLOW_MAX && nowSec >= tunnelNextGlowAt){
+    const totalRings = TUNNEL_CHUNK_RINGS * TUNNEL_REPEATS;
+    const kMin = Math.max(0, Math.ceil((groupZ + 8) / TUNNEL_RING_SPACING));
+    const kMax = Math.min(totalRings - 2, Math.floor((groupZ + 70) / TUNNEL_RING_SPACING));
+    if (kMax > kMin){
+      const ring = kMin + Math.floor(Math.random() * (kMax - kMin + 1));
+      const v = Math.floor(Math.random() * TUNNEL_SIDES);
+      const tri = (ring * TUNNEL_SIDES + v) * 2 + (Math.random() < 0.5 ? 0 : 1);
+      if (!tunnelGlows.some(g => g.tri === tri)) tunnelGlows.push({ tri, t0: nowSec });
+    }
+    tunnelNextGlowAt = nowSec + 0.25 + Math.random() * 0.55;
+  }
+  // advance / finish
+  const total = TUNNEL_GLOW_IN + TUNNEL_GLOW_HOLD + TUNNEL_GLOW_OUT;
+  for (let i = tunnelGlows.length - 1; i >= 0; i--){
+    const g = tunnelGlows[i];
+    const age = nowSec - g.t0;
+    let env = 0;
+    if (age >= total) env = 0;
+    else if (age < TUNNEL_GLOW_IN){ const u = age / TUNNEL_GLOW_IN; env = u * u * (3 - 2 * u); }
+    else if (age < TUNNEL_GLOW_IN + TUNNEL_GLOW_HOLD) env = 1;
+    else { const u = 1 - (age - TUNNEL_GLOW_IN - TUNNEL_GLOW_HOLD) / TUNNEL_GLOW_OUT; env = u * u * (3 - 2 * u); }
+    for (let k = 0; k < 3; k++){
+      const o = (g.tri * 3 + k) * 3;
+      arr[o]     = tunnelBaseColors[o]     + (tunnelLogoColor.r - tunnelBaseColors[o])     * env;
+      arr[o + 1] = tunnelBaseColors[o + 1] + (tunnelLogoColor.g - tunnelBaseColors[o + 1]) * env;
+      arr[o + 2] = tunnelBaseColors[o + 2] + (tunnelLogoColor.b - tunnelBaseColors[o + 2]) * env;
+    }
+    if (age >= total) tunnelGlows.splice(i, 1);
+  }
+  col.needsUpdate = true;
 }
 tunnelGroup.visible = document.body.classList.contains("gate-active");
 scene.add(tunnelGroup);
@@ -6658,6 +6706,7 @@ function animate(t){
     // distance runs 140 -> 0, then parks off-range until the next cycle
     const pulsePhase = (nowSec % 9) / 9;
     tunnelPulseUniform.value = pulsePhase < 0.3 ? 140 * (1 - pulsePhase / 0.3) : -100;
+    updateTunnelGlows(nowSec, tunnelGroup.position.z);
   }
 
   if (roadGroup.visible){
@@ -7662,6 +7711,7 @@ function startLogoColorCycle(){
       // once in a while (a short bump every ~70s) the faces fade up to 80% instead
       const rare = Math.max(0, Math.sin((now / 1000 % 70) / 70 * Math.PI * 2 - Math.PI / 2 + 0.0)) ;
       const bump = Math.pow(Math.max(0, (rare - 0.93) / 0.07), 1); // only the very peak of the cycle
+      tunnelLogoColor.copy(c); // the intro tunnel's glowing triangles use the logo's current colour
       const capColor = new THREE.Color(0x000000).lerp(c, 0.25 + 0.55 * Math.min(1, bump));
       const capSrc = renderLogoFace("#" + capColor.getHexString(), "#ffffff", true, sweepU);
       logo3dCapImgs.forEach(img => { img.src = capSrc; });
