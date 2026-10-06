@@ -487,7 +487,7 @@ function paintWordSpans(row, words, tt){
    each line further from the active one rendered 15% smaller than the
    line before it ---- */
 let lyricRowEls = {};
-const LYRIC_ROW_GAP = 2;
+const LYRIC_ROW_GAP = 2 - 1 / 1.5; // 1 screen px less (#lyrics renders 1.5x)
 const LYRIC_ROW_REACH = 3;
 // depth 1 = the last-previous sentence, depth 2 = the one beyond that,
 // depth 3 = the one beyond that; each one further back is smaller and

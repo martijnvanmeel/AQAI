@@ -668,6 +668,10 @@ body.scene-hands #stage{background:linear-gradient(to top,
 /* second sentence back (the most recent previous sentence): artist color
    20% darker, solid (not transparent) */
 .lyric-row.near .w{color:color-mix(in srgb, var(--artist-color, var(--active-green)) 80%, black)}
+/* the previous sentences get darker the further back: 2nd 10%, 3rd 20%, 4th 30% */
+.lyric-row.near{filter:brightness(.9)}
+.lyric-row.far{filter:brightness(.8)}
+.lyric-row:not(.active-row):not(.near):not(.far){filter:brightness(.7)}
 /* third sentence back: artist color 30% darker, solid (not transparent) */
 .lyric-row.far .w{color:color-mix(in srgb, var(--artist-color, var(--active-green)) 70%, black)}
 .lyric-row.active-row .w{color:color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 70%, black) 75%, white);opacity:1}
