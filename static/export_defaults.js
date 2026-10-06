@@ -44,49 +44,151 @@ window.EXPORT_DEFAULTS = {
     "watermark": {
       "y": 0.0,
       "scale": 1.14
+    },
+    "frame": {
+      "w": 558.0,
+      "h": 992.0
     }
   },
   "square": {
     "targets": {
       "Circle/creature": {
-        "x": 0.0,
-        "y": 456.0,
+        "x": 2.0,
+        "y": 512.0,
         "scale": 0.92
       },
       "Visualiser": {
         "x": 0.0,
-        "y": 454.0,
+        "y": 496.0,
         "scale": 0.99
       },
       "Song title": {
         "x": 0.0,
-        "y": 334.0,
-        "scale": 1.0
+        "y": 340.0,
+        "scale": 1.39
       },
       "By/artist": {
         "x": 0.0,
-        "y": 246.0,
-        "scale": 1.04
+        "y": 291.0,
+        "scale": 1.26
       },
       "AQAI logo": {
         "x": 0.0,
-        "y": -22.0,
-        "scale": 1.51
+        "y": 17.0,
+        "scale": 1.85
       },
       "3D object": {
-        "x": 0.0,
-        "y": -57.0,
-        "scale": 1.17
+        "x": -1.0,
+        "y": -95.0,
+        "scale": 1.24
       },
       "Karaoke text": {
         "x": 0.0,
-        "y": -9.0,
-        "scale": 0.87
+        "y": -125.0,
+        "scale": 1.1
       }
     },
     "watermark": {
       "y": 0.0,
       "scale": 1.14
+    },
+    "frame": {
+      "w": 992.0,
+      "h": 992.0
+    }
+  },
+  "portrait": {
+    "targets": {
+      "Circle/creature": {
+        "x": 0.0,
+        "y": 430.0,
+        "scale": 1.0
+      },
+      "Visualiser": {
+        "x": 0.0,
+        "y": 446.0,
+        "scale": 1.0
+      },
+      "Song title": {
+        "x": 0.0,
+        "y": 325.0,
+        "scale": 1.0
+      },
+      "By/artist": {
+        "x": 0.0,
+        "y": 243.0,
+        "scale": 1.0
+      },
+      "AQAI logo": {
+        "x": 0.0,
+        "y": 7.0,
+        "scale": 1.73
+      },
+      "3D object": {
+        "x": 0.0,
+        "y": 0.0,
+        "scale": 1.0
+      },
+      "Karaoke text": {
+        "x": 0.0,
+        "y": -116.0,
+        "scale": 1.0
+      }
+    },
+    "watermark": {
+      "y": -251.0,
+      "scale": 1.04
+    },
+    "frame": {
+      "w": 794.0,
+      "h": 992.0
+    }
+  },
+  "horizontal": {
+    "targets": {
+      "Circle/creature": {
+        "x": 0.0,
+        "y": 389.0,
+        "scale": 0.94
+      },
+      "Visualiser": {
+        "x": 0.0,
+        "y": 326.0,
+        "scale": 1.0
+      },
+      "Song title": {
+        "x": 0.0,
+        "y": 160.0,
+        "scale": 1.32
+      },
+      "By/artist": {
+        "x": 0.0,
+        "y": 54.0,
+        "scale": 1.22
+      },
+      "AQAI logo": {
+        "x": 0.0,
+        "y": 34.0,
+        "scale": 0.84
+      },
+      "3D object": {
+        "x": 0.0,
+        "y": -62.0,
+        "scale": 0.89
+      },
+      "Karaoke text": {
+        "x": 0.0,
+        "y": 49.0,
+        "scale": 1.4
+      }
+    },
+    "watermark": {
+      "y": -50.0,
+      "scale": 1.0
+    },
+    "frame": {
+      "w": 1537.0,
+      "h": 865.0
     }
   }
 };

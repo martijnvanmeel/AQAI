@@ -385,6 +385,25 @@ function loadSavedControls(){
   catch (e){}
   return (window.EXPORT_DEFAULTS && window.EXPORT_DEFAULTS[ASPECT]) || {};
 }
+// The sliders' X/Y values are pixel offsets, so they only mean the same thing in a frame of the SAME size they were tuned in
+// (the preview window is ~992px high, the headless recording is 640px / 1080px / ... high in CSS pixels). A saved set therefore
+// carries the size of the frame it was made in ("frame": {w, h}); when it is loaded into a frame of another size, every X/Y
+// offset (and the background title's Y) is multiplied by current-frame-height / saved-frame-height, so the layout scales
+// RELATIVE to the frame. Scales (the 0.2-3 factors) are already relative and stay as they are. A set without "frame" is used as is.
+function currentFrameSize(){
+  const app = document.querySelector("#app");
+  return app && app.clientHeight ? { w: app.clientWidth, h: app.clientHeight } : null;
+}
+function scaleSavedToFrame(saved){
+  const cur = currentFrameSize();
+  if (!saved || !saved.frame || !saved.frame.h || !cur) return saved;
+  const k = cur.h / saved.frame.h;
+  if (Math.abs(k - 1) < 0.001) return saved;
+  const out = JSON.parse(JSON.stringify(saved));
+  Object.values(out.targets || {}).forEach(t => { t.x = Math.round((t.x || 0) * k * 10) / 10; t.y = Math.round((t.y || 0) * k * 10) / 10; });
+  if (out.watermark) out.watermark.y = Math.round((out.watermark.y || 0) * k * 10) / 10;
+  return out;
+}
 // builds one labeled slider row inside `box` for state[key], calling
 // onChange() on every drag - shared by every control block below
 function buildSliderRow(box, state, key, min, max, step, text, onChange){
@@ -499,7 +518,7 @@ function buildControlPanel(){
       max-height:calc(100vh - 16px);overflow:auto;
     `;
   }
-  const saved = loadSavedControls();
+  const saved = scaleSavedToFrame(loadSavedControls());
   CONTROL_TARGETS.forEach(({ label, selector, usesTop }) => {
     const el = document.querySelector(selector);
     if (!el) return;
@@ -552,7 +571,7 @@ function buildControlPanel(){
   saveBtn.textContent = "Save values";
   saveBtn.style.cssText = "width:100%;padding:6px;border:none;border-radius:4px;background:#2e8b57;color:#fff;font:11px/1.4 sans-serif;cursor:pointer;margin-top:2px";
   saveBtn.addEventListener("click", () => {
-    const data = { targets: {}, watermark: { y: wmYOffset, scale: wmScale } };
+    const data = { targets: {}, watermark: { y: wmYOffset, scale: wmScale }, frame: currentFrameSize() };
     panelEntries.forEach(({ label, state }) => { data.targets[label] = state; });
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e){}
     // ...and as the shared defaults for every fresh browser (the headless recorder included) - see export_defaults.js

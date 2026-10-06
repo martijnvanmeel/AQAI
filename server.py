@@ -953,6 +953,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     clean["targets"][label] = {"x": num(st.get("x"), 0), "y": num(st.get("y"), 0), "scale": num(st.get("scale"), 1)}
             wm = data.get("watermark") or {}
             clean["watermark"] = {"y": num(wm.get("y"), 0), "scale": num(wm.get("scale"), 1)}
+            # the size of the frame the values were tuned in, so a different-sized frame can scale the pixel offsets relatively
+            fr = data.get("frame")
+            if isinstance(fr, dict) and num(fr.get("h"), 0) > 0 and num(fr.get("w"), 0) > 0:
+                clean["frame"] = {"w": num(fr.get("w"), 0), "h": num(fr.get("h"), 0)}
             path_js = os.path.join(STATIC_DIR, "export_defaults.js")
             with open(path_js, "r", encoding="utf-8") as fh:
                 text = fh.read()
