@@ -439,6 +439,27 @@ function estimateWordTimings(lines, duration){
   });
 }
 
+// a sentence whose first words got a timestamp far BEFORE the rest of it (an alignment slip: "If" stamped at 60s while "I say that I
+// don't care" is sung at 77s) would pop up as the active sentence long before it is actually sung. Within a sentence, any word that
+// ends more than LYRIC_STRAND_GAP seconds before the next word starts is pulled up to sit right in front of that next word (earlier
+// words chain the same way), so the sentence only appears when its first word is really sung. Only words that carry a real end time
+// are treated this way - a long held note has an end time that reaches the next word, so it is never moved.
+const LYRIC_STRAND_GAP = 3.0;
+function fixStrandedLeadingWords(lines){
+  lines.forEach(L => {
+    const ws = L.words;
+    for (let k = ws.length - 2; k >= 0; k--){
+      const w = ws[k], nx = ws[k + 1];
+      if (w.e == null) continue;
+      if (nx.t - w.e > LYRIC_STRAND_GAP){
+        const dur = Math.min(0.5, Math.max(0.12, w.e - w.t));
+        w.t = Math.max(0, nx.t - dur - 0.02);
+        w.e = w.t + dur;
+      }
+    }
+  });
+  return lines;
+}
 let lyricsFetchInFlight = {};
 function ensureLyricsLoaded(i){
   const tr = TRACKS[i];
@@ -448,7 +469,7 @@ function ensureLyricsLoaded(i){
   fetch(`/api/sync/${tr.id}`).then(r => r.json()).then(data => {
     if (data.lines && data.lines.length && data.lines.some(L => L && L.words && L.words.length)){
       // empty lines (a hand-sync file can start with one) would crash updateLyrics() every frame and freeze the picture
-      tr.lines = data.lines.filter(L => L && L.words && L.words.length);
+      tr.lines = fixStrandedLeadingWords(data.lines.filter(L => L && L.words && L.words.length));
     } else {
       tr.lines = estimateWordTimings(tr.rawLyrics, tr.duration || 180);
     }
@@ -587,7 +608,7 @@ function realNeighbors(dl, li, reach){
   return { before, after };
 }
 const ACTIVE_LINE_LIFT = 5; // px the active sentence moves up while it scales in (it eases over 9.3s but is frozen after 2s, so only a small part of this is ever applied)
-const MAIN_LINE_DOWN = 7 / 1.5; // the main sentence sits 7 screen px lower than its natural spot (#lyrics renders 1.5x); applied at the start AND the end of its motion so it is there from the first frame
+const MAIN_LINE_DOWN = 10 / 1.5; // the main sentence sits 10 screen px lower than its natural spot (#lyrics renders 1.5x); applied at the start AND the end of its motion so it is there from the first frame
 function layoutLyricRows(li, before, after){
   const activeRow = lyricRowEls[li];
   if (!activeRow) return;

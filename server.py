@@ -303,7 +303,11 @@ def merge_wrapped_karaoke_lines(lines):
         if merged and words:
             prev_words = merged[-1].get("words") or []
             last = re.sub(r"[^a-z']", "", (prev_words[-1]["w"] if prev_words else "").lower())
-            if last in CONTINUATION_LAST_WORDS:
+            # only a wrapped line when the next one follows straight on: a long silence between two entries means two real
+            # sentences, even if the first one happens to end on a word like "for" or "do"
+            pe = prev_words[-1].get("e", prev_words[-1].get("s")) if prev_words else None
+            gap = (words[0].get("s", 0) - pe) if pe is not None else 0
+            if last in CONTINUATION_LAST_WORDS and gap <= 3.0:
                 prev_words.extend(words)
                 merged[-1]["words"] = prev_words
                 merged[-1]["text"] = " ".join(w["w"] for w in prev_words)
