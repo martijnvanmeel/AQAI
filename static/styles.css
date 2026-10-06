@@ -481,11 +481,9 @@ body.scene-hands #stage{background:linear-gradient(to top,
     rgba(159, 216, 255, .10) 0%,
     rgba(159, 216, 255, 0) 50%);
 }
-/* the full-screen gradient layers behind the UI are switched off: the gradient.mp4 colour-grade wash, the artist-colour radial
-   tint and the light-blue bottom gradient (their rules above are kept, so they can be switched back on by deleting this) */
+/* the full-screen gradient layers behind the UI are switched off: the gradient.mp4 colour-grade wash and the light-blue bottom gradient (their rules above are kept, so they can be switched back on by deleting this) */
 #gradient-overlay,
-#artist-color-overlay,
-#bg-gradient{display:none !important}
+#bg-gradient{display:none !important}   /* (the radial artist-colour tint behind the karaoke text is back on) */
 /* a slowly moving colour layer on top of the background scene, in the colours of the clip "From Klickpin.com- 937171003717724550"
    (its dominant colours: deep blues #04389c #0677a3 #083d64, reds #62160b, orange #a75915, plum #42283a). It replaces the video:
    two oversized gradient layers that only move with transform animations (composited on the graphics card, no repainting, no
