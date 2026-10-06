@@ -631,7 +631,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
    axes - top:50%/translateY(-50%) for vertical, left/right:10% (instead
    of a fixed-px padding) for horizontal */
 #lyrics{
-  position:absolute;left:10%;right:10%;top:50%;transform:translateY(calc(-50% - 80px)) scale(1.5);
+  position:absolute;left:10%;right:10%;top:50%;transform:translateY(calc(-50% - 130px)) scale(1.5);
   z-index:1;pointer-events:none; /* below the logo (z2) and the player block with the 3D animal (z3), so they are always in front of the lyrics */
   text-align:center;
   height:calc(clamp(18px,calc(14vw - 10px),70px) * 4.6);overflow:hidden;
@@ -676,7 +676,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
 .lyric-row.far .w{color:color-mix(in srgb, var(--artist-color, var(--active-green)) 70%, black)}
 .lyric-row.active-row .w{color:color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 70%, black) 75%, white);opacity:1}
 @media (max-width:640px){
-  #lyrics{transform:translateY(calc(-50% - 110px)) scale(1.5)}
+  #lyrics{transform:translateY(calc(-50% - 160px)) scale(1.5)}
 }
 
 /* full lyrics overlay */
