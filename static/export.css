@@ -113,10 +113,11 @@ body.aspect-horizontal .home-top .logo-text{
   text-shadow:none !important;
 }
 
-/* 16:9: the "More songs at" button is an outline only (2px stroke in the logo colour), its text is the logo colour too */
+/* 16:9: the "More songs at" line has no rectangle (it had a 2px outline for a while); logo and text in the logo colour */
 body.aspect-horizontal #export-cta-pill{
   background:none !important;
-  border:2px solid color-mix(in srgb, var(--artist-color, #ffffff) 80%, transparent);
+  border:2px solid transparent;   /* no rectangle at all now (the border is kept invisible so nothing shifts) */
+  animation:none !important;      /* ... and no glow pulse around it */
 }
 body.aspect-horizontal #export-cta-lead,
 body.aspect-horizontal #export-cta-url{
