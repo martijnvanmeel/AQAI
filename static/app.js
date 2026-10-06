@@ -608,6 +608,18 @@ function layoutLyricRows(li, before, after){
   // as it eases down to its final size, also ends 5px higher (translate
   // shares the same slow transition as scale). Neighbouring rows stay put.
   activeRow.style.translate = `-50% calc(-50% - ${ACTIVE_LINE_LIFT}px)`;
+  // the main sentence only scales (and lifts) for its first 2 seconds, then stops and keeps whatever size it has reached
+  clearTimeout(activeRow._freezeT);
+  activeRow._freezeT = setTimeout(() => {
+    if (!activeRow.classList.contains("active-row") || !activeRow.isConnected) return;
+    const cs = getComputedStyle(activeRow);
+    const sc = cs.scale, tr = cs.translate;
+    activeRow.style.transition = "none";
+    activeRow.style.scale = sc;
+    activeRow.style.translate = tr;
+    activeRow.getBoundingClientRect();
+    activeRow.style.transition = "";
+  }, 2000);
   activeRow.classList.add("active-row");
   activeRow.classList.remove("near");
   const beforeTy = [], afterTy = []; // each row's vertical offset by depth, so the coming sentences can copy the previous ones' spacing
