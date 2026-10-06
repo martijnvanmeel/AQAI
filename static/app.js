@@ -607,6 +607,8 @@ function realNeighbors(dl, li, reach){
   }
   return { before, after };
 }
+const ACTIVE_EASE_SEC = 2;        // the main sentence's scale/lift eases in and out over this long ...
+const ACTIVE_EASE_PORTION = 0.075; // ... covering this fraction of the way from its entrance size to its resting size
 const ACTIVE_LINE_LIFT = 5; // px the active sentence moves up while it scales in (it eases over 9.3s but is frozen after 2s, so only a small part of this is ever applied)
 const MAIN_LINE_DOWN = 10 / 1.5; // the main sentence sits 10 screen px lower than its natural spot (#lyrics renders 1.5x); applied at the start AND the end of its motion so it is there from the first frame
 function layoutLyricRows(li, before, after){
@@ -626,26 +628,14 @@ function layoutLyricRows(li, before, after){
   activeRow.style.translate = `-50% calc(-50% + ${MAIN_LINE_DOWN}px)`;
   activeRow.style.scale = String(activeScale * ENTRANCE_SCALE);
   activeRow.getBoundingClientRect();
-  activeRow.style.transition = "";
-  activeRow.style.scale = String(activeScale);
-  // it enters exactly where it always did (dead center, 130% size) and,
-  // as it eases down to its final size, also ends 5px higher (translate
-  // shares the same slow transition as scale). Neighbouring rows stay put.
-  activeRow.style.translate = `-50% calc(-50% - ${ACTIVE_LINE_LIFT - MAIN_LINE_DOWN}px)`;
-  // the main sentence only scales (and lifts) for its first 2 seconds, then stops and keeps whatever size it has reached
-  clearTimeout(activeRow._freezeT);
-  activeRow._freezeT = setTimeout(() => {
-    if (!activeRow.classList.contains("active-row") || !activeRow.isConnected) return;
-    const cs = getComputedStyle(activeRow);
-    const sc = cs.scale, tr = cs.translate;
-    activeRow.style.transition = "none";
-    activeRow.style.scale = sc;
-    activeRow.style.translate = tr;
-    activeRow.getBoundingClientRect();
-    activeRow.style.transition = "";
-    // (the coming sentences are NOT re-seated here: they stay where they were put - below the main sentence at its entrance size -
-    // so nothing jumps by a pixel or two when the main sentence stops scaling)
-  }, 2000);
+  // the main sentence eases (slow start AND slow end) from its entrance size to the size it then keeps, in ACTIVE_EASE_SEC.
+  // It travels the same short distance it always did in its first 2 seconds (7.5% of the way to its resting size - the old
+  // 9.3s ease had got that far when it was frozen), but now it arrives smoothly instead of stopping abruptly.
+  const heldScale = activeScale * ENTRANCE_SCALE - ACTIVE_EASE_PORTION * (activeScale * ENTRANCE_SCALE - activeScale);
+  const heldLift = MAIN_LINE_DOWN + ACTIVE_EASE_PORTION * (-(ACTIVE_LINE_LIFT - MAIN_LINE_DOWN) - MAIN_LINE_DOWN);
+  activeRow.style.transition = `scale ${ACTIVE_EASE_SEC}s ease-in-out, translate ${ACTIVE_EASE_SEC}s ease-in-out`;
+  activeRow.style.scale = String(heldScale);
+  activeRow.style.translate = `-50% calc(-50% + ${heldLift}px)`;
   activeRow.classList.add("active-row");
   activeRow.classList.remove("coming");
   activeRow._dir = 0;
