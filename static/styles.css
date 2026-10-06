@@ -591,7 +591,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   letter-spacing:-.05em; /* -5% of the (huge) font-size */
   opacity:.5; /* the whole title (fill, outline and light sweep together) 50% transparent */
   transform-origin:50% 100%; /* scale (export slider) keeps the bottom on the baseline */
-  transition:transform 160s ease-out;
+  transition:transform 200s ease-out; /* was 160s: 25% slower */
 }
 
 /* the outline: 1px in the artist color at 100% opacity at the top of the letters, fading down to 0% at the bottom (the mask
