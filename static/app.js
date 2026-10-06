@@ -830,6 +830,8 @@ function startActiveLineFade(dl, li){
   const end = next ? next.t0 : words[words.length - 1].t + 1.2;
   const spans = row.querySelectorAll(".w");
   for (let i = 0; i < spans.length; i++){
+    spans[i].style.transition = "none";            // (a previous soft fade may have left a transition / an inline outline colour)
+    spans[i].style.webkitTextStrokeColor = "";
     spans[i].style.animation = "none";
     // start on the artist color, darkened - 50% brighter than before (was
     // 49% artist mixed with black, now 74%)
