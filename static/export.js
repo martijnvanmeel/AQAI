@@ -620,6 +620,36 @@ if (ASPECT === "vertical"){
   })();
 }
 
+/* 9:16 only: a small radial gradient (black in the middle, fading out) behind the song title and the by/artist row: it starts
+   just above the song title and runs down to the bottom of the circle behind the animal. Layer: in FRONT of the 3D animal,
+   BEHIND the title/by/artist (inside .player, like the shade above: animal 1, this 2, title block 3). Re-measured every frame so
+   it follows the sliders. */
+if (ASPECT === "vertical"){
+  (function titleGlow(){
+    const app = document.querySelector("#app"), player = document.querySelector(".player");
+    const title = document.querySelector("#m-title"), circle = document.querySelector(".artist-photo-fill");
+    if (!app || !player || !title || !circle){ requestAnimationFrame(titleGlow); return; }
+    let g = document.getElementById("export-title-glow");
+    if (!g){
+      g = document.createElement("div");
+      g.id = "export-title-glow";
+      g.style.cssText = "position:fixed;z-index:2;pointer-events:none;"
+        + "background:radial-gradient(ellipse closest-side, rgba(0,0,0,.6) 0%, rgba(0,0,0,.35) 45%, rgba(0,0,0,0) 100%);";
+      player.appendChild(g);
+    }
+    const a = app.getBoundingClientRect(), t = title.getBoundingClientRect(), c = circle.getBoundingClientRect();
+    if (t.height && c.height){
+      const top = t.top - 14, bottom = c.bottom;               // just above the song title ... bottom of the circle
+      const h = Math.max(40, bottom - top), w = a.width * 0.78;
+      g.style.top = (top - a.top) + "px";
+      g.style.height = h + "px";
+      g.style.width = w + "px";
+      g.style.left = ((a.width - w) / 2) + "px";
+    }
+    requestAnimationFrame(titleGlow);
+  })();
+}
+
 /* 9:16 only: a subtle call-to-action at the bottom of the frame, over the shade: ONE sentence on one line, "More songs at
    aqaimusic.com", in capitals, condensed Brice, widely letter-spaced, in black on a rounded rectangle in the artist's color
    (like a button) - the address two weights heavier (Black) than the rest (Semi-Bold) - with a little pointing hand beside
