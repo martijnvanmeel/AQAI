@@ -736,7 +736,8 @@ function renderLyricRows(li, dl){
   const wrap = $("#lyric-rows");
   // the three previous sentences stay visible above the active line, and the three coming ones are shown below it
   // (mirrored: same sizes, brightness and spacing)
-  const { before, after } = realNeighbors(dl, li, LYRIC_ROW_REACH);
+  const { before } = realNeighbors(dl, li, LYRIC_ROW_REACH);
+  const after = []; // the coming sentences are not shown (only the active sentence and the previous ones)
   const keep = new Set([li, ...before, ...after]);
   Object.keys(lyricRowEls).forEach(k => {
     const idx = +k;
