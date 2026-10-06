@@ -275,6 +275,11 @@ body.gate-active::after{display:none}
 @keyframes wordActiveWhite{
   0%,100%{color:var(--fg)}
 }
+/* once a word has turned white it fades slowly (WORD_WHITE_FADE_SEC in app.js) to the full artist color and stays there */
+@keyframes wordWhiteToArtist{
+  0%{color:var(--fg)}
+  100%{color:var(--artist-color, var(--active-green))}
+}
 /* the word that's currently active also gets a 2px white outline the
    instant it's set, which then fades out to 0% opacity over a fixed 0.5s -
    started at the same delay as wordActiveWhite above (see
