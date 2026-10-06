@@ -670,7 +670,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
 .lyric-row.near .w{color:color-mix(in srgb, var(--artist-color, var(--active-green)) 80%, black)}
 /* brightness: first (active) sentence 30% brighter, the second 15% */
 .lyric-row.active-row{filter:brightness(1.3)}
-.lyric-row.near{filter:brightness(1.15)}
+.lyric-row.near{filter:brightness(.92)} /* was 1.15, now 20% less */
 /* third sentence back: artist color 30% darker, solid (not transparent) */
 .lyric-row.far .w{color:color-mix(in srgb, var(--artist-color, var(--active-green)) 70%, black)}
 .lyric-row.active-row .w{color:color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 70%, black) 75%, white);opacity:1}
