@@ -600,7 +600,7 @@ function lyricRowMetrics(row){
   return row._m;
 }
 const LYRIC_DEPTH_SECONDS = [3.2, 3.6, 4.0];       // previous sentences 1, 2, 3 back: how long each takes to shrink to its new size - the further back, the longer (slower)
-const ACTIVE_LINE_LIFT = 5; // px the active sentence moves up while it scales in
+const ACTIVE_LINE_LIFT = 5 - 2 / 1.5; // (2 screen px lower than the old 5; #lyrics renders 1.5x) layout px the active sentence moves up while it scales in
 function layoutLyricRows(li, before, after){
   const activeRow = lyricRowEls[li];
   if (!activeRow) return;
