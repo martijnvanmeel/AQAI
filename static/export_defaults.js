@@ -45,5 +45,48 @@ window.EXPORT_DEFAULTS = {
       "y": 0.0,
       "scale": 1.14
     }
+  },
+  "square": {
+    "targets": {
+      "Circle/creature": {
+        "x": 0.0,
+        "y": 456.0,
+        "scale": 0.92
+      },
+      "Visualiser": {
+        "x": 0.0,
+        "y": 454.0,
+        "scale": 0.99
+      },
+      "Song title": {
+        "x": 0.0,
+        "y": 334.0,
+        "scale": 1.0
+      },
+      "By/artist": {
+        "x": 0.0,
+        "y": 246.0,
+        "scale": 1.04
+      },
+      "AQAI logo": {
+        "x": 0.0,
+        "y": -22.0,
+        "scale": 1.51
+      },
+      "3D object": {
+        "x": 0.0,
+        "y": -57.0,
+        "scale": 1.17
+      },
+      "Karaoke text": {
+        "x": 0.0,
+        "y": -9.0,
+        "scale": 0.87
+      }
+    },
+    "watermark": {
+      "y": 0.0,
+      "scale": 1.14
+    }
   }
 };
