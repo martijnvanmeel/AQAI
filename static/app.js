@@ -6482,7 +6482,12 @@ let panoPingPong = false;
 function updatePanoPingPongSpeed(){
   if (panoVideoEl.playbackRate !== 1) panoVideoEl.playbackRate = 1;
 }
+// the numbered music-video clips ("001 Another Thing Is Different.mp4" ...) are shown on the sphere WITHOUT any rotation: no steady roll
+// and no tour of the corners - the picture stays put
+let panoNoSpin = false;
 function loadPanoFile(file, base = "/panorama2/"){
+  panoNoSpin = /^\d{3} /.test(file);
+  if (panoNoSpin) sphereSpinRoll = 0;
   panoPingPong = PINGPONG_FILES.has(file);
   const src = base + file;
   if (isGifFile(file)){
@@ -6665,7 +6670,7 @@ function animate(t){
   // every 30s, forever - as a camera ROLL (rotation.z), applied further
   // down where the sphere screen sets its position sway, not here (this
   // block only ever drives yaw/pitch - see camera.rotation.z below)
-  if (document.body.classList.contains("scene-sphere")) sphereSpinRoll += dtSec * (Math.PI * 2 / 30);
+  if (document.body.classList.contains("scene-sphere") && !panoNoSpin) sphereSpinRoll += dtSec * (Math.PI * 2 / 30);
 
   let targetYaw, targetPitch, camSmooth;
   if (document.body.classList.contains("scene-sphere")){
@@ -6676,7 +6681,7 @@ function animate(t){
     // the mouse no longer steers the sphere: it only ever follows the automatic corner tour (always beginning in the middle)
     const nowMs = performance.now();
     if (tourStartT === null) tourStartT = nowMs;
-    const [steerX, steerY] = tourPos((nowMs - tourStartT) / 1000);
+    const [steerX, steerY] = panoNoSpin ? [0, 0] : tourPos((nowMs - tourStartT) / 1000);
     targetYaw = steerX * 1.1;
     targetPitch = steerY * 0.7;
     camSmooth = 0.015;
