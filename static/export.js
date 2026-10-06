@@ -658,7 +658,7 @@ if (ASPECT === "vertical"){
    phone UI (captions, buttons) that covers the very bottom doesn't hide it. */
 const EXPORT_CTA_TEXT = "More songs at ";
 const EXPORT_CTA_URL = "aqaimusic.com";
-if (ASPECT === "vertical"){
+if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ // 9:16, 1:1 and 16:9 (not 4:5)
   (function bottomCta(){
     const app = document.querySelector("#app");
     if (!app){ requestAnimationFrame(bottomCta); return; }
