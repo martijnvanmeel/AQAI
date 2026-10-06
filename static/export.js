@@ -649,6 +649,9 @@ if (ASPECT === "vertical"){
    clipped with an inset() clip-path in its OWN box: its slider transform is just a scale + translate, so the cut line's
    screen y maps linearly onto a fraction of the element's height, whatever the transform is. */
 function cutBelowVisualiser(){
+  // DISABLED: the whole circle and the whole 3D animal are shown again (nothing is cut below the visualiser line any more)
+  ["#fox-3d-canvas", ".artist-photo-wrap"].forEach(sel => { const el = document.querySelector(sel); if (el && el.style.clipPath) el.style.clipPath = ""; });
+  return;
   const wave = document.querySelector("#wave-canvas");
   if (!wave) return;
   const w = wave.getBoundingClientRect();

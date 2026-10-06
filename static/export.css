@@ -55,6 +55,8 @@ body.aspect-vertical .home-top .logo-text{font-size:calc(47.817px * 0.5) !import
 body.aspect-square #bg-title-watermark,
 body.aspect-portrait #bg-title-watermark,
 body.aspect-vertical #bg-title-watermark{font-size:55vh !important}
+/* 9:16: the karaoke viewer's box is wider than the frame (130%, centred), so overflow:hidden on it never clips a sentence at the left/right */
+body.aspect-vertical #lyrics{left:-15% !important;right:-15% !important}
 /* 1:1: 200% of that 55vh (export.js also re-centers it vertically for
    this aspect, since its default Y anchor is tied to the karaoke lyrics
    position, not frame-center) */
