@@ -615,6 +615,7 @@ body.gate-active #overlay-video{display:none}
   letter-spacing:-.05em; /* -5% of the (huge) font-size */
   opacity:1; /* (the layers carry their own opacity now: fill .5 baked into its gradient, outline .75, light sweep .5) */
   transform-origin:50% 100%; /* scale (export slider) keeps the bottom on the baseline */
+  filter:drop-shadow(0 50px 59px rgba(0,0,0,.2)); /* shadow 50px down, 59px blur, black at 80% transparent */
   transition:transform 200s ease-out; /* was 160s: 25% slower */
 }
 
