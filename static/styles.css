@@ -700,10 +700,10 @@ body.gate-active #overlay-video{display:none}
 /* second sentence back (the most recent previous sentence): artist color
    20% darker, solid (not transparent) */
 .lyric-row.near .w{color:color-mix(in srgb, var(--artist-color, var(--active-green)) 80%, black)}
-/* the previous sentences get darker the further back: 2nd 20%, 3rd 30%, 4th 40% (10% more than the first pass) */
-.lyric-row.near{filter:brightness(.8)}
-.lyric-row.far{filter:brightness(.7)}
-.lyric-row:not(.active-row):not(.near):not(.far){filter:brightness(.6)}
+/* every step further from the main sentence is clearly darker, previous and coming alike: 28%, 50%, 68% darker */
+.lyric-row.near{filter:brightness(.72)}
+.lyric-row.far{filter:brightness(.5)}
+.lyric-row:not(.active-row):not(.near):not(.far){filter:brightness(.32)}
 /* third sentence back: artist color 30% darker, solid (not transparent) */
 .lyric-row.far .w{color:color-mix(in srgb, var(--artist-color, var(--active-green)) 70%, black)}
 /* the active (main) sentence is always painted on top of every other sentence */
