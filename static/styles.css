@@ -475,10 +475,10 @@ body.scene-hands #stage{background:linear-gradient(to top,
    below the artist photo */
 #bg-gradient{
   position:fixed;left:0;right:0;top:0;bottom:0;z-index:1;pointer-events:none;
-  /* the artist colour (lightened: 55% artist, 45% white) at the bottom of the screen: 25% transparent (75% opaque) at the very bottom, fading to 100% transparent at 35% of the height (was 33.3%), fading to 100% transparent
+  /* the artist colour (lightened: 55% artist, 45% white) at the bottom of the screen: 50% transparent (50% opaque) at the very bottom, fading to 100% transparent at 35% of the height (was 33.3%), fading to 100% transparent
      at one third of the screen height */
   background:linear-gradient(to top,
-    color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 55%, #ffffff) 75%, transparent) 0%,
+    color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 55%, #ffffff) 50%, transparent) 0%,
     color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 55%, #ffffff) 0%, transparent) 35%);
 }
 #stage canvas{display:block;width:100%;height:100%}
