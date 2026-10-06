@@ -477,6 +477,11 @@ body.scene-hands #stage{background:linear-gradient(to top,
     rgba(159, 216, 255, .10) 0%,
     rgba(159, 216, 255, 0) 50%);
 }
+/* the full-screen gradient layers behind the UI are switched off: the gradient.mp4 colour-grade wash, the artist-colour radial
+   tint and the light-blue bottom gradient (their rules above are kept, so they can be switched back on by deleting this) */
+#gradient-overlay,
+#artist-color-overlay,
+#bg-gradient{display:none !important}
 #stage canvas{display:block;width:100%;height:100%}
 
 .home-top{
