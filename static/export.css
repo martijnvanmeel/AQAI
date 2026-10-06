@@ -92,3 +92,12 @@ body.aspect-square #app{width:min(100vw, 100vh);height:min(100vh, 100vw)}
 body.aspect-portrait #app{width:min(100vw, calc(100vh * 4 / 5));height:min(100vh, calc(100vw * 5 / 4))}
 body.aspect-vertical #app{width:min(100vw, calc(100vh * 9 / 16));height:min(100vh, calc(100vw * 16 / 9))}
 body.aspect-horizontal #app{width:min(100vw, calc(100vh * 16 / 9));height:min(100vh, calc(100vw * 9 / 16))}
+
+/* exports: the light that runs along the huge title's outline (the white band sweeping across it, see updateScanLine() in app.js)
+   is stronger than in the player: the title is much bigger than the 1px stroke it was made for, so the lit line is 2px, fully
+   opaque and carries a soft glow - it reads as a light travelling along the stroke */
+body.export-mode #bg-title-watermark::after{
+  -webkit-text-stroke-width:2px;
+  opacity:1;
+  filter:drop-shadow(0 0 6px rgba(255,255,255,.85));
+}
