@@ -105,3 +105,10 @@ body.export-mode #bg-title-watermark::after{
 /* 16:9: the AQAI logo sits at the bottom next to the "More songs at" button, in the strip below the view's own height, so the
    view must not clip it (the frame itself, #app, still clips everything at the frame edge) */
 body.aspect-horizontal #view-home{overflow:visible !important}
+
+/* 16:9: the logo beside the "More songs at" button has the button's colour (the artist colour at 80%, no colour cycling) */
+body.aspect-horizontal .home-top .logo-text{
+  animation:none !important;
+  color:color-mix(in srgb, var(--artist-color, #ffffff) 80%, transparent) !important;
+  text-shadow:none !important;
+}
