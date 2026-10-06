@@ -736,23 +736,25 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
     }
     const h = app.getBoundingClientRect().height;
     if (h) box.style.fontSize = (h * 0.01425).toFixed(2) + "px";   // 25% smaller than the earlier .019 (the whole button scales: everything is in em)
-    // 16:9: the AQAI logo beside the button and the button are centred horizontally AS A GROUP: both get the same sideways
-    // shift (the individual `translate` property, so it never fights the logo's slider transform) that puts the middle of
-    // logo + button in the middle of the frame. Measured from the un-shifted positions every frame.
+    // 16:9: the button is a stroke-only pill that is stretched to the left so it HOLDS the AQAI logo: its left padding grows by the
+    // logo's width + a 20px gap, and the logo (placed by the individual `translate` property, so it never fights its slider
+    // transform) sits inside, at the pill's normal left padding. The pill itself stays centred in the frame.
     if (ASPECT === "horizontal"){
       const logo = document.querySelector(".home-top .logo-text"), pill = document.getElementById("export-cta-pill");
       if (logo && pill){
-        const prev = box._groupShift || 0;
+        const fs = parseFloat(getComputedStyle(box).fontSize) || 0;
         const rg = document.createRange(); rg.selectNodeContents(logo);
-        const lr = rg.getBoundingClientRect(), pr = pill.getBoundingClientRect(), ar = app.getBoundingClientRect();
-        if (lr.width && pr.width){
-          const groupCenter0 = ((lr.left - prev) + (pr.right - prev)) / 2;
-          const shift = Math.round((ar.left + ar.width / 2 - groupCenter0) * 10) / 10;
-          if (Math.abs(shift - prev) > 0.05){
-            box._groupShift = shift;
-            logo.style.translate = shift + "px 0";
-            box.style.translate = shift + "px 0";
-          }
+        const lr = rg.getBoundingClientRect();
+        if (lr.width && fs){
+          const padL0 = 1.5 * fs, gap = 20;                  // the pill's own left padding (1.5em) and the gap logo -> text
+          const wantPad = padL0 + lr.width + gap;
+          if (Math.abs((pill._padL || 0) - wantPad) > 0.05){ pill._padL = wantPad; pill.style.paddingLeft = wantPad + "px"; }
+          const pr = pill.getBoundingClientRect();
+          const prev = logo._shiftX || 0;
+          const bw = parseFloat(getComputedStyle(pill).borderLeftWidth) || 0;
+          const target = pr.left + bw + padL0;                 // where the logo's left edge should be
+          const shift = Math.round((target - (lr.left - prev)) * 10) / 10;
+          if (Math.abs(shift - prev) > 0.05){ logo._shiftX = shift; logo.style.translate = shift + "px 0"; }
         }
       }
     }

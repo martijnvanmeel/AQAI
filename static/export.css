@@ -112,3 +112,14 @@ body.aspect-horizontal .home-top .logo-text{
   color:color-mix(in srgb, var(--artist-color, #ffffff) 80%, transparent) !important;
   text-shadow:none !important;
 }
+
+/* 16:9: the "More songs at" button is an outline only (2px stroke in the logo colour), its text is the logo colour too */
+body.aspect-horizontal #export-cta-pill{
+  background:none !important;
+  border:2px solid color-mix(in srgb, var(--artist-color, #ffffff) 80%, transparent);
+}
+body.aspect-horizontal #export-cta-lead,
+body.aspect-horizontal #export-cta-url{
+  color:color-mix(in srgb, var(--artist-color, #ffffff) 80%, transparent) !important;
+  opacity:1 !important;
+}
