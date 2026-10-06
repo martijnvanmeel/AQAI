@@ -610,7 +610,8 @@ function layoutLyricRows(li, before, after){
   activeRow.style.translate = `-50% calc(-50% - ${ACTIVE_LINE_LIFT}px)`;
   activeRow.classList.add("active-row");
   activeRow.classList.remove("near");
-  [[1, after], [-1, before]].forEach(([dir, list]) => {
+  const beforeTy = [], afterTy = []; // each row's vertical offset by depth, so the coming sentences can copy the previous ones' spacing
+  [[-1, before], [1, after]].forEach(([dir, list]) => {
     let edge = rowBaseHeight(activeRow) * activeScale / 2;
     if (dir === -1) edge += 4; // 4px more distance between active and previous sentences
     list.forEach((idx, i) => {
@@ -634,7 +635,13 @@ function layoutLyricRows(li, before, after){
       const smallBreakpointNudge = (dir === -1 && window.innerWidth <= 480)
         ? -(depth === 3 ? 12 : depth === 2 ? 8 : 4)
         : 0;
-      const targetTranslate = `-50% calc(-50% + ${dir * y + shift + depthNudge + smallBreakpointNudge}px)`;
+      let ty = dir * y + shift + depthNudge + smallBreakpointNudge;
+      if (dir === 1 && depth >= 2 && afterTy[depth - 1] !== undefined && beforeTy[depth] !== undefined){
+        // the 2nd, 3rd... coming sentence sits exactly as far below the one above it as the matching previous sentence sits above its neighbour
+        ty = afterTy[depth - 1] + (beforeTy[depth - 1] - beforeTy[depth]);
+      }
+      (dir === -1 ? beforeTy : afterTy)[depth] = ty;
+      const targetTranslate = `-50% calc(-50% + ${ty}px)`;
       // previous sentences (and the one before that) move to their new,
       // smaller spot and size immediately - no transition at all - only
       // the newly-active line and the upcoming ("after") rows get the
