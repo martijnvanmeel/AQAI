@@ -709,8 +709,10 @@ body.gate-active #overlay-video{display:none}
 /* the active (main) sentence is always painted on top of every other sentence */
 .lyric-row{z-index:1}
 .lyric-row.active-row{z-index:10}
-/* the coming sentences: outline only, not filled */
-.lyric-row.coming .w{color:transparent;-webkit-text-stroke:2.1667px color-mix(in srgb, var(--artist-color, var(--active-green)) 70%, black)}
+/* the previous and the coming sentences are solid text in a neutral colour of their own (not an artist colour); the depth
+   dimming (brightness filters on .near/.far/the 4th) still applies on top */
+.lyric-row:not(.active-row) .w,
+.lyric-row.coming .w{color:#d6dde8;-webkit-text-stroke:0}
 .lyric-row.active-row .w{color:color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 70%, black) 75%, white);opacity:1}
 @media (max-width:640px){
   #lyrics{transform:translateY(calc(-50% - 103px - 10vh)) scale(1.5)}
