@@ -813,7 +813,6 @@ function fadeOutForGap(dl, dli){
 }
 /* whole sentence starts blue and fades to white over the exact time it
    stays active, instead of highlighting word-by-word */
-const WORD_STROKE_FADE_SEC = 4; // the white outline of the word that just became active fades out over this long (was 1s - now 4x slower)
 const WORD_WHITE_FADE_SEC = 4; // (was 2.5) the same as the outline fade // a word that has turned white fades back to the artist color over this long
 function startActiveLineFade(dl, li){
   const row = lyricRowEls[li];
@@ -848,7 +847,7 @@ function startActiveLineFade(dl, li){
     // runs on its own fixed 1s duration (2x slower than its original 0.5s) -
     // the 2px white outline appears the instant the word becomes active,
     // then fades out to 0% over that 1s
-    spans[i].style.animation = `wordWhiteToArtist ${WORD_WHITE_FADE_SEC}s linear ${wordStart}s forwards, wordActiveStroke ${WORD_STROKE_FADE_SEC}s linear ${wordStart}s forwards`;
+    spans[i].style.animation = `wordWhiteToArtist ${WORD_WHITE_FADE_SEC}s linear ${wordStart}s forwards, wordActiveStroke ${WORD_WHITE_FADE_SEC}s linear ${wordStart}s forwards`;
   }
 }
 

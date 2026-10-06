@@ -289,8 +289,11 @@ body.gate-active::after{display:none}
 @keyframes wordActiveStroke{
   /* only the stroke COLOR is animated (the 2px width is static on .lyric-row .w): Safari/iOS doesn't
      reliably animate the combined -webkit-text-stroke shorthand, so the effect was missing there */
-  0%{-webkit-text-stroke-color:rgba(255,255,255,1)}
-  100%{-webkit-text-stroke-color:rgba(255,255,255,0)}
+  /* the outline has the same colors as the word, on the same clock (white -> yellow -> artist color, 4s) and
+     fades out completely as it gets to the artist color */
+  0%{-webkit-text-stroke-color:var(--fg)}
+  35%{-webkit-text-stroke-color:var(--lyric-yellow)}
+  100%{-webkit-text-stroke-color:rgba(0,0,0,0)}  /* (fully transparent: the outline is gone once the word is back to the artist color) */
 }
 .gate-hint{
   /* 15px below the bottom of the button, at 75% of its old 11px size */
