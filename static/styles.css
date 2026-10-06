@@ -476,12 +476,12 @@ body.scene-hands #stage{background:linear-gradient(to top,
 #gradient-overlay,
 #artist-color-overlay,
 #bg-gradient{display:none !important}
-/* a video layer on top of the background scene: "From Klickpin.com- 937171003717724550", blended with `overlay`, 80% transparent */
+/* a video layer on top of the background scene: "From Klickpin.com- 937171003717724550", blended as a `color` layer */
 #overlay-video{
   position:fixed;inset:0;z-index:1;pointer-events:none;
   width:100%;height:100%;object-fit:cover;
-  mix-blend-mode:overlay;
-  opacity:.14; /* was .2: another 30% more transparent (.2 x .7) */
+  mix-blend-mode:color;   /* a colour layer: the video's hue and saturation are painted onto the background scene (was overlay) */
+  opacity:.5;             /* (was .14 as an overlay: a colour blend needs more strength to show) */
 }
 body.gate-active #overlay-video{display:none}
 #stage canvas{display:block;width:100%;height:100%}
