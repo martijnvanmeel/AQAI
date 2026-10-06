@@ -136,7 +136,340 @@ body.gate-active nav,
    readability scrim so no overlay sits on top of it (shader vignette /
    scanlines / darkening are disabled via the uGate uniform in app.js) */
 body.gate-active #artist-color-overlay,
-body.gate-active #bg-gradient{
+body.gate-active #bg-gradient{display:none}
+/* the bottom accent bar is also part of that same chrome - no artist is
+   loaded yet on the gate screen, so it'd otherwise show as a flat green
+   strip with no purpose */
+body.gate-active::after{display:none}
+/* transparent - the panorama sphere from #stage (the same one the music
+   screen uses) shows straight through, so the gate gets its background
+   video, mouse-look, vignette and CRT lines for free instead of a
+   separate copy of any of that (see loadPanoFile in app.js's boot code) */
+#gate{
+  position:fixed;inset:0;z-index:60;
+  display:flex;align-items:center;justify-content:center;
+  background:transparent;
+  transition:opacity .6s ease, visibility .6s;
+  padding:24px;
+  overflow:hidden;
+}
+#gate.hidden{opacity:0;visibility:hidden}
+/* the artist creatures, standing along the bottom of the start screen: a
+   transparent-background WebM (black keyed out), centered, behind the logo/button */
+#gate-creatures{
+  position:absolute;left:50%;bottom:0;z-index:1;
+  /* as big as fits: the full screen width on narrow screens, bigger the larger the screen - but always at least 50px
+     of space between the "Sound on..." line and the top of the animation. The clip is 16:9, so that height limit is a
+     width limit of height * 16/9; the script in app.js (sizeGateCreatures) sets the exact value from the real hint
+     position, this is its fallback */
+  width:min(100%, calc((50vh - 90px) * 16 / 9));height:auto;
+  transform:translateX(-50%);
+  pointer-events:none;
+}
+/* logo/button/hint sit statically - only the logo itself tilts with the
+   mouse (see #gate-logo-tilt below), not the button/hint text */
+/* only the logo is in normal flow, so #gate's flex-centering puts it dead
+   center (both axes); the button + hint float below it, offset 80px lower */
+/* the button is what #gate's flex-centering puts dead center (vertically and
+   horizontally); the logo hangs 15px above it (see #gate-logo-tilt) */
+#gate-content{
+  position:relative;z-index:2;
+  display:flex;flex-direction:column;align-items:center;
+  /* the button + the sound text under it are centered vertically in the screen (the text adds ~30px below the
+     button, so the pair shifts up half of that); the logo hangs above the button */
+  transform:translateY(-15px);
+}
+.gate-actions{
+  position:relative;
+  display:flex;flex-direction:column;align-items:center;gap:34px;
+  white-space:nowrap;
+}
+/* tilts in 3D with the mouse, same mechanism as the lyrics carousel */
+#gate-logo-tilt{
+  /* 15px above the button; centered with margins because app.js owns this element's transform (mouse tilt) */
+  position:absolute;bottom:calc(100% - 20px);left:50%;width:639.84px;margin-left:-319.92px; /* 125% of the earlier 511.875px (and 10% of the screen height lower than a moment ago) */
+  perspective:800px;transform-style:preserve-3d;
+  /* fully opaque, no blend - the logo is solid black and the screen-blended
+     reflection layer turns its front face into a full mirror of the sphere */
+}
+/* extruded 3D logo: stacked copies of the same silhouette a few px
+   apart in depth (see app.js, which builds the .logo3d-layer stack),
+   spinning slowly around its own Y axis independent of the mouse tilt */
+.logo3d{
+  /* every .logo3d-layer child is position:absolute (so they can stack
+     exactly on top of each other at different depths) - without an
+     explicit size here the whole thing collapses to 0x0, since
+     absolutely-positioned children can't establish their parent's size */
+  /* fixed px, not vw-based - this used to shrink along with narrower
+     (mobile) viewports since both width and font-size were viewport-
+     relative; pinned to the values they already capped out at on desktop
+     (375px / 108px) so the logo now renders the same physical size on
+     every screen instead of scaling down on mobile */
+  width:639.84px;aspect-ratio:8/3; /* 125% of the earlier 511.875px */
+  position:relative;transform-style:preserve-3d;
+  animation:logo3dSpin 10.8s linear infinite; /* 20% heavier/slower spin */
+  font-family:var(--font-display);font-weight:900;letter-spacing:-.02em;
+  font-size:184.275px;line-height:1;white-space:nowrap;
+}
+@keyframes logo3dSpin{ to { transform:rotateY(360deg); } }
+/* phones: 150% (512px) is wider than the screen and the letters would be cropped
+   mid-spin, so it scales with the screen instead - the largest size that still fits */
+@media (max-width:480px){
+  #gate-logo-tilt{width:131.25vw;margin-left:-65.625vw}
+  .logo3d{width:131.25vw;font-size:calc(131.25vw * .288)}
+}
+/* every face (front/back end caps + side walls) is a canvas-rendered
+   bitmap <img> - gradient + specular sheen (+ bevel on the end caps)
+   baked in, see renderLogoFace() in app.js - rather than a live CSS/SVG
+   gradient, which silently paints as a flat color once nested inside
+   this transform-style:preserve-3d stack */
+.logo3d-layer{
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+}
+/* front and back faces (end caps) - not the side/depth walls in between -
+   at reduced opacity */
+.logo3d-front,.logo3d-back{opacity:1}
+/* (opacity + overlay blend for the intro logo are on #gate-logo-tilt, its
+   wrapper, so #gate-logo3d keeps preserve-3d and its 50px extrusion shows) */
+/* sphere-control toggle: lit in the artist colour while the user is
+   steering the sphere with the mouse (auto music-reactive drift otherwise) */
+.gate-btn{
+  font-family:var(--font-display);font-weight:600;font-size:13px;letter-spacing:.2em;
+  color:var(--bg);background:var(--object);
+  padding:19px 46px;border-radius:999px;
+  box-shadow:0 20px 68px rgba(0,0,0,.315);
+  animation:pulse 2.4s ease-in-out infinite, gateBtnColorCycle 4s ease-in-out infinite;
+  transition:background .2s,transform .1s;
+}
+.gate-btn:hover{background:var(--object-deep)}
+.gate-btn:active{background:var(--active-green)}
+/* shown while the library manifest is still loading - disabled, dimmer,
+   no color-cycle (that would read as "ready", which it isn't yet) */
+.gate-btn.loading{
+  opacity:.55;cursor:default;pointer-events:none;
+  animation:pulse 1.1s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+/* white -> yellow -> green -> blue -> green -> yellow -> white, then a
+   short pause (still white) before looping */
+@keyframes gateBtnColorCycle{
+  0%{background-color:#FFFFFF}
+  13.33%{background-color:var(--lyric-yellow)}
+  26.67%{background-color:var(--active-green)}
+  40%{background-color:var(--gate-blue)}
+  53.33%{background-color:var(--active-green)}
+  66.67%{background-color:var(--lyric-yellow)}
+  80%,100%{background-color:#FFFFFF}
+}
+/* karaoke word fade: dark artist -> artist -> yellow -> white */
+@keyframes wordFadeBlueGreenWhite{
+  0%{color:color-mix(in srgb, var(--artist-color, var(--active-green)) 49%, black)}
+  55%{color:var(--artist-color, var(--active-green))}
+  80%{color:var(--lyric-yellow)}
+  100%{color:var(--fg)}
+}
+/* karaoke word activation: no fade - the word snaps straight to white the
+   instant it becomes active (still scheduled via animation-delay, same
+   as the fade above, just a constant color instead of a gradient) */
+@keyframes wordActiveWhite{
+  0%,100%{color:var(--fg)}
+}
+/* once a word has turned white it fades slowly (WORD_WHITE_FADE_SEC in app.js): white -> yellow -> the full artist color, where it stays */
+@keyframes wordWhiteToArtist{
+  0%{color:var(--fg)}
+  35%{color:var(--lyric-yellow)}
+  100%{color:var(--artist-color, var(--active-green))}
+}
+/* the word being sung is 110% of its normal size for as long as it is the active word (quick ease in and out) */
+@keyframes wordActiveGrow{
+  0%{transform:scale(1)}
+  12%,88%{transform:scale(1.1)}
+  100%{transform:scale(1)}
+}
+/* the word that's currently active also gets a 2px white outline the
+   instant it's set, which then fades out to 0% opacity over a fixed 0.5s -
+   started at the same delay as wordActiveWhite above (see
+   startActiveLineFade() in app.js), but with its own fixed 0.5s duration
+   instead of running for the word's whole active span */
+@keyframes wordActiveStroke{
+  /* only the stroke COLOR is animated (the 2px width is static on .lyric-row .w): Safari/iOS doesn't
+     reliably animate the combined -webkit-text-stroke shorthand, so the effect was missing there */
+  /* the outline has the same colors as the word, on the same clock (white -> yellow -> artist color, 4s) and
+     fades out completely as it gets to the artist color */
+  0%{-webkit-text-stroke-color:var(--fg)}
+  35%{-webkit-text-stroke-color:var(--lyric-yellow)}
+  90%{-webkit-text-stroke-color:var(--artist-color, var(--active-green))}
+  100%{-webkit-text-stroke-color:rgba(0,0,0,0)}  /* (fully transparent: the outline is gone once the word is back to the artist color) */
+}
+.gate-hint{
+  /* 15px below the bottom of the button, at 75% of its old 11px size */
+  position:absolute;top:calc(100% + 15px);left:50%;transform:translateX(-50%);
+  white-space:nowrap;
+  font-size:8.25px;color:var(--fg-soft);letter-spacing:.16em;text-transform:uppercase;
+}
+/* same white->yellow->green->blue->green->yellow->white->pause cycle as
+   the button, just on text color, slower, and staggered per letter (see
+   app.js, which sets --i on each .gate-hint-letter) so it sweeps left
+   to right instead of changing all at once */
+.gate-hint-letter{
+  display:inline-block;
+  animation:gateTextColorCycle 9s ease-in-out infinite;
+  animation-delay:calc(var(--i) * .1s);
+}
+@keyframes gateTextColorCycle{
+  0%{color:#FFFFFF}
+  13.33%{color:var(--lyric-yellow)}
+  26.67%{color:var(--active-green)}
+  40%{color:var(--gate-blue)}
+  53.33%{color:var(--active-green)}
+  66.67%{color:var(--lyric-yellow)}
+  80%,100%{color:#FFFFFF}
+}
+
+/* ---------- app shell ---------- */
+#app{position:fixed;inset:0;display:flex;flex-direction:column}
+.view{
+  position:absolute;inset:0;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom));
+  display:none;flex-direction:column;
+}
+.view.active{display:flex}
+
+/* ============================ HOME ============================ */
+#view-home{overflow:hidden}
+/* solid artist-color wash sat behind the sphere itself (#stage is
+   z-index:0, this is -1) - shows through wherever the sphere/pano scene
+   doesn't fully cover (transparent canvas clear color, curved-patch edges) */
+#pre-sphere-layer{
+  position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:color-mix(in srgb, var(--artist-color, var(--active-green)) 85%, transparent);
+}
+#stage{position:fixed;inset:0;z-index:0;filter:brightness(.75)} /* every 3D background scene (sphere/panorama, tunnel, environments) 25% darker */
+/* the 3D environments' screen treatment: instead of the sphere's shader-
+   retired: the vertical-grid/VCR overlay is gone - the 3D scenes render
+   clean with no scanline treatment */
+#grid-overlay{display:none}
+/* a plain 10% black wash over every 3D scene (and the intro tunnel) -
+   sits above the WebGL stage, below all UI */
+#dim-overlay{
+  position:fixed;inset:0;z-index:1;pointer-events:none;display:none;
+  background:#000000;opacity:.1;
+}
+body.scene-3d #dim-overlay,
+body.gate-active #dim-overlay{display:block}
+/* SPHERE: a corner vignette over the video (transparent through the
+   middle, sinking to 50% black at the corners) plus a subtle repeating
+   1px horizontal VCR-scanline texture on top */
+#sphere-vignette{
+  position:fixed;inset:0;z-index:1;pointer-events:none;display:none;
+  background-image:
+    repeating-linear-gradient(to bottom,
+      rgba(0,0,0,.15) 0px, rgba(0,0,0,.15) 1px, transparent 1px, transparent 3px),
+    radial-gradient(circle at center,
+      transparent 0%, transparent 40%, rgba(0,0,0,.5) 100%);
+}
+body.scene-sphere #sphere-vignette{display:block}
+/* retired: the PRISM edge fade is gone - beams keep full brightness out
+   to the frame edges */
+#prism-fade{display:none}
+/* Polaroid road sky: the WebGL canvas clears transparent there, revealing
+   this gradient - a little brighter near the horizon, darker up top */
+body.scene-road #stage{background:linear-gradient(to top, #302864 0%, #17133e 55%, #0c071d 100%)}
+/* Aveluna sky: dark blue low, fading to black at the top */
+body.scene-mist #stage{background:linear-gradient(to top, #101a3e 0%, #060a1c 55%, #000000 100%)}
+/* ROADS sky: a slight vertical gradient in the back - faintly lighter
+   near the horizon, near-black up top */
+/* ROADS runs its own fixed blue palette regardless of artist, so its
+   horizon gradient stays fixed blue too instead of following
+   --artist-color (which would clash with the scene's own blue tones) */
+body.scene-beams #stage{background:linear-gradient(to top,
+  #123064 0%, #000000 60%)}
+/* NATURE horizon: black up top sinking into a modest dark blue (was the
+   artist color) - a taller gradient slowly drifting its visible window up
+   and down so the horizon itself reads as moving with the scene */
+body.scene-check #stage{
+  background-image:linear-gradient(to top, #16324f 0%, #000000 60%);
+  background-size:100% 200%;
+  animation:natureHorizonDrift 30s ease-in-out infinite;
+}
+@keyframes natureHorizonDrift{
+  0%, 100%{background-position:0% 0%}
+  50%{background-position:0% 100%}
+}
+/* BLOCKS background: black sinking into a dark red/blue gradient, the
+   same drifting-window trick as NATURE so it visibly moves with the scene */
+body.scene-maze #stage{
+  background-image:linear-gradient(to top, #2a0a12 0%, #0a1030 50%, #000000 100%);
+  background-size:100% 200%;
+  animation:mazeGradientDrift 30s ease-in-out infinite;
+}
+@keyframes mazeGradientDrift{
+  0%, 100%{background-position:0% 0%}
+  50%{background-position:0% 100%}
+}
+/* EYES: radial gradient from the middle - artist color (20% dark) at the
+   center, fading out to dark grey at the edges */
+body.scene-eyes #stage{background:radial-gradient(circle at center,
+  color-mix(in srgb, var(--artist-color, #7CFF9E) 80%, black) 0%, #101010 100%)}
+/* PRISM: replaces the old 3D background blooms - a moving gradient at
+   3.75% visible (50% darker again, was 7.5%), plus a fixed radial
+   vignette on top that sinks to almost black toward the corners. Two
+   layers, so background-position needs a value per layer - only the
+   drifting linear one moves, the vignette stays centered */
+body.scene-prism #stage{
+  background-image:
+    radial-gradient(circle at center, transparent 0%, transparent 40%, rgba(0,0,0,0.92) 100%),
+    linear-gradient(to top,
+      color-mix(in srgb, var(--artist-color, #7CFF9E) 3.75%, transparent) 0%, transparent 60%);
+  background-size:100% 100%, 100% 200%;
+  animation:prismGradientDrift 30s ease-in-out infinite;
+}
+@keyframes prismGradientDrift{
+  0%, 100%{background-position:center, 0% 0%}
+  50%{background-position:center, 0% 100%}
+}
+/* RINGS: dark background, black up top sinking into the artist color as
+   the primary color at the bottom (55% mix - still dark, not full bright) */
+body.scene-rings #stage{background:linear-gradient(to top,
+  color-mix(in srgb, var(--artist-color, #7CFF9E) 55%, black) 0%, #000000 60%)}
+/* HANDS: a horizon behind the sphere tunnel - artist color low, fading to
+   black higher up */
+body.scene-hands #stage{background:linear-gradient(to top,
+  color-mix(in srgb, var(--artist-color, #7CFF9E) 18%, black) 0%, #000000 69%)}
+/* full-screen tint in the current track's artist color, sitting right on
+   top of the 3D sphere/background video (z-index:0) but below every
+   other overlay/UI layer (z-index:1+) - color set per-track in
+   renderMeta() via the --artist-color custom property */
+/* radial fade instead of a flat tint - center keeps the original .25
+   darkness, fading out toward the edges to 40% less dark (.15) since
+   alpha is baked into each gradient stop, opacity itself is no longer
+   used (it would darken the whole element uniformly, undoing the fade) */
+/* gradient.mp4 overlay: a subtle moving color-grade wash on top of every
+   3D scene, always on regardless of which background is active - sits
+   right above #stage (z-index:0), below the artist-color tint and all
+   other UI (z-index:1+) */
+#gradient-overlay{
+  position:fixed;inset:0;z-index:1;pointer-events:none;
+  width:100%;height:100%;object-fit:cover;
+  /* .15 base, +15% then +25% more strength on top of that */
+  opacity:.216;
+  /* reads as a genuine color-grade wash over the scene, not just a
+     translucent video sitting on top of it */
+  mix-blend-mode:color;
+}
+#artist-color-overlay{
+  position:fixed;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(circle at 50% 50%,
+    color-mix(in srgb, var(--artist-color, var(--active-green)) 18%, transparent) 0%,
+    color-mix(in srgb, var(--artist-color, var(--active-green)) 10%, transparent) 100%);
+  mix-blend-mode:multiply;
+}
+/* readability scrim behind the whole bottom UI cluster (title/artist,
+   transport, duration/volume, side buttons) - sits in front of the 3D
+   sphere (#stage, z-index:0) but behind all that UI content (z-index:2+);
+   now spans the full viewport height (top to bottom) instead of just
+   below the artist photo */
+#bg-gradient{
   position:fixed;left:0;right:0;top:0;bottom:0;z-index:1;pointer-events:none;
   /* light blue at the bottom of the screen, 10% opaque, fading to nothing (0%) at the middle of the screen
      (this replaced the earlier artist-colored scrim) */
