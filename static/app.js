@@ -558,7 +558,8 @@ function computeDisplayLines(tr, maxChars){
   return lines;
 }
 const ACTIVE_LINE_SCALE = 1.3;
-const ENTRANCE_SCALE = 1.3 * 1.05; // the main sentence STARTS at this multiple of its resting size (was 1.3; now 105% of that) and stops scaling after 2s
+const COMING_SEAT_SCALE = 1.3 * 1.05; // the size the coming sentences are seated for (kept as tuned, so they do not move when the main sentence's start size changes)
+const ENTRANCE_SCALE = 1.3 * 1.05 * 1.1; // the main sentence STARTS at this multiple of its resting size (was 1.3; now 105% of that) and stops scaling after 2s
 // blank (silence) entries never get their own row - the carousel skips
 // straight past them to the nearest real sentence on either side, so a
 // gap never shows as an empty centered line or an empty preview row
@@ -660,7 +661,7 @@ function layoutLyricRows(li, before, after){
       }
       // the main sentence stays bigger than its resting size (it enters at 130% and stops scaling after 2s), so the coming
       // sentences start below ITS real bottom edge (the freeze timer in this function corrects it to the size it stops at)
-      if (dir === 1 && depth === 1) ty += (activeScale * ENTRANCE_SCALE - activeScale) * rowBaseHeight(activeRow) / 2;
+      if (dir === 1 && depth === 1) ty += (activeScale * COMING_SEAT_SCALE - activeScale) * rowBaseHeight(activeRow) / 2;
       if (dir === 1 && depth === 3) ty -= 2 / 1.5;   // 2 screen px less space between the coming 2nd and 3rd sentence
       (dir === -1 ? beforeTy : afterTy)[depth] = ty;     // (the chain for the sentences below continues from this un-nudged spot)
       if (dir === 1 && depth === 2) ty -= 2 / 1.5;       // the second coming sentence alone sits 2 screen px higher (2, 4 more, then 2 and 2 lower)
