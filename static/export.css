@@ -162,3 +162,13 @@ body.aspect-vertical #bg-gradient{
     linear-gradient(to top, rgba(0,0,0,.6) 0%, rgba(0,0,0,0) 25%),
     linear-gradient(to bottom, rgba(0,0,0,.5) 0%, rgba(0,0,0,0) 25%) !important;
 }
+
+/* 9:16: the bottom group - the rectangle's stroke, the "More songs at" text and the logo in it - is in the artist's colour (preview and render) */
+body.aspect-vertical #export-cta-pill,
+body.recording.aspect-vertical #export-cta-pill{border:.5px solid var(--artist-color, #ffffff)}
+body.aspect-vertical #export-cta-lead,
+body.aspect-vertical #export-cta-url,
+body.recording.aspect-vertical #export-cta-lead,
+body.recording.aspect-vertical #export-cta-url{color:var(--artist-color, #ffffff) !important;opacity:1 !important}
+body.aspect-vertical .home-top .logo-text.export-pill-logo{color:var(--artist-color, #ffffff) !important}
+body.aspect-vertical .home-top .logo-text.export-pill-logo::after{color:#ffffff}

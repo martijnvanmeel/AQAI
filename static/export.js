@@ -755,7 +755,7 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
         animals.src = "/assets/gate-creatures.webm";
         animals.autoplay = true; animals.muted = true; animals.loop = true; animals.playsInline = true;
         animals.setAttribute("aria-hidden", "true");
-        animals.style.cssText = "position:absolute;left:16.25%;width:67.5%;height:auto;bottom:50px;z-index:1;pointer-events:none;";   // 50px above the bottom edge
+        animals.style.cssText = "position:absolute;left:16.25%;width:67.5%;height:auto;bottom:75px;z-index:1;pointer-events:none;";   // 75px above the bottom edge
         app.appendChild(animals);
       }
       box.appendChild(pill);
@@ -786,7 +786,7 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
         cv.font = `${lcs.fontWeight} ${lcs.fontSize} ${lcs.fontFamily}`;
         const m = cv.measureText("AQAI");
         const asc = m.actualBoundingBoxAscent, desc = m.actualBoundingBoxDescent, fa = m.fontBoundingBoxAscent;
-        const sc = own ? (pill.getBoundingClientRect().height * 0.9) / (asc + desc) : 1;   // 9:16: letters 90% as high as the button
+        const sc = own ? (pill.getBoundingClientRect().height * 0.675) / (asc + desc) : 1;   // 9:16: letters 67.5% as high as the button (75% of the earlier 90%)
         if (own && isFinite(sc) && Math.abs((logo._sc || 0) - sc) > 0.002){ logo._sc = sc; logo.style.scale = String(sc); }
         const rg = document.createRange(); rg.selectNodeContents(logo);
         const lr = rg.getBoundingClientRect();
