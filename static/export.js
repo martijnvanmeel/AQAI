@@ -759,7 +759,7 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
         // a circle behind the animals: full black
         const ring = document.createElement("div");
         ring.id = "export-cta-animals-circle";
-        ring.style.cssText = "position:absolute;z-index:1;pointer-events:none;border-radius:50%;background:#000000;";   // full black
+        ring.style.cssText = "position:absolute;z-index:1;pointer-events:none;border-radius:50%;background:#000000;filter:blur(15px);";   // full black, softened with a 15px gaussian blur
         app.appendChild(ring);
         app.appendChild(animals);
       }
