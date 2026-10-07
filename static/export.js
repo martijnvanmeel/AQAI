@@ -739,7 +739,7 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
       animals.autoplay = true; animals.muted = true; animals.loop = true; animals.playsInline = true;
       animals.setAttribute("aria-hidden", "true");
       animals.style.cssText = "display:block;margin:0 auto;height:100px;max-height:100px;width:auto;pointer-events:none;";
-      box.appendChild(animals);
+      if (ASPECT === "vertical") box.appendChild(animals);   // only the 9:16 version has the animals
       box.appendChild(pill);
       app.appendChild(box);
     }
