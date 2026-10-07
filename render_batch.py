@@ -62,9 +62,10 @@ def main():
     songs_todo = []
     for idx, t in enumerate(tracks):
         base = safe(f"{t.get('artist', '')} - {t['title']}")
-        if base in used and used[base] != t["id"]:
+        # (case-insensitive: the volume is, so "Don't Like Me Again" and "don't like me again" would be the same file)
+        if base.lower() in used and used[base.lower()] != t["id"]:
             base = f"{base} [{t['id'][:6]}]"
-        used[base] = t["id"]
+        used[base.lower()] = t["id"]
         scene = scenes[idx % len(scenes)]
         missing = []
         for aspect, label in ASPECTS:

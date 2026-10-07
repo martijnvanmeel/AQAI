@@ -629,7 +629,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   position:absolute;inset:0;padding:.3em .1em 0;
   color:transparent;background:none;
   -webkit-text-stroke:1px var(--artist-color, var(--active-green));
-  opacity:.75; /* the outline is 50% less transparent than before (was 50% opaque, now 75%) */
+  opacity:.6375; /* the outline: 75% x 0.85 (15% more transparent) */
   -webkit-mask-image:linear-gradient(to top, transparent .125em, #000 .825em);
   mask-image:linear-gradient(to top, transparent .125em, #000 .825em);
 }
@@ -643,7 +643,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
   color:transparent;background:none;
   /* white */
   -webkit-text-stroke:1px #ffffff;
-  opacity:.5; /* as before (it used to inherit the title's .5) */
+  opacity:.425; /* .5 x 0.85 (15% more transparent) */
   /* two masks intersected: the diagonal band that sweeps across, and the same vertical profile as the outline above */
   -webkit-mask-image:linear-gradient(110deg, transparent 34%, #000 50%, transparent 66%), linear-gradient(to top, transparent .125em, #000 .825em);
   mask-image:linear-gradient(110deg, transparent 34%, #000 50%, transparent 66%), linear-gradient(to top, transparent .125em, #000 .825em);

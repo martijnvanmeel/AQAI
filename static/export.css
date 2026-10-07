@@ -98,7 +98,7 @@ body.aspect-horizontal #app{width:min(100vw, calc(100vh * 16 / 9));height:min(10
    opaque and carries a soft glow - it reads as a light travelling along the stroke */
 body.export-mode #bg-title-watermark::after{
   -webkit-text-stroke-width:2px;
-  opacity:1;
+  opacity:.85;
   filter:drop-shadow(0 0 6px rgba(255,255,255,.85));
 }
 

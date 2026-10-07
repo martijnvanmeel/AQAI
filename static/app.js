@@ -6495,6 +6495,61 @@ function updateTitleShadowInCircle(){
   txt.style.fontSize = ((parseFloat(getComputedStyle(title).fontSize) || 0) * tk).toFixed(2) + "px";
   txt.style.transform = `translate(calc(-50% + ${((tr.left + tr.width / 2) - (cr.left + cr.width / 2)).toFixed(1)}px), calc(-50% + ${((tr.top + tr.height / 2) - (cr.top + cr.height / 2)).toFixed(1)}px))`;
 }
+/* 9:16 export: the lower part of the 3D animal is darkened - black at 50% opacity at the animal's bottom, fading to 100% transparent at
+   3px above the song title. It is a copy of the animal's own pixels (so only the animal gets darker, not the circle or the scene
+   behind it), turned into a black gradient with "source-in", on a canvas that sits above the animal and below the title text. */
+const _foxVec = typeof THREE !== "undefined" ? new THREE.Vector3() : null;
+function updateFoxLowerShade(){
+  if (!document.body.classList.contains("aspect-vertical")) return;
+  if (!foxRenderer || !foxRoot || !foxCamera || !foxCanvasEl) return;
+  const player = document.querySelector(".player");
+  if (!player) return;
+  let cv = document.getElementById("fox-lower-shade");
+  if (!cv){
+    cv = document.createElement("canvas");
+    cv.id = "fox-lower-shade";
+    cv.setAttribute("aria-hidden", "true");
+    cv.style.cssText = "position:fixed;z-index:2;pointer-events:none;display:none;";
+    player.appendChild(cv);
+  }
+  const fr = foxCanvasEl.getBoundingClientRect();
+  if (!fr.width || !fr.height || !foxCanvasEl.width) return;
+  const fillNode = document.getElementById("m-title-fill") || document.getElementById("m-title");
+  if (!fillNode) return;
+  const rg = document.createRange(); rg.selectNodeContents(fillNode);
+  const tr = rg.getBoundingClientRect();
+  if (!tr.height) return;
+  // the animal's lowest point on screen: the 8 corners of its bounding box, projected through the camera
+  foxRoot.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(foxRoot);
+  let maxY = -Infinity;
+  for (let i = 0; i < 8; i++){
+    _foxVec.set(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z).project(foxCamera);
+    const sy = fr.top + (1 - _foxVec.y) / 2 * fr.height;
+    if (sy > maxY) maxY = sy;
+  }
+  const y0 = tr.top - 3, y1 = maxY;                         // transparent at 3px above the title ... 50% black at the animal's bottom
+  if (!(y1 - y0 > 2)){ cv.style.display = "none"; return; }
+  cv.style.display = "";
+  cv.style.left = "0px"; cv.style.top = "0px";
+  const o = cv.getBoundingClientRect();                      // where this layer's (0,0) really is, whatever contains it
+  cv.style.left = (fr.left - o.left).toFixed(1) + "px";
+  cv.style.top = (y0 - o.top).toFixed(1) + "px";
+  cv.style.width = fr.width.toFixed(1) + "px";
+  cv.style.height = (y1 - y0).toFixed(1) + "px";
+  const sc = foxCanvasEl.width / fr.width;
+  const w = Math.round(fr.width * sc), h = Math.max(1, Math.round((y1 - y0) * sc));
+  if (cv.width !== w) cv.width = w;
+  if (cv.height !== h) cv.height = h;
+  const ctx = cv.getContext("2d");
+  ctx.globalCompositeOperation = "source-over";
+  ctx.clearRect(0, 0, w, h);
+  ctx.drawImage(foxCanvasEl, 0, (y0 - fr.top) * sc, w, h, 0, 0, w, h);
+  ctx.globalCompositeOperation = "source-in";
+  const g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,.5)");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+}
 function maskWaveAroundCircle(){
   if (document.body.classList.contains("export-mode")) return;
   const canvas = document.querySelector("#wave-canvas");
@@ -7538,6 +7593,7 @@ function animate(t){
   updateScanLine();
   maskWaveAroundCircle();
   { const l = document.getElementById("title-shadow-layer"); if (l) l.remove(); }   // (the song title's drop shadow is removed)
+  updateFoxLowerShade();
   if (TRACKS.length) updateUI();
   renderer.render(scene, camera);
 
