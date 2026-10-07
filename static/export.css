@@ -183,16 +183,5 @@ body.aspect-vertical #export-cta-url{top:-1px}
    above it, so the logo has exactly the lightness of the button text beside it */
 body.aspect-vertical .home-top{z-index:6}
 
-/* 9:16: the eyes of the 3D animal in the middle are full black too: a black backing silhouette under the canvas (SVG filter in
-   export.html), then the same outline as the player's own filter */
-body.aspect-vertical #fox-3d-canvas{
-  filter:
-    url(#aqai-eyes-black-big)
-    drop-shadow(1px 0 0 var(--outline-color))
-    drop-shadow(-1px 0 0 var(--outline-color))
-    drop-shadow(0 1px 0 var(--outline-color))
-    drop-shadow(0 -1px 0 var(--outline-color));
-}
-
 /* 9:16: the whole bottom button (rectangle + text + logo) sits 15px lower (the logo follows: it is placed from the button's live box) */
 body.aspect-vertical #export-cta{margin-bottom:-15px}
