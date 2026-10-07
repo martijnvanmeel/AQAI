@@ -773,10 +773,10 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
       if (ring && an){
         const ar = app.getBoundingClientRect(), nr = an.getBoundingClientRect();
         if (nr.height){
-          const d = ar.width * 0.54;                       // the circle's diameter: 54% of the frame width (80% of the animation's width)
+          const d = ar.width * 0.54 * 1.5;                 // the circle's diameter: 81% of the frame width (150% of the earlier 54%)
           ring.style.width = ring.style.height = d.toFixed(1) + "px";
           ring.style.left = ((ar.width - d) / 2).toFixed(1) + "px";
-          ring.style.bottom = (ar.bottom - nr.bottom + nr.height / 2 - d / 2).toFixed(1) + "px";   // centred on the animation
+          ring.style.bottom = (ar.bottom - nr.bottom + nr.height / 2 - d / 2 - 60).toFixed(1) + "px";   // centred on the animation, then 60px lower
         }
       }
     }
