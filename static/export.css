@@ -130,3 +130,22 @@ body.aspect-horizontal #export-cta-url{
   opacity:1 !important;
   position:relative;top:1px;      /* the text sits 1px lower */
 }
+
+/* 9:16, 1:1 and 4:5 get the same black treatment: the AQAI logo and the "More songs at" text are black, and the button has the same
+   0.5px black hairline stroke (it keeps its artist-colour fill there) */
+body.aspect-vertical .home-top .logo-text,
+body.aspect-square .home-top .logo-text,
+body.aspect-portrait .home-top .logo-text{
+  animation:none !important;
+  color:#000000 !important;
+  text-shadow:none !important;
+}
+body.aspect-vertical #export-cta-pill,
+body.aspect-square #export-cta-pill,
+body.aspect-portrait #export-cta-pill{border:.5px solid #000000}
+body.aspect-vertical #export-cta-lead,
+body.aspect-square #export-cta-lead,
+body.aspect-portrait #export-cta-lead,
+body.aspect-vertical #export-cta-url,
+body.aspect-square #export-cta-url,
+body.aspect-portrait #export-cta-url{color:#000000 !important;opacity:1 !important}
