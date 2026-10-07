@@ -115,9 +115,9 @@ function frameCenterY(){
 }
 let _wmCapCtx = null;
 function watermarkTargetY(){
-  // 16:9: the huge title is centred vertically in the frame (the middle of its capital letters on the middle of the frame); the
+  // 16:9 and 9:16: the huge title is centred vertically in the frame (the middle of its capital letters on the middle of the frame); the
   // Y slider (default 0) then moves it from there. Everywhere else it sits on the visualiser line as before.
-  if (ASPECT === "horizontal"){
+  if (ASPECT === "horizontal" || ASPECT === "vertical"){
     const el = document.querySelector("#bg-title-watermark");
     if (el){
       const cs = getComputedStyle(el);
@@ -125,8 +125,8 @@ function watermarkTargetY(){
       if (!_wmCapCtx) _wmCapCtx = document.createElement("canvas").getContext("2d");
       _wmCapCtx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
       const cap = _wmCapCtx.measureText("H").actualBoundingBoxAscent * wmScale;   // cap height, after the scale (it scales from the baseline)
-      // the transform's reference is the bottom of the line box, which sits watermarkBaselineGap() below the baseline
-      if (fs && isFinite(cap)) return frameCenterY() + cap / 2 + watermarkBaselineGap() + wmYOffset;
+      // the transform's reference is the bottom of the line box, which sits watermarkBaselineGap() below the baseline (scaled with the title, since it scales from that bottom edge)
+      if (fs && isFinite(cap)) return frameCenterY() + cap / 2 + watermarkBaselineGap() * wmScale + wmYOffset;
     }
   }
   return watermarkBaselineY() + wmYOffset;
