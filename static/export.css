@@ -178,3 +178,7 @@ body.aspect-vertical .home-top .logo-text.export-pill-logo::after{color:#ffffff}
 /* 9:16: the "More songs at" text 2px higher (it sat 1px lower, now 1px higher) */
 body.aspect-vertical #export-cta-lead,
 body.aspect-vertical #export-cta-url{top:-1px}
+
+/* 9:16: the logo in the button must not be darkened by the bottom shade (a layer inside .player, above .home-top): .home-top goes
+   above it, so the logo has exactly the lightness of the button text beside it */
+body.aspect-vertical .home-top{z-index:6}
