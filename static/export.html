@@ -15,6 +15,27 @@
 <link rel="stylesheet" href="export.css">
 </head>
 <body class="gate-active">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <!-- black backing behind the eyes: the alpha of the element is "closed" (dilate then erode: small holes and soft spots fill up), made fully
+       opaque and turned into a black silhouette that sits UNDER the element, so semi-transparent eyes are full black -->
+  <filter id="aqai-eyes-black-small" x="-5%" y="-5%" width="110%" height="110%" color-interpolation-filters="sRGB">
+    <feMorphology in="SourceAlpha" operator="dilate" radius="6" result="d"/>
+    <feMorphology in="d" operator="erode" radius="6" result="closed"/>
+    <feComponentTransfer in="closed" result="solid"><feFuncA type="linear" slope="8"/></feComponentTransfer>
+    <feFlood flood-color="#000000" result="k"/>
+    <feComposite in="k" in2="solid" operator="in" result="blk"/>
+    <feMerge><feMergeNode in="blk"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="aqai-eyes-black-big" x="-5%" y="-5%" width="110%" height="110%" color-interpolation-filters="sRGB">
+    <feMorphology in="SourceAlpha" operator="dilate" radius="14" result="d"/>
+    <feMorphology in="d" operator="erode" radius="14" result="closed"/>
+    <feComponentTransfer in="closed" result="solid"><feFuncA type="linear" slope="8"/></feComponentTransfer>
+    <feFlood flood-color="#000000" result="k"/>
+    <feComposite in="k" in2="solid" operator="in" result="blk"/>
+    <feMerge><feMergeNode in="blk"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+</svg>
+
 
 <div id="gate">
   <div id="gate-content">
