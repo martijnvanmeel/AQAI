@@ -531,6 +531,7 @@ const LYRIC_GAP_BLANK = 3; // silence longer than this gets its own blank senten
 // shares one with the sentence before it). Wherever the silence to the
 // next sentence exceeds LYRIC_GAP_BLANK, an empty sentence is inserted so
 // the carousel actually goes blank instead of holding the previous line.
+let LYRIC_LINE_MAX_WORDS = 0;   // 0 = no limit; the 9:16 export sets 2 (a sentence row never holds more than two words)
 function computeDisplayLines(tr, maxChars){
   if (tr._displayLines && tr._displayLinesMax === maxChars) return tr._displayLines;
   const raw = [];
@@ -539,7 +540,7 @@ function computeDisplayLines(tr, maxChars){
     let len = 0;
     L.words.forEach(w => {
       const added = chunk.length ? len + 1 + w.w.length : w.w.length;
-      if (chunk.length && added > maxChars){
+      if (chunk.length && (added > maxChars || (LYRIC_LINE_MAX_WORDS && chunk.length >= LYRIC_LINE_MAX_WORDS))){
         raw.push(chunk);
         chunk = [w];
         len = w.w.length;
