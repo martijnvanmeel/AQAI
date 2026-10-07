@@ -338,7 +338,7 @@ body.gate-active::after{display:none}
   position:fixed;inset:0;z-index:-1;pointer-events:none;
   background:color-mix(in srgb, var(--artist-color, var(--active-green)) 85%, transparent);
 }
-#stage{position:fixed;inset:0;z-index:0;filter:brightness(.75)} /* every 3D background scene (sphere/panorama, tunnel, environments) 25% darker */
+#stage{position:fixed;inset:0;z-index:0;filter:brightness(1.125)} /* every 3D background scene (sphere/panorama, tunnel, environments): brightness .75 x 1.5 = 50% brighter than before */
 /* the 3D environments' screen treatment: instead of the sphere's shader-
    retired: the vertical-grid/VCR overlay is gone - the 3D scenes render
    clean with no scanline treatment */
@@ -365,7 +365,7 @@ body.gate-active #dim-overlay{display:block}
 body.scene-sphere #sphere-vignette{display:block}
 /* the background video sphere is stronger: no 25% darkening any more (the other 3D scenes keep it), brighter, more saturated and
    punchier, with a lighter corner vignette (50% -> 30% black) */
-body.scene-sphere #stage{filter:brightness(1.15) saturate(1.25) contrast(1.08)}
+body.scene-sphere #stage{filter:brightness(1.725) saturate(1.25) contrast(1.08)}   /* (1.15 x 1.5) */
 body.scene-sphere #sphere-vignette{
   background-image:
     repeating-linear-gradient(to bottom,
