@@ -748,14 +748,14 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
       hand.appendChild(ring);
       pill.appendChild(lead); pill.appendChild(url); pill.appendChild(hand);
       // 9:16 only: the intro's animals animation (the start screen's transparent clip) stands along the bottom of the frame,
-      // 90% of the frame's width (the clip is 16:9, so its height follows), behind the "More songs" button
+      // 67.5% of the frame's width (75% of the earlier 90%; the clip is 16:9, so its height follows), behind the "More songs" button
       if (ASPECT === "vertical"){
         const animals = document.createElement("video");
         animals.id = "export-cta-animals";
         animals.src = "/assets/gate-creatures.webm";
         animals.autoplay = true; animals.muted = true; animals.loop = true; animals.playsInline = true;
         animals.setAttribute("aria-hidden", "true");
-        animals.style.cssText = "position:absolute;left:5%;width:90%;height:auto;bottom:50px;z-index:1;pointer-events:none;";   // 50px above the bottom edge
+        animals.style.cssText = "position:absolute;left:16.25%;width:67.5%;height:auto;bottom:50px;z-index:1;pointer-events:none;";   // 50px above the bottom edge
         app.appendChild(animals);
       }
       box.appendChild(pill);
