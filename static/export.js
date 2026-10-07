@@ -776,7 +776,7 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
           const w = d * 1.25;                              // 125% of the earlier width, same height (an ellipse now)
           ring.style.width = w.toFixed(1) + "px"; ring.style.height = d.toFixed(1) + "px";
           ring.style.left = ((ar.width - w) / 2).toFixed(1) + "px";
-          ring.style.bottom = (ar.bottom - nr.bottom + nr.height / 2 - d / 2 - 310).toFixed(1) + "px";   // centred on the animation, then 310px lower (60, 150, then 100 more)
+          ring.style.bottom = (ar.bottom - nr.bottom + nr.height / 2 - d / 2 - 335).toFixed(1) + "px";   // centred on the animation, then 335px lower (60, 150, 100, then 25 more)
         }
       }
     }
