@@ -206,3 +206,7 @@ body.export-mode .meta .by{text-shadow:none !important}
 /* 9:16: the dark shade over the bottom of the frame (it started just above the song title and darkened everything below it, in
    front of the animal's feet) is removed - it read as a black shadow behind the title / artist */
 #export-bottom-shade{display:none !important}
+
+/* 9:16: the dark radial glow behind the song title / artist (it began just above the title and ran down to the bottom of the circle)
+   is removed - it showed as a dark shadow band connected to the title */
+#export-title-glow{display:none !important}
