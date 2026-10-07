@@ -2658,7 +2658,7 @@ const panoTexture = new THREE.VideoTexture(panoVideoEl);
 // ones are these two extra copies of the same clip, started at other moments
 const panoSideVideos = [0, 1].map(() => {
   const v = document.createElement("video");
-  v.muted = true; v.loop = true; v.playsInline = true; v.crossOrigin = "anonymous";
+  v.muted = true; v.loop = false; v.playsInline = true; v.crossOrigin = "anonymous";
   return v;
 });
 const panoSideTextures = panoSideVideos.map(v => new THREE.VideoTexture(v));
@@ -6638,6 +6638,19 @@ function updatePanoPingPongSpeed(){
 // the numbered music-video clips ("001 Another Thing Is Different.mp4" ...) are shown on the sphere WITHOUT any rotation: no steady roll
 // and no tour of the corners - the picture stays put
 let panoNoSpin = false;
+// when one of the three portrait clips has played to its end, it is replaced by another portrait clip (never one that is on screen)
+function loadNextPortraitClip(v){
+  if (!panoNoSpin) return;
+  const base = "/panorama2/";
+  const onScreen = new Set([panoVideoEl, ...panoSideVideos].map(e => decodeURIComponent((e.getAttribute("src") || "").replace(base, ""))));
+  const all = (typeof PANORAMAS !== "undefined" ? PANORAMAS : []).filter(f => /^\d{3} /.test(f));
+  const pool = all.filter(f => !onScreen.has(f));
+  const file = (pool.length ? pool : all)[Math.floor(Math.random() * (pool.length || all.length))];
+  if (!file) return;
+  v.src = base + file;
+  v.play().catch(() => {});
+}
+[panoVideoEl, ...panoSideVideos].forEach(v => v.addEventListener("ended", () => loadNextPortraitClip(v)));
 function loadPanoFile(file, base = "/panorama2/"){
   panoNoSpin = /^\d{3} /.test(file);
   if (panoNoSpin) sphereSpinRoll = 0;
@@ -6657,6 +6670,7 @@ function loadPanoFile(file, base = "/panorama2/"){
       panoVideoEl.src = src;
       panoVideoEl.play().catch(() => {});
     }
+    panoVideoEl.loop = !panoNoSpin;   // a numbered portrait clip does not loop: when it ends, a new portrait clip is loaded (see below)
     // the numbered portrait clips run three next to each other, each starting at another moment of the clip
     panoSideVideos.forEach((v, k) => {
       if (!panoNoSpin){ if (v.getAttribute("src")){ v.pause(); v.removeAttribute("src"); v.load(); } return; }
