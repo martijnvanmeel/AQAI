@@ -216,6 +216,8 @@ function layoutSettled(){
   });
 }
 
+window.__layoutSettled = layoutSettled;   // (the offline renderer waits for this before it starts the music)
+
 function startExport(){
   const idx = TRACKS.findIndex(tr => tr.id === TRACK_ID);
   if (idx === -1){ document.title = "AQAI_EXPORT_ERROR:track not found"; return; }

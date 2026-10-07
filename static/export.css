@@ -210,3 +210,8 @@ body.export-mode .meta .by{text-shadow:none !important}
 /* 9:16: the dark radial glow behind the song title / artist (it began just above the title and ran down to the bottom of the circle)
    is removed - it showed as a dark shadow band connected to the title */
 #export-title-glow{display:none !important}
+
+/* video renders: no browser-chrome bands (the 4px black strip at the top and the 10px artist-colour strip at the bottom of the window) -
+   they are not part of the picture */
+html:has(body.recording)::before,
+html:has(body.recording)::after{display:none !important}

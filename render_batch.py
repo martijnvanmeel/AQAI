@@ -44,9 +44,12 @@ def main():
     ap.add_argument("--scenes", default=",".join(DEFAULT_SCENES))
     ap.add_argument("--port", type=int, default=8420)
     ap.add_argument("--only", default=None, help="comma separated track ids (testing)")
+    ap.add_argument("--aspects", default="vertical,square", help="which videos per song: vertical (9:16), square (1:1)")
     a = ap.parse_args()
 
     import server
+    wanted = [x for x in a.aspects.split(",") if x]
+    aspects = [(asp, lab) for asp, lab in ASPECTS if asp in wanted]
     scenes = [s for s in a.scenes.split(",") if s]
     os.makedirs(a.out, exist_ok=True)
     state_path = os.path.join(a.out, "done.json")
@@ -68,7 +71,7 @@ def main():
         used[base.lower()] = t["id"]
         scene = scenes[idx % len(scenes)]
         missing = []
-        for aspect, label in ASPECTS:
+        for aspect, label in aspects:
             final = os.path.join(a.out, f"{base} ({label}).mp4")
             key = f"{t['id']}_{aspect}"
             if key in done or os.path.exists(final):

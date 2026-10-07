@@ -231,11 +231,18 @@ def render(track, aspect, out_path, static_dir, server_port, fps=60, seconds=Non
             # let everything load while the fake clock runs on its own (3D model, panorama video, fonts, the track)
             page.wait_for_timeout(9000)
             page.evaluate("() => { window.__R.go = false; }")
-            # take control: freeze the clock, restart the track from 0 (reset the sweeps / karaoke), then step
+            # put the track back at 0 WITHOUT starting the music, and wait (the clock still runs on its own) until every element
+            # of the page has been placed and stopped moving (export.js layoutSettled()): the music - and with it the video -
+            # only starts when everything stands in its right place. The start screen (gate) is long gone by now: the export page
+            # dismisses it as the very first thing it does, and nothing of it is ever photographed.
+            page.evaluate("""() => { if (typeof load === 'function' && typeof cur !== 'undefined') load(cur, false); }""")
+            page.evaluate("() => (window.__layoutSettled ? window.__layoutSettled() : null)")
+            page.wait_for_timeout(500)
+            # take control: freeze the clock, start the virtual music at 0 (this also starts the sweeps / karaoke), then step
             page.clock.pause_at(int(page.evaluate("Date.now()")) + 5)
             page.evaluate("""() => {
                 const R = window.__R; R.go = true;
-                if (typeof load === 'function' && typeof cur !== 'undefined') load(cur, true);   // play() inside starts the virtual music at 0
+                if (typeof play === 'function') play();   // starts the virtual music at 0
             }""")
             page.clock.run_for(50)
             clock_ms = 0
