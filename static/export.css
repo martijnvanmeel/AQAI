@@ -196,3 +196,9 @@ body.export-mode .meta .sub{
 /* ... and without the soft 20% outline halo behind it, so the letters are the pure artist colour right to their edges */
 body.export-mode .meta .by::before,
 body.export-mode .meta .sub::before{display:none}
+
+/* no black drop shadow behind the song title / artist in the exports (the faint 15% one on the title too) */
+body.export-mode .meta .title,
+body.export-mode .meta .sub,
+body.export-mode .meta .by{text-shadow:none !important}
+#title-shadow-layer{display:none !important}
