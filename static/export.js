@@ -759,7 +759,7 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
         // a circle behind the animals: full black
         const ring = document.createElement("div");
         ring.id = "export-cta-animals-circle";
-        ring.style.cssText = "position:absolute;z-index:1;pointer-events:none;border-radius:50%;background:#000000;filter:blur(15px);";   // full black, softened with a 15px gaussian blur
+        ring.style.cssText = "position:absolute;z-index:1;pointer-events:none;border-radius:50%;background:#000000;";   // full black
         app.appendChild(ring);
         app.appendChild(animals);
       }
@@ -773,8 +773,9 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
         const ar = app.getBoundingClientRect(), nr = an.getBoundingClientRect();
         if (nr.height){
           const d = ar.width * 0.54 * 1.5 * 1.5;           // the circle's diameter: 121.5% of the frame width (150% of the earlier 81%)
-          ring.style.width = ring.style.height = d.toFixed(1) + "px";
-          ring.style.left = ((ar.width - d) / 2).toFixed(1) + "px";
+          const w = d * 1.25;                              // 125% of the earlier width, same height (an ellipse now)
+          ring.style.width = w.toFixed(1) + "px"; ring.style.height = d.toFixed(1) + "px";
+          ring.style.left = ((ar.width - w) / 2).toFixed(1) + "px";
           ring.style.bottom = (ar.bottom - nr.bottom + nr.height / 2 - d / 2 - 310).toFixed(1) + "px";   // centred on the animation, then 310px lower (60, 150, then 100 more)
         }
       }
