@@ -3042,7 +3042,7 @@ function centerUprightPano(){
   panoMesh.rotation.y = PANO_YAW_CENTER - delta;
   // three strips next to each other when the frame is wide enough for them (a portrait frame / phone shows just the one)
   const three = panoUpright && frameAspect >= 1.2 && panoSideMeshes.length === 2;
-  const step = panoMesh.geometry.parameters.phiLength * 1.015;   // (a hair of space between the strips)
+  const step = panoMesh.geometry.parameters.phiLength * 0.9985;   // no space between the strips (they overlap by a hair, so no seam shows)
   panoSideMeshes.forEach((m, k) => {
     m.visible = three && panoMesh.visible;
     m.rotation.y = PANO_YAW_CENTER - delta + (k === 0 ? step : -step);   // left (+) and right (-)
