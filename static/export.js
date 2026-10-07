@@ -187,6 +187,35 @@ function applyWatermarkOffset(){
   el.style.transition = "";
 }
 
+// resolves once the page is laid out: the fonts are in, the bottom button / animals (9:16) are built and the animals clip is ready,
+// and the positions of the main elements have not changed for a while (checked twice, 350ms apart). Gives up after 10s.
+function layoutSettled(){
+  const SEL = ["#m-title", "#bg-title-watermark", "#fox-3d-canvas", ".home-top .logo-text", "#export-cta-pill", "#export-cta-animals",
+    "#export-cta-animals-circle", "#lyrics", "#vis-canvas", ".artist-photo-wrap"];
+  const signature = () => SEL.map(q => {
+    const e = document.querySelector(q);
+    if (!e) return q + ":-";
+    const r = e.getBoundingClientRect();
+    return [r.left, r.top, r.width, r.height].map(v => Math.round(v)).join(",");
+  }).join("|");
+  const needAnimals = ASPECT === "vertical";
+  return new Promise(resolve => {
+    const t0 = performance.now();
+    let last = "", stable = 0;
+    const tick = () => {
+      const fontsOk = !document.fonts || document.fonts.status === "loaded";
+      const an = document.getElementById("export-cta-animals");
+      const ready = fontsOk && (!needAnimals || (an && an.readyState >= 2 && document.getElementById("export-cta-animals-circle")));
+      const sig = signature();
+      stable = ready && sig === last ? stable + 1 : 0;
+      last = sig;
+      if (stable >= 3 || performance.now() - t0 > 10000) return resolve();
+      setTimeout(tick, 350);
+    };
+    tick();
+  });
+}
+
 function startExport(){
   const idx = TRACKS.findIndex(tr => tr.id === TRACK_ID);
   if (idx === -1){ document.title = "AQAI_EXPORT_ERROR:track not found"; return; }
@@ -196,7 +225,9 @@ function startExport(){
   EDITABLE = false;
   updateEditControlsVisibility();
   dismissGate();
-  load(idx, true);
+  // a preview in a normal browser starts the music only when every element has been put in its place (see layoutSettled() below);
+  // a recording starts straight away as before (its own clock drives it)
+  load(idx, IS_RECORDING);
   window.__exportCurrentTime = () => (audioEls[idx] ? audioEls[idx].currentTime : 0);
   const el = getAudio(idx);
   // muted for preview only - the real recording has no audio of its own
@@ -208,7 +239,9 @@ function startExport(){
     // a preview opened in a normal browser: the music plays and the visualiser moves. Browsers keep the audio engine
     // suspended (and may block autoplay) until the page gets a click/key press, so kick it on any such gesture too and
     // show a small hint until the sound is really running
+    let layoutReady = false;
     const kick = () => {
+      if (!layoutReady) return;                       // not before everything sits in its place
       try {
         initAudio();
         if (ctx.state === "suspended") ctx.resume();
@@ -218,15 +251,19 @@ function startExport(){
     };
     let hint = null;
     ["pointerdown", "keydown", "click", "touchstart"].forEach(ev => window.addEventListener(ev, kick, { passive: true }));
-    kick();
-    setTimeout(() => {
-      if (ctx && ctx.state === "running" && !el.paused) return;
-      hint = document.createElement("div");
-      hint.textContent = "Click anywhere to start the music";
-      hint.style.cssText = "position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:99999;padding:8px 14px;border-radius:999px;background:rgba(0,0,0,.75);color:#fff;font:12px/1.2 sans-serif;pointer-events:none";
-      document.body.appendChild(hint);
-    }, 700);
-    const retry = setInterval(() => { kick(); if (ctx && ctx.state === "running" && !el.paused) clearInterval(retry); }, 1000);
+    const retry = setInterval(() => { kick(); if (layoutReady && ctx && ctx.state === "running" && !el.paused) clearInterval(retry); }, 1000);
+    layoutSettled().then(() => {
+      layoutReady = true;
+      try { play(); } catch (e){}
+      kick();
+      setTimeout(() => {
+        if (ctx && ctx.state === "running" && !el.paused) return;
+        hint = document.createElement("div");
+        hint.textContent = "Click anywhere to start the music";
+        hint.style.cssText = "position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:99999;padding:8px 14px;border-radius:999px;background:rgba(0,0,0,.75);color:#fff;font:12px/1.2 sans-serif;pointer-events:none";
+        document.body.appendChild(hint);
+      }, 700);
+    });
   }
   // the very first sweep of the huge background title can start before the page is laid out (font not loaded yet / element not
   // rendered), in which case its transition never runs and it jumps straight to its end spot off the left edge and stays there.

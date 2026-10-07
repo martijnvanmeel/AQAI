@@ -2654,6 +2654,14 @@ const panoVideoEl = document.createElement("video");
 panoVideoEl.muted = true; panoVideoEl.loop = true; panoVideoEl.playsInline = true;
 panoVideoEl.crossOrigin = "anonymous";
 const panoTexture = new THREE.VideoTexture(panoVideoEl);
+// the numbered portrait clips are shown three next to each other (see rebuildPanoMesh): the middle one is panoVideoEl, the left and right
+// ones are these two extra copies of the same clip, started at other moments
+const panoSideVideos = [0, 1].map(() => {
+  const v = document.createElement("video");
+  v.muted = true; v.loop = true; v.playsInline = true; v.crossOrigin = "anonymous";
+  return v;
+});
+const panoSideTextures = panoSideVideos.map(v => new THREE.VideoTexture(v));
 
 // .gif entries aren't decodable as a <video>, so they're played back by
 // letting the browser animate a hidden <img> and continuously re-drawing
@@ -2947,6 +2955,12 @@ panoMat.onBeforeCompile = shader => {
       float aqaiGridMask = 1.0 - smoothstep(0.0, aqaiGridLineW, min(fract(vUv.y * aqaiGridFreq), 1.0 - fract(vUv.y * aqaiGridFreq)));
       gl_FragColor.rgb += uArtistColor * 0.5 * 0.05 * aqaiGridMask * uFx;`);
 };
+const panoSideMats = panoSideTextures.map(t => {
+  const m = new THREE.MeshBasicMaterial({ map: t, transparent: true, opacity: 1.0 });
+  m.onBeforeCompile = panoMat.onBeforeCompile;   // the same glow / scanlines / vignette as the main patch
+  return m;
+});
+let panoSideMeshes = [];
 // a gently curved patch (not flat): a flat rectangle sized to the
 // camera's native FOV crops during mouse-look (revealing an edge), and
 // sized to the full look-around range instead feels zoomed in. Curving
@@ -2969,7 +2983,7 @@ function computePanoDistRange(mesh){
   panoUniforms.uMinDist.value = min;
   panoUniforms.uMaxDist.value = max;
 }
-function buildPanoGeometry(aspect){
+function buildPanoGeometry(aspect, fit = false){
   // cover the camera's full look-around range (its own FOV plus the max
   // mouse-driven yaw/pitch, with a margin) so every edge stays filled at
   // any rotation, while keeping the video's own aspect ratio so it's
@@ -2986,7 +3000,12 @@ function buildPanoGeometry(aspect){
   const minPhi = (hFovHalf + maxLookYaw + margin) * 2;
   const minTheta = (vFovHalf + maxLookPitch + margin) * 2;
   let thetaLength = minTheta, phiLength = thetaLength * aspect;
-  if (phiLength < minPhi){ phiLength = minPhi; thetaLength = phiLength / aspect; }
+  if (fit){
+    // an upright portrait clip: the picture keeps its own proportions and is as tall as the view (plus a little margin) - a portrait
+    // strip on the screen, never stretched or zoomed in to cover the whole look-around range
+    thetaLength = vFovHalf * 2 * 1.12;
+    phiLength = thetaLength * aspect;
+  } else if (phiLength < minPhi){ phiLength = minPhi; thetaLength = phiLength / aspect; }
   phiLength = Math.min(phiLength, Math.PI * 1.9);
   thetaLength = Math.min(thetaLength, Math.PI * 0.95);
   // symmetric about the equator again - no more floor to cut it off at
@@ -3002,6 +3021,33 @@ function buildPanoGeometry(aspect){
 // against the raw source footage with a side-by-side canvas.rotate() test
 // (negative texture.rotation renders as counter-clockwise)
 const PANO_PORTRAIT_ROTATION = -Math.PI / 2;
+// an upright (portrait) clip is a narrow strip: it is centred on the visible frame (in an export the frame is a narrow cut out of
+// the much wider canvas, so the canvas centre is not the frame's centre)
+let panoUpright = false;
+function centerUprightPano(){
+  if (!panoMesh) return;
+  let delta = 0, frameAspect = camera.aspect;
+  if (panoUpright){
+    const app = document.querySelector("#app"), cv = renderer.domElement;
+    if (app && cv){
+      const ar = app.getBoundingClientRect(), cr = cv.getBoundingClientRect();
+      if (cr.width && ar.width){
+        const ndcX = ((ar.left + ar.width / 2) - (cr.left + cr.width / 2)) / (cr.width / 2);
+        const hFovHalf = Math.atan(Math.tan(camera.fov * Math.PI / 360) * camera.aspect);
+        delta = Math.atan(ndcX * Math.tan(hFovHalf));
+      }
+      if (ar.height) frameAspect = ar.width / ar.height;
+    }
+  }
+  panoMesh.rotation.y = PANO_YAW_CENTER - delta;
+  // three strips next to each other when the frame is wide enough for them (a portrait frame / phone shows just the one)
+  const three = panoUpright && frameAspect >= 1.2 && panoSideMeshes.length === 2;
+  const step = panoMesh.geometry.parameters.phiLength * 1.015;   // (a hair of space between the strips)
+  panoSideMeshes.forEach((m, k) => {
+    m.visible = three && panoMesh.visible;
+    m.rotation.y = PANO_YAW_CENTER - delta + (k === 0 ? step : -step);   // left (+) and right (-)
+  });
+}
 function rebuildPanoMesh(){
   const vw = currentPanoKind === "gif" ? panoGifImg.naturalWidth : panoVideoEl.videoWidth;
   const vh = currentPanoKind === "gif" ? panoGifImg.naturalHeight : panoVideoEl.videoHeight;
@@ -3010,12 +3056,16 @@ function rebuildPanoMesh(){
   // re-encoding needed) so they read right-side-up; the patch itself is
   // then sized to the ROTATED (now-landscape) aspect so the rotated
   // footage fills it without stretching
+  // the numbered music-video clips (panoNoSpin) are real portrait videos: they are shown upright, as portrait, not turned on their side
+  const upright = isPortrait && panoNoSpin;
   const tex = panoMat.map;
   tex.center.set(0.5, 0.5);
-  tex.rotation = isPortrait ? PANO_PORTRAIT_ROTATION : 0;
-  const aspect = vw && vh ? (isPortrait ? vh / vw : vw / vh) : 16 / 9;
+  tex.rotation = isPortrait && !upright ? PANO_PORTRAIT_ROTATION : 0;
+  panoSideTextures.forEach(t => { t.center.set(0.5, 0.5); t.rotation = 0; });
+  const aspect = vw && vh ? (isPortrait && !upright ? vh / vw : vw / vh) : 16 / 9;
   if (panoMesh){ scene.remove(panoMesh); panoMesh.geometry.dispose(); }
-  panoMesh = new THREE.Mesh(buildPanoGeometry(aspect), panoMat);
+  panoMesh = new THREE.Mesh(buildPanoGeometry(aspect, upright), panoMat);
+  panoUpright = upright;
   panoMesh.rotation.y = PANO_YAW_CENTER;
   // the sphere is reserved for the music screen - the intro shows the rock
   // tunnel instead (see tunnelGroup below), and the per-artist 3D worlds
@@ -3024,6 +3074,16 @@ function rebuildPanoMesh(){
   panoMesh.visible = !document.body.classList.contains("gate-active")
     && !document.body.classList.contains("scene-3d");
   scene.add(panoMesh);
+  panoSideMeshes.forEach(m => { scene.remove(m); m.geometry.dispose(); });
+  panoSideMeshes = [];
+  if (upright && currentPanoKind === "video"){
+    panoSideMeshes = panoSideMats.map(mat => {
+      const m = new THREE.Mesh(buildPanoGeometry(aspect, true), mat);
+      m.visible = false;
+      scene.add(m);
+      return m;
+    });
+  }
   computePanoDistRange(panoMesh);
 }
 
@@ -6282,6 +6342,7 @@ function updateArtistBackground(tr){
   orbsGroup.visible = wantOrbs;
   const wantSphere = !gateActive && !want3d;
   if (panoMesh) panoMesh.visible = wantSphere;
+  if (!wantSphere) panoSideMeshes.forEach(m => { m.visible = false; });
   // snap the lerp-follow camera state straight to the tunnel's centerline
   // the instant this scene turns on - otherwise the camera starts at
   // wherever it was left (often (0,0), outside the bent tube's actual
@@ -6596,6 +6657,17 @@ function loadPanoFile(file, base = "/panorama2/"){
       panoVideoEl.src = src;
       panoVideoEl.play().catch(() => {});
     }
+    // the numbered portrait clips run three next to each other, each starting at another moment of the clip
+    panoSideVideos.forEach((v, k) => {
+      if (!panoNoSpin){ if (v.getAttribute("src")){ v.pause(); v.removeAttribute("src"); v.load(); } return; }
+      if (v.getAttribute("src") === src) return;
+      v.src = src;
+      v.addEventListener("loadedmetadata", () => {
+        const d = v.duration || 0;
+        if (d) v.currentTime = d * (k + 1) / 3;
+        v.play().catch(() => {});
+      }, { once: true });
+    });
   }
 }
 
@@ -7574,6 +7646,7 @@ function animate(t){
     camera.position.x = Math.sin(swayT * 0.021) * 3.2;
     camera.position.y = Math.sin(swayT * 0.017 + 1) * 2.2;
     camera.rotation.z = sphereSpinRoll + cameraRollOffset;
+    if (panoUpright) centerUprightPano();
   } else {
     // intro tunnel: keep its fixed lowered viewpoint; only the steered
     // flight roll applies
@@ -7584,6 +7657,7 @@ function animate(t){
 
   if (currentPanoKind === "video"){
     if (panoVideoEl.readyState >= panoVideoEl.HAVE_CURRENT_DATA) panoTexture.needsUpdate = true;
+    panoSideVideos.forEach((v, k) => { if (panoSideMeshes.length && v.readyState >= v.HAVE_CURRENT_DATA) panoSideTextures[k].needsUpdate = true; });
   } else if (currentPanoKind === "gif" && panoGifCanvas.width){
     panoGifCtx.drawImage(panoGifImg, 0, 0, panoGifCanvas.width, panoGifCanvas.height);
     panoGifTexture.needsUpdate = true;
