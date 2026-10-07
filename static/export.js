@@ -191,20 +191,19 @@ function applyWatermarkOffset(){
 // and the positions of the main elements have not changed for a while (checked twice, 350ms apart). Gives up after 10s.
 function layoutSettled(){
   const SEL = ["#m-title", "#bg-title-watermark", "#fox-3d-canvas", ".home-top .logo-text", "#export-cta-pill",
-    "#export-cta-animals-circle", "#lyrics", "#vis-canvas", ".artist-photo-wrap"];
+    "#lyrics", "#vis-canvas", ".artist-photo-wrap"];
   const signature = () => SEL.map(q => {
     const e = document.querySelector(q);
     if (!e) return q + ":-";
     const r = e.getBoundingClientRect();
     return [r.left, r.top, r.width, r.height].map(v => Math.round(v)).join(",");
   }).join("|");
-  const needAnimals = ASPECT === "vertical";
   return new Promise(resolve => {
     const t0 = performance.now();
     let last = "", stable = 0;
     const tick = () => {
       const fontsOk = !document.fonts || document.fonts.status === "loaded";
-      const ready = fontsOk && (!needAnimals || document.getElementById("export-cta-animals-circle"));
+      const ready = fontsOk;
       const sig = signature();
       stable = ready && sig === last ? stable + 1 : 0;
       last = sig;
@@ -786,32 +785,10 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
         + "animation:exportCtaRing 3.4s ease-out 2s 1 both;";
       hand.appendChild(ring);
       pill.appendChild(lead); pill.appendChild(url); pill.appendChild(hand);
-      // 9:16 only: a black circle at the bottom of the frame (it used to sit behind the intro's animals animation, which is removed now)
-      if (ASPECT === "vertical"){
-        const ring = document.createElement("div");
-        ring.id = "export-cta-animals-circle";
-        ring.style.cssText = "position:absolute;z-index:1;pointer-events:none;border-radius:50%;background:#000000;";   // full black
-        app.appendChild(ring);
-      }
       box.appendChild(pill);
       app.appendChild(box);
     }
     const h = app.getBoundingClientRect().height;
-    {
-      const ring = document.getElementById("export-cta-animals-circle");
-      if (ring){
-        const ar = app.getBoundingClientRect();
-        // the box the animation used to fill: 67.5% of the frame's width, 16:9, its bottom edge 75px above the frame's bottom
-        const nr = { height: ar.width * 0.675 * 9 / 16, bottom: ar.bottom - 75 };
-        if (nr.height){
-          const d = ar.width * 0.54 * 1.5 * 1.5;           // the circle's diameter: 121.5% of the frame width (150% of the earlier 81%)
-          const w = d * 1.25;                              // 125% of the earlier width, same height (an ellipse now)
-          ring.style.width = w.toFixed(1) + "px"; ring.style.height = d.toFixed(1) + "px";
-          ring.style.left = ((ar.width - w) / 2).toFixed(1) + "px";
-          ring.style.bottom = (ar.bottom - nr.bottom + nr.height / 2 - d / 2 - 335).toFixed(1) + "px";   // centred on the animation, then 335px lower (60, 150, 100, then 25 more)
-        }
-      }
-    }
     const ctaK = ASPECT === "vertical" ? 0.75 : 1;   // 9:16: the whole button (rectangle, text, logo) is 75% of its earlier size
     box.style.setProperty("--cta-k", ctaK);
     if (h) box.style.fontSize = (h * 0.01425 * ctaK).toFixed(2) + "px";   // 25% smaller than the earlier .019 (the whole button scales: everything is in em)
