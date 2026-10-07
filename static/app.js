@@ -93,9 +93,9 @@ fetch("/api/panoramas2").then(r => r.json()).then(data => {
   PANORAMAS = (data.files || []).filter(f => f !== INTRO_PANO_FILE);
   PINGPONG_FILES = new Set(data.pingpong || []);
 }).catch(() => {});
-// every background pick is one of three kinds: 25% the portrait music-video clips (the numbered ones, shown three next to each
-// other), 25% a fully-3D environment (see sceneChoice / updateArtistBackground further down), and 50% the panorama sphere with one of
-// the other clips. The kinds are dealt from a shuffled hand of four ([portrait, 3D, sphere, sphere]) so the shares are exact over
+// every background pick is one of three kinds: 50% the portrait music-video clips (the numbered ones, shown three next to each
+// other), 25% a fully-3D environment (see sceneChoice / updateArtistBackground further down), and 25% the panorama sphere with one of
+// the other clips. The kinds are dealt from a shuffled hand of four ([portrait, portrait, 3D, sphere]) so the shares are exact over
 // every four songs, not just on average
 const ENVIRONMENT_SCENES = ["road", "mist", "maze", "tiles", "beams", "prism", "rings", "check", "cube", "portal", "domino"];
 let bgPickCount = 0;
@@ -103,7 +103,7 @@ let sceneChoice = "sphere";
 let bgKindHand = [];
 function nextBgKind() {
   if (!bgKindHand.length) {
-    bgKindHand = ["portrait", "scene", "sphere", "sphere"];
+    bgKindHand = ["portrait", "portrait", "scene", "sphere"];
     for (let i = bgKindHand.length - 1; i > 0; i--) {   // shuffle
       const j = Math.floor(Math.random() * (i + 1));
       [bgKindHand[i], bgKindHand[j]] = [bgKindHand[j], bgKindHand[i]];
@@ -115,6 +115,7 @@ function nextBgKind() {
 function setBgVideoForTrack(track) {
   bgPickCount++;
   const kind = nextBgKind();
+  setPortraitLoading(false);
   const portraitClips = PANORAMAS.filter(f => /^\d{3} /.test(f));
   const sphereClips = PANORAMAS.filter(f => !/^\d{3} /.test(f));
   if (kind === "scene") {
@@ -126,7 +127,9 @@ function setBgVideoForTrack(track) {
   sceneChoice = "sphere";
   if (typeof panoVideoEl === "undefined") return;
   if (kind === "portrait" && portraitClips.length) {
+    setPortraitLoading(true);   // black background until the first picture of the portrait clip is there
     loadPanoFile(portraitClips[Math.floor(Math.random() * portraitClips.length)]);
+    if (panoVideoEl.readyState >= 2) setPortraitLoading(false);   // (the very same clip was already loaded)
     return;
   }
   if (!sphereClips.length) return;
@@ -6358,7 +6361,7 @@ function updateArtistBackground(tr){
   document.body.classList.toggle("scene-hands", wantHands);
   orbsGroup.visible = wantOrbs;
   const wantSphere = !gateActive && !want3d;
-  if (panoMesh) panoMesh.visible = wantSphere;
+  if (panoMesh) panoMesh.visible = wantSphere && !panoPortraitLoading;
   if (!wantSphere) panoSideMeshes.forEach(m => { m.visible = false; });
   // snap the lerp-follow camera state straight to the tunnel's centerline
   // the instant this scene turns on - otherwise the camera starts at
@@ -6655,6 +6658,21 @@ function updatePanoPingPongSpeed(){
 // the numbered music-video clips ("001 Another Thing Is Different.mp4" ...) are shown on the sphere WITHOUT any rotation: no steady roll
 // and no tour of the corners - the picture stays put
 let panoNoSpin = false;
+// a portrait pick starts on a black background: the sphere (and the clip that was on it) is hidden until the new clip has its first
+// picture (or 6s have passed)
+let panoPortraitLoading = false, panoPortraitLoadingTimer = 0;
+function setPortraitLoading(on){
+  panoPortraitLoading = on;
+  document.body.classList.toggle("portrait-loading", on);
+  clearTimeout(panoPortraitLoadingTimer);
+  if (on){
+    if (typeof panoMesh !== "undefined" && panoMesh) panoMesh.visible = false;
+    panoPortraitLoadingTimer = setTimeout(() => setPortraitLoading(false), 6000);
+  } else if (typeof panoMesh !== "undefined" && panoMesh){
+    panoMesh.visible = !document.body.classList.contains("gate-active") && !document.body.classList.contains("scene-3d");
+  }
+}
+panoVideoEl.addEventListener("loadeddata", () => { if (panoPortraitLoading) setPortraitLoading(false); });
 // when one of the three portrait clips has played to its end, it is replaced by another portrait clip (never one that is on screen)
 function loadNextPortraitClip(v){
   if (!panoNoSpin) return;

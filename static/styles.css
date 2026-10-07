@@ -1823,3 +1823,6 @@ nav{
   .gate-btn{animation:none}
   .eq i{animation:none;height:8px}
 }
+
+/* a portrait music-video pick: black behind everything until the clip's first picture is there (see setPortraitLoading() in app.js) */
+body.portrait-loading #stage{background:#000000 !important}
