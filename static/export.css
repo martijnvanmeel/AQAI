@@ -172,3 +172,7 @@ body.recording.aspect-vertical #export-cta-lead,
 body.recording.aspect-vertical #export-cta-url{color:var(--artist-color, #ffffff) !important;opacity:1 !important}
 body.aspect-vertical .home-top .logo-text.export-pill-logo{color:var(--artist-color, #ffffff) !important}
 body.aspect-vertical .home-top .logo-text.export-pill-logo::after{color:#ffffff}
+
+/* 9:16: the "More songs at" text 2px higher (it sat 1px lower, now 1px higher) */
+body.aspect-vertical #export-cta-lead,
+body.aspect-vertical #export-cta-url{top:-1px}

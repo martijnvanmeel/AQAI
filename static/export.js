@@ -756,12 +756,30 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
         animals.autoplay = true; animals.muted = true; animals.loop = true; animals.playsInline = true;
         animals.setAttribute("aria-hidden", "true");
         animals.style.cssText = "position:absolute;left:16.25%;width:67.5%;height:auto;bottom:75px;z-index:1;pointer-events:none;";   // 75px above the bottom edge
+        // a circle behind the animals, like the circle behind the 3D animal (artist-tinted black fading to solid black, 80% opaque)
+        const ring = document.createElement("div");
+        ring.id = "export-cta-animals-circle";
+        ring.style.cssText = "position:absolute;z-index:1;pointer-events:none;border-radius:50%;opacity:.8;"
+          + "background:linear-gradient(to bottom, color-mix(in srgb, color-mix(in srgb, var(--artist-color, #7CFF9E) 20%, #000000) 50%, transparent) 0%, #000000 100%);";
+        app.appendChild(ring);
         app.appendChild(animals);
       }
       box.appendChild(pill);
       app.appendChild(box);
     }
     const h = app.getBoundingClientRect().height;
+    {
+      const ring = document.getElementById("export-cta-animals-circle"), an = document.getElementById("export-cta-animals");
+      if (ring && an){
+        const ar = app.getBoundingClientRect(), nr = an.getBoundingClientRect();
+        if (nr.height){
+          const d = ar.width * 0.54;                       // the circle's diameter: 54% of the frame width (80% of the animation's width)
+          ring.style.width = ring.style.height = d.toFixed(1) + "px";
+          ring.style.left = ((ar.width - d) / 2).toFixed(1) + "px";
+          ring.style.bottom = (ar.bottom - nr.bottom + nr.height / 2 - d / 2).toFixed(1) + "px";   // centred on the animation
+        }
+      }
+    }
     const ctaK = ASPECT === "vertical" ? 0.75 : 1;   // 9:16: the whole button (rectangle, text, logo) is 75% of its earlier size
     box.style.setProperty("--cta-k", ctaK);
     if (h) box.style.fontSize = (h * 0.01425 * ctaK).toFixed(2) + "px";   // 25% smaller than the earlier .019 (the whole button scales: everything is in em)
@@ -788,7 +806,7 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
         cv.font = `${lcs.fontWeight} ${lcs.fontSize} ${lcs.fontFamily}`;
         const m = cv.measureText("AQAI");
         const asc = m.actualBoundingBoxAscent, desc = m.actualBoundingBoxDescent, fa = m.fontBoundingBoxAscent;
-        const sc = own ? (pill.getBoundingClientRect().height * 0.675) / (asc + desc) : 1;   // 9:16: letters 67.5% as high as the button
+        const sc = own ? (pill.getBoundingClientRect().height * 0.50625) / (asc + desc) : 1;   // 9:16: letters 50.6% as high as the button (75% of the earlier 67.5%)
         if (own && isFinite(sc) && Math.abs((logo._sc || 0) - sc) > 0.002){ logo._sc = sc; logo.style.scale = String(sc); }
         const rg = document.createRange(); rg.selectNodeContents(logo);
         const lr = rg.getBoundingClientRect();
