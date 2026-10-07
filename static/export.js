@@ -755,7 +755,7 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
         animals.src = "/assets/gate-creatures.webm";
         animals.autoplay = true; animals.muted = true; animals.loop = true; animals.playsInline = true;
         animals.setAttribute("aria-hidden", "true");
-        animals.style.cssText = "position:absolute;left:5%;width:90%;height:auto;bottom:0;z-index:5;pointer-events:none;";
+        animals.style.cssText = "position:absolute;left:5%;width:90%;height:auto;bottom:50px;z-index:1;pointer-events:none;";   // 50px above the bottom edge
         app.appendChild(animals);
       }
       box.appendChild(pill);
@@ -766,7 +766,7 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
     // 16:9: the button is a stroke-only pill that is stretched to the left so it HOLDS the AQAI logo: its left padding grows by the
     // logo's width + a 20px gap, and the logo (placed by the individual `translate` property, so it never fights its slider
     // transform) sits inside, at the pill's normal left padding. The pill itself stays centred in the frame.
-    if (ASPECT === "horizontal"){
+    if (ASPECT === "horizontal" || ASPECT === "vertical"){
       const logo = document.querySelector(".home-top .logo-text"), pill = document.getElementById("export-cta-pill");
       if (logo && pill){
         const fs = parseFloat(getComputedStyle(box).fontSize) || 0;

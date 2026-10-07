@@ -104,22 +104,26 @@ body.export-mode #bg-title-watermark::after{
 
 /* 16:9: the AQAI logo sits at the bottom next to the "More songs at" button, in the strip below the view's own height, so the
    view must not clip it (the frame itself, #app, still clips everything at the frame edge) */
-body.aspect-horizontal #view-home{overflow:visible !important}
+body.aspect-horizontal #view-home,
+body.aspect-vertical #view-home{overflow:visible !important}
 
 /* 16:9: the logo beside the "More songs at" button has the button's colour (the artist colour at 80%, no colour cycling) */
-body.aspect-horizontal .home-top .logo-text{
+body.aspect-horizontal .home-top .logo-text,
+body.aspect-vertical .home-top .logo-text{
   color:#000000 !important;   /* black (preview and render alike) */
   text-shadow:none !important;
   animation:none !important;
 }
 /* the logo stays black; only the light that rolls over it (the sweeping band, see updateScanLine() in app.js) is in the artist's colour */
-body.aspect-horizontal .home-top .logo-text::after{
+body.aspect-horizontal .home-top .logo-text::after,
+body.aspect-vertical .home-top .logo-text::after{
   color:color-mix(in srgb, var(--artist-color, #ffffff) 75%, #000000);   /* the artist colour, 25% darker */
   opacity:1;
 }
 
 /* 16:9: the "More songs at" button is an outline only (2px stroke in the logo colour), its text is the logo colour too */
-body.aspect-horizontal #export-cta-pill{
+body.aspect-horizontal #export-cta-pill,
+body.aspect-vertical #export-cta-pill{
   background:none !important;
   border-radius:25px !important;   /* rounded corners: 25px */
   border:.5px solid #000000;   /* a hairline, black (preview and render alike) */
@@ -130,7 +134,9 @@ body.aspect-horizontal #export-cta-pill{
   margin-bottom:-4px;
 }
 body.aspect-horizontal #export-cta-lead,
-body.aspect-horizontal #export-cta-url{
+body.aspect-vertical #export-cta-lead,
+body.aspect-horizontal #export-cta-url,
+body.aspect-vertical #export-cta-url{
   color:#000000 !important;   /* black (preview and render alike) */
   opacity:1 !important;
   position:relative;top:1px;      /* the text sits 1px lower */
@@ -140,7 +146,7 @@ body.aspect-horizontal #export-cta-url{
    the AQAI logo, the "More songs at" text and the button's stroke are black, in every format (the light gradient at the bottom of
    the frame keeps them readable). 16:9 has the outline-only button with the logo inside; the other formats keep their filled
    button, which just gets the same black hairline stroke. */
-body.recording:not(.aspect-horizontal) .home-top .logo-text{
+body.recording:not(.aspect-horizontal):not(.aspect-vertical) .home-top .logo-text{
   animation:none !important;
   color:#000000 !important;
   text-shadow:none !important;
