@@ -167,17 +167,17 @@ body.aspect-vertical #bg-gradient{
 
 /* 9:16: the bottom group - the rectangle's stroke, the "More songs at" text and the logo in it - is in the artist's colour (preview and render) */
 body.aspect-vertical #export-cta-pill,
-body.recording.aspect-vertical #export-cta-pill{border:2px solid color-mix(in srgb, var(--artist-color, #ffffff) 50%, transparent)}   /* the button's stroke: 2px, 50% transparent */
+body.recording.aspect-vertical #export-cta-pill{border:2px solid #000000;background:none !important}   /* the button is only a stroke: 2px, full black (preview and render alike) */
 body.aspect-vertical #export-cta-lead,
 body.aspect-vertical #export-cta-url,
 body.recording.aspect-vertical #export-cta-lead,
-body.recording.aspect-vertical #export-cta-url{color:var(--artist-color, #ffffff) !important;opacity:1 !important}
-body.aspect-vertical .home-top .logo-text.export-pill-logo{color:var(--artist-color, #ffffff) !important}
+body.recording.aspect-vertical #export-cta-url{color:#000000 !important;opacity:1 !important}
+body.aspect-vertical .home-top .logo-text.export-pill-logo{color:#000000 !important}
 body.aspect-vertical .home-top .logo-text.export-pill-logo::after{color:#ffffff}
 
 /* 9:16: the "More songs at" text 2px higher (it sat 1px lower, now 1px higher) */
 body.aspect-vertical #export-cta-lead,
-body.aspect-vertical #export-cta-url{top:-1px}
+body.aspect-vertical #export-cta-url{top:1px}   /* (then 2px lower in all: 1px, and 1px more) */
 
 /* 9:16: the logo in the button must not be darkened by the bottom shade (a layer inside .player, above .home-top): .home-top goes
    above it, so the logo has exactly the lightness of the button text beside it */

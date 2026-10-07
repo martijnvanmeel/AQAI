@@ -24,7 +24,7 @@ sys.path.insert(0, HERE)
 
 ASPECTS = [("vertical", "9x16"), ("square", "1x1")]
 # the 3D scenes the backgrounds rotate through (see ENVIRONMENT_SCENES in static/app.js); trimmed to the ones that render well
-DEFAULT_SCENES = ["road", "mist", "maze", "tiles", "beams", "prism", "rings", "check", "cube", "portal", "domino"]
+DEFAULT_SCENES = ["road", "mist", "maze", "tiles", "beams", "prism", "rings", "check", "cube", "portal"]
 
 
 def safe(name):

@@ -97,7 +97,7 @@ fetch("/api/panoramas2").then(r => r.json()).then(data => {
 // other), 25% a fully-3D environment (see sceneChoice / updateArtistBackground further down), and 25% the panorama sphere with one of
 // the other clips. The kinds are dealt from a shuffled hand of four ([portrait, portrait, 3D, sphere]) so the shares are exact over
 // every four songs, not just on average
-const ENVIRONMENT_SCENES = ["road", "mist", "maze", "tiles", "beams", "prism", "rings", "check", "cube", "portal", "domino"];
+const ENVIRONMENT_SCENES = ["road", "mist", "maze", "tiles", "beams", "prism", "rings", "check", "cube", "portal"];
 let bgPickCount = 0;
 let sceneChoice = "sphere";
 let bgKindHand = [];

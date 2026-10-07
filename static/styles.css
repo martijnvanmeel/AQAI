@@ -519,8 +519,8 @@ body.scene-hands #stage{background:linear-gradient(to top,
   opacity:.75; /* the light is 25% more transparent */
   color:#ffffff;background:none;text-shadow:none;
   -webkit-text-stroke:0;
-  -webkit-mask-image:linear-gradient(110deg, transparent 34%, #000 50%, transparent 66%);
-  mask-image:linear-gradient(110deg, transparent 34%, #000 50%, transparent 66%);
+  -webkit-mask-image:linear-gradient(135deg, transparent 30%, #000 50%, transparent 70%);   /* a diagonal (45 degree) band that fades out on both sides */
+  mask-image:linear-gradient(135deg, transparent 30%, #000 50%, transparent 70%);
   -webkit-mask-size:700px 100%;mask-size:700px 100%;
   -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
   -webkit-mask-position:calc(var(--glow-x, -9999px) - 350px) 0;
@@ -935,7 +935,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
      the parent's own position/transform) doesn't touch .artist-photo-wrap's
      own bounding rect, so it doesn't drag the creature/visualiser/title
      (all of which anchor off that live rect) along with it */
-  transform:translateY(calc(-50% - 11.3636px)) scale(1.1859375); /* .825 x 1.25 x 1.15; 15px higher on screen (11.36px x the block's 1.32 scale) */
+  transform:translateY(calc(-50% - 11.3636px)) scale(.7115625); /* .825 x 1.25 x 1.15 x .6 (60% of the earlier size); 15px higher on screen (11.36px x the block's 1.32 scale) */
 }
 /* (no stroke around the disc any more) */
 .artist-photo{
@@ -956,7 +956,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
     color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 20%, #000000) 50%, transparent) 0%,
     #000000 100%);
   opacity:.8; /* 20% more transparent */
-  transform:translateY(calc(-50% - 11.3636px)) scale(1.1859375); /* .825 x 1.25 x 1.15; 15px higher on screen (11.36px x the block's 1.32 scale) */
+  transform:translateY(calc(-50% - 11.3636px)) scale(.7115625); /* .825 x 1.25 x 1.15 x .6 (60% of the earlier size); 15px higher on screen (11.36px x the block's 1.32 scale) */
 }
 /* the real photo underneath is fully replaced by the solid colour fill
    above it now (no more real people "pretending" to be the band) -
@@ -1832,3 +1832,7 @@ body:not(.export-mode) .meta .title{font-size:clamp(17.188631px,5.371448vw,30.08
 
 /* the music player's song title stroke is 90% of the artist colour (mixed with 10% black); the exports keep theirs */
 body:not(.export-mode) .title-stroke{-webkit-text-stroke-color:color-mix(in srgb, var(--artist-color, var(--active-green)) 90%, #000000)}
+
+/* the music player's song title stroke is 2px less (the exports keep theirs): 4px -> 2px, and 2px -> 1px at the smallest breakpoint */
+body:not(.export-mode) .title-stroke{-webkit-text-stroke-width:2px}
+@media (max-width:480px){ body:not(.export-mode) .title-stroke{-webkit-text-stroke-width:1px} }

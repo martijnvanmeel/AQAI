@@ -518,10 +518,14 @@ function applyEntry(entry){
   if (!el) return;
   const { usesTop, state, baseTransform, baseTop } = entry;
   if (usesTop) el.style.top = (baseTop + state.y) + "px";
-  el.style.transform =
-    `${baseTransform} translateX(${state.x}px) ` +
-    (usesTop ? "" : `translateY(${state.y}px) `) +
-    `scale(${state.scale})`;
+  // The song title carries a shrink-to-fit scale in its base transform (fitSongTitleWidth(), long titles only). The slider's
+  // X/Y offset must stay in the frame's own pixels - put AFTER that scale it was shrunk with it, so every long title sat
+  // higher/closer to the middle than a short one (up to ~115px higher). So for the title the offset goes BEFORE the base, i.e.
+  // outside its scale; everywhere else the base is a plain shift and both orders are identical.
+  const offset = `translateX(${state.x}px) ` + (usesTop ? "" : `translateY(${state.y}px) `);
+  el.style.transform = entry.selector === "#m-title"
+    ? `${offset}${baseTransform} scale(${state.scale})`
+    : `${baseTransform} ${offset}scale(${state.scale})`;
   if (el.classList.contains("artist-photo-wrap") && typeof positionFoxCanvas === "function"){
     positionFoxCanvas();
   }
@@ -751,7 +755,7 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
         @keyframes exportCtaRing{0%,46%{transform:translate(-50%,-50%) scale(.2);opacity:0}50%{opacity:.85}78%,100%{transform:translate(-50%,-50%) scale(2.6);opacity:0}}
         @keyframes exportCtaLight{0%,78%{background-position:160% 0}100%{background-position:-60% 0}}
         #export-cta-pill::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
-          background:linear-gradient(110deg,rgba(255,255,255,0) 38%,rgba(255,255,255,.5) 50%,rgba(255,255,255,0) 62%);background-size:220% 100%;background-repeat:no-repeat;background-position:160% 0;
+          background:linear-gradient(135deg,rgba(255,255,255,0) 30%,rgba(255,255,255,.5) 50%,rgba(255,255,255,0) 70%);background-size:220% 100%;background-repeat:no-repeat;background-position:160% 0;
           animation:exportCtaLight 17s ease-in-out 9s infinite}
         @keyframes exportCtaPill{0%,44%{box-shadow:0 0 0 rgba(255,255,255,0)}50%{box-shadow:0 0 1.1em rgba(255,255,255,.28)}70%,100%{box-shadow:0 0 0 rgba(255,255,255,0)}}`;
       document.head.appendChild(st);
