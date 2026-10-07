@@ -552,9 +552,9 @@ const LYRIC_GAP_BLANK = 3; // silence longer than this gets its own blank senten
 // next sentence exceeds LYRIC_GAP_BLANK, an empty sentence is inserted so
 // the carousel actually goes blank instead of holding the previous line.
 let LYRIC_LINE_MAX_WORDS = 0;   // 0 = no limit; the 9:16 export sets 2 (a sentence row never holds more than two words)
-// words per row: the 9:16 export sets its own limit; in the player the smaller breakpoint (<=480px) shows two words at most
+// words per row: the 9:16 export sets its own limit; the player (every breakpoint) shows two words at most
 function lyricMaxWords(){
-  return LYRIC_LINE_MAX_WORDS || (!document.body.classList.contains("export-mode") && window.innerWidth <= 480 ? 2 : 0);
+  return LYRIC_LINE_MAX_WORDS || (!document.body.classList.contains("export-mode") ? 2 : 0);
 }
 function computeDisplayLines(tr, maxChars){
   const maxWords = lyricMaxWords();
