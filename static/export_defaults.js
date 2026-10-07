@@ -17,7 +17,7 @@ window.EXPORT_DEFAULTS = {
       },
       "Song title": {
         "x": 0.0,
-        "y": 241.0,
+        "y": 300.0,
         "scale": 0.88
       },
       "By/artist": {
