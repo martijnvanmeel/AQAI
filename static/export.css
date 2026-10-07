@@ -193,3 +193,6 @@ body.export-mode .meta .sub{
   color:var(--artist-color, #ffffff) !important;
   opacity:1 !important;
 }
+/* ... and without the soft 20% outline halo behind it, so the letters are the pure artist colour right to their edges */
+body.export-mode .meta .by::before,
+body.export-mode .meta .sub::before{display:none}
