@@ -6458,6 +6458,29 @@ function updateScanLine(){
 /* music player only: the audio visualiser line is not shown inside the circle behind the 3D animal - the canvas gets a
    circular hole (a radial mask) exactly where that circle is, recomputed every frame from the circle's on-screen box so it
    follows wherever the layout puts it. (The 9:16 export page has its own layout, so it is left alone there.) */
+/* the song title has a drop shadow that is only visible INSIDE the circle behind the 3D animal: the circle (overflow:hidden) draws an
+   invisible copy of the title whose text-shadow is the shadow, so the circle's own round edge clips it. The copy is sized and placed
+   from the live on-screen boxes of the circle and the title, whatever transforms/sliders they carry. */
+function updateTitleShadowInCircle(){
+  const circle = document.querySelector(".artist-photo-fill"), title = document.getElementById("m-title");
+  if (!circle || !title || !title.textContent) return;
+  const cr = circle.getBoundingClientRect();
+  // the box of the title's actual TEXT (the title element itself can be taller than its text)
+  const fillNode = document.getElementById("m-title-fill") || title;
+  const rg = document.createRange(); rg.selectNodeContents(fillNode);
+  const tr = rg.getBoundingClientRect();
+  if (!cr.width || !tr.width || !circle.offsetWidth || !title.offsetWidth) return;
+  const k = cr.width / circle.offsetWidth;                  // screen px per layout px of the circle
+  const tk = tr.width / title.offsetWidth;                  // the title's own scale on screen
+  const fs = (parseFloat(getComputedStyle(title).fontSize) || 0) * tk / k;
+  const fillEl = document.getElementById("m-title-fill");
+  const text = (fillEl ? fillEl.textContent : title.textContent).trim();   // (the title holds the text twice: fill layer + outline layer)
+  if (circle.dataset.title !== text) circle.dataset.title = text;
+  const st = circle.style;
+  st.setProperty("--ts-fs", fs.toFixed(2) + "px");
+  st.setProperty("--ts-x", (((tr.left + tr.width / 2) - (cr.left + cr.width / 2)) / k).toFixed(1) + "px");
+  st.setProperty("--ts-y", (((tr.top + tr.height / 2) - (cr.top + cr.height / 2)) / k).toFixed(1) + "px");
+}
 function maskWaveAroundCircle(){
   if (document.body.classList.contains("export-mode")) return;
   const canvas = document.querySelector("#wave-canvas");
@@ -7500,6 +7523,7 @@ function animate(t){
   updatePanoPingPongSpeed();
   updateScanLine();
   maskWaveAroundCircle();
+  updateTitleShadowInCircle();
   if (TRACKS.length) updateUI();
   renderer.render(scene, camera);
 
