@@ -552,15 +552,21 @@ const LYRIC_GAP_BLANK = 3; // silence longer than this gets its own blank senten
 // next sentence exceeds LYRIC_GAP_BLANK, an empty sentence is inserted so
 // the carousel actually goes blank instead of holding the previous line.
 let LYRIC_LINE_MAX_WORDS = 0;   // 0 = no limit; the 9:16 export sets 2 (a sentence row never holds more than two words)
+// words per row: the 9:16 export sets its own limit; in the player the smaller breakpoint (<=480px) shows two words at most
+function lyricMaxWords(){
+  return LYRIC_LINE_MAX_WORDS || (!document.body.classList.contains("export-mode") && window.innerWidth <= 480 ? 2 : 0);
+}
 function computeDisplayLines(tr, maxChars){
-  if (tr._displayLines && tr._displayLinesMax === maxChars) return tr._displayLines;
+  const maxWords = lyricMaxWords();
+  const cacheKey = maxChars + "/" + maxWords;
+  if (tr._displayLines && tr._displayLinesMax === cacheKey) return tr._displayLines;
   const raw = [];
   tr.lines.forEach(L => {
     let chunk = [];
     let len = 0;
     L.words.forEach(w => {
       const added = chunk.length ? len + 1 + w.w.length : w.w.length;
-      if (chunk.length && (added > maxChars || (LYRIC_LINE_MAX_WORDS && chunk.length >= LYRIC_LINE_MAX_WORDS))){
+      if (chunk.length && (added > maxChars || (maxWords && chunk.length >= maxWords))){
         raw.push(chunk);
         chunk = [w];
         len = w.w.length;
@@ -596,7 +602,7 @@ function computeDisplayLines(tr, maxChars){
       : (L.words.length ? L.words[L.words.length - 1].t : L.t0) + 1.2;
   });
   tr._displayLines = lines;
-  tr._displayLinesMax = maxChars;
+  tr._displayLinesMax = cacheKey;
   return lines;
 }
 const ACTIVE_LINE_SCALE = 1.3;
@@ -2571,7 +2577,11 @@ if (foxCanvasEl){
 const CREATURE_GLOBAL_SCALE = 0.75 * 1.15; // was 0.75; +15%. The model is centred on its own bounding box, so it grows around its middle and stays on the same y-position
 function applyCreatureTransform(t){
   if (!currentInnerGroup || !currentRawSize || !t) return;
-  const scale = (t.scale * CREATURE_GLOBAL_SCALE) / Math.max(currentRawSize.x, currentRawSize.y, currentRawSize.z, 0.0001);
+  // the smaller breakpoint: every creature is shown at the fox's scale size (not its own tuned scale); the tuner panel still shows each
+  // creature's own
+  const useFoxScale = window.innerWidth <= 480 && !creatureTuning;
+  const tScale = useFoxScale ? getCreaturePose("fox").scale : t.scale;
+  const scale = (tScale * CREATURE_GLOBAL_SCALE) / Math.max(currentRawSize.x, currentRawSize.y, currentRawSize.z, 0.0001);
   currentInnerGroup.scale.setScalar(scale);
   currentInnerGroup.rotation.y = t.rotationY * Math.PI / 180;
   currentInnerGroup.position.set(t.offsetX, t.offsetY, t.offsetZ);
