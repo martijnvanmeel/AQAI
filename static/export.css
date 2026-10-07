@@ -185,3 +185,11 @@ body.aspect-vertical .home-top{z-index:6}
 
 /* 9:16: the whole bottom button (rectangle + text + logo) sits 15px lower (the logo follows: it is placed from the button's live box) */
 body.aspect-vertical #export-cta{margin-bottom:-15px}
+
+/* all export formats: "BY <artist name>" is the artist's colour at full strength, constantly (no colour cycling towards white) */
+body.export-mode .meta .by,
+body.export-mode .meta .sub{
+  animation:none !important;
+  color:var(--artist-color, #ffffff) !important;
+  opacity:1 !important;
+}
