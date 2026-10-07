@@ -790,10 +790,9 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
       if (ASPECT === "vertical"){
         const animals = document.createElement("video");
         animals.id = "export-cta-animals";
-        animals.src = "/assets/gate-creatures.webm";
+        animals.src = "/assets/gate-creatures-black.webm";   // the intro clip with a black circle baked in behind the eyes of the bird, the jellyfish and the two deer
         animals.autoplay = true; animals.muted = true; animals.loop = true; animals.playsInline = true;
         animals.setAttribute("aria-hidden", "true");
-        animals.style.filter = "url(#aqai-eyes-black-small)";   // the animals' eyes get a full-black backing
         animals.style.cssText = "position:absolute;left:16.25%;width:67.5%;height:auto;bottom:75px;z-index:1;pointer-events:none;-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 25px),transparent 100%);mask-image:linear-gradient(to bottom,#000 calc(100% - 25px),transparent 100%);";   // 75px above the bottom edge
         // a circle behind the animals: full black
         const ring = document.createElement("div");
