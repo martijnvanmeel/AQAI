@@ -109,14 +109,14 @@ body.aspect-vertical #view-home{overflow:visible !important}
 
 /* 16:9: the logo beside the "More songs at" button has the button's colour (the artist colour at 80%, no colour cycling) */
 body.aspect-horizontal .home-top .logo-text,
-body.aspect-vertical .home-top .logo-text{
+body.aspect-vertical .home-top .logo-text.export-pill-logo{
   color:#000000 !important;   /* black (preview and render alike) */
   text-shadow:none !important;
   animation:none !important;
 }
 /* the logo stays black; only the light that rolls over it (the sweeping band, see updateScanLine() in app.js) is in the artist's colour */
 body.aspect-horizontal .home-top .logo-text::after,
-body.aspect-vertical .home-top .logo-text::after{
+body.aspect-vertical .home-top .logo-text.export-pill-logo::after{
   color:color-mix(in srgb, var(--artist-color, #ffffff) 75%, #000000);   /* the artist colour, 25% darker */
   opacity:1;
 }

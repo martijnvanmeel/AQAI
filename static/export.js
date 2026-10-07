@@ -767,9 +767,27 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
     // logo's width + a 20px gap, and the logo (placed by the individual `translate` property, so it never fights its slider
     // transform) sits inside, at the pill's normal left padding. The pill itself stays centred in the frame.
     if (ASPECT === "horizontal" || ASPECT === "vertical"){
-      const logo = document.querySelector(".home-top .logo-text"), pill = document.getElementById("export-cta-pill");
+      let logo = document.querySelector(".home-top .logo-text"), pill = document.getElementById("export-cta-pill");
+      let own = false;   // 9:16: the logo in the button is a COPY of the logo; the original stays at the top of the frame
+      if (ASPECT === "vertical" && logo){
+        let copy = document.querySelector(".home-top .logo-text.export-pill-logo");
+        if (!copy){
+          copy = logo.cloneNode(true);
+          copy.classList.add("export-pill-logo");
+          copy.removeAttribute("style");
+          logo.parentElement.appendChild(copy);
+        }
+        logo = copy; own = true;
+      }
       if (logo && pill){
         const fs = parseFloat(getComputedStyle(box).fontSize) || 0;
+        const lcs = getComputedStyle(logo);
+        const cv = document.createElement("canvas").getContext("2d");
+        cv.font = `${lcs.fontWeight} ${lcs.fontSize} ${lcs.fontFamily}`;
+        const m = cv.measureText("AQAI");
+        const asc = m.actualBoundingBoxAscent, desc = m.actualBoundingBoxDescent, fa = m.fontBoundingBoxAscent;
+        const sc = own ? (pill.getBoundingClientRect().height * 0.9) / (asc + desc) : 1;   // 9:16: letters 90% as high as the button
+        if (own && isFinite(sc) && Math.abs((logo._sc || 0) - sc) > 0.002){ logo._sc = sc; logo.style.scale = String(sc); }
         const rg = document.createRange(); rg.selectNodeContents(logo);
         const lr = rg.getBoundingClientRect();
         if (lr.width && fs){
@@ -781,7 +799,16 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
           const bw = parseFloat(getComputedStyle(pill).borderLeftWidth) || 0;
           const target = pr.left + bw + padL0;                 // where the logo's left edge should be
           const shift = Math.round((target - (lr.left - prev)) * 10) / 10;
-          if (Math.abs(shift - prev) > 0.05){ logo._shiftX = shift; logo.style.translate = shift + "px 0"; }
+          if (Math.abs(shift - prev) > 0.05){ logo._shiftX = shift; }
+          // 9:16: the copy is also placed vertically: the middle of its letters on the middle of the button
+          const prevY = logo._shiftY || 0;
+          if (own){
+            const s = logo._sc || 1;
+            const inkC = lr.top + fa * s + (desc - asc) * s / 2;
+            const shiftY = Math.round((pr.top + pr.height / 2 - (inkC - prevY)) * 10) / 10;
+            if (Math.abs(shiftY - prevY) > 0.05) logo._shiftY = shiftY;
+          }
+          logo.style.translate = (logo._shiftX || 0) + "px " + (logo._shiftY || 0) + "px";
         }
       }
     }

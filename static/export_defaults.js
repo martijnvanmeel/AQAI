@@ -27,8 +27,8 @@ window.EXPORT_DEFAULTS = {
       },
       "AQAI logo": {
         "x": 0.0,
-        "y": 825.4,
-        "scale": 1.859
+        "y": -22.0,
+        "scale": 1.51
       },
       "3D object": {
         "x": 0.0,
