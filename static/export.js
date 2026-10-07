@@ -762,7 +762,9 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
       app.appendChild(box);
     }
     const h = app.getBoundingClientRect().height;
-    if (h) box.style.fontSize = (h * 0.01425).toFixed(2) + "px";   // 25% smaller than the earlier .019 (the whole button scales: everything is in em)
+    const ctaK = ASPECT === "vertical" ? 0.75 : 1;   // 9:16: the whole button (rectangle, text, logo) is 75% of its earlier size
+    box.style.setProperty("--cta-k", ctaK);
+    if (h) box.style.fontSize = (h * 0.01425 * ctaK).toFixed(2) + "px";   // 25% smaller than the earlier .019 (the whole button scales: everything is in em)
     // 16:9: the button is a stroke-only pill that is stretched to the left so it HOLDS the AQAI logo: its left padding grows by the
     // logo's width + a 20px gap, and the logo (placed by the individual `translate` property, so it never fights its slider
     // transform) sits inside, at the pill's normal left padding. The pill itself stays centred in the frame.
@@ -786,12 +788,12 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
         cv.font = `${lcs.fontWeight} ${lcs.fontSize} ${lcs.fontFamily}`;
         const m = cv.measureText("AQAI");
         const asc = m.actualBoundingBoxAscent, desc = m.actualBoundingBoxDescent, fa = m.fontBoundingBoxAscent;
-        const sc = own ? (pill.getBoundingClientRect().height * 0.675) / (asc + desc) : 1;   // 9:16: letters 67.5% as high as the button (75% of the earlier 90%)
+        const sc = own ? (pill.getBoundingClientRect().height * 0.675) / (asc + desc) : 1;   // 9:16: letters 67.5% as high as the button
         if (own && isFinite(sc) && Math.abs((logo._sc || 0) - sc) > 0.002){ logo._sc = sc; logo.style.scale = String(sc); }
         const rg = document.createRange(); rg.selectNodeContents(logo);
         const lr = rg.getBoundingClientRect();
         if (lr.width && fs){
-          const padL0 = 1.5 * fs, gap = 20;                  // the pill's own left padding (1.5em) and the gap logo -> text
+          const padL0 = 1.5 * fs, gap = 20 * ctaK;                  // the pill's own left padding (1.5em) and the gap logo -> text
           const wantPad = padL0 + lr.width + gap;
           if (Math.abs((pill._padL || 0) - wantPad) > 0.05){ pill._padL = wantPad; pill.style.paddingLeft = wantPad + "px"; }
           const pr = pill.getBoundingClientRect();
