@@ -478,9 +478,11 @@ body.scene-hands #stage{background:linear-gradient(to top,
   /* the artist colour (lightened: 55% artist, 45% white) at the bottom of the screen: 50% transparent (50% opaque) at the very bottom, fading to 100% transparent at 35% of the height (was 33.3%), fading to 100% transparent
      at one third of the screen height */
   background:
-    linear-gradient(to top,
+    /* the bottom one is radial now: an ellipse centred on the bottom edge (75% of the width wide, 35% of the height high),
+       50% opaque in its centre and fading to nothing at its rim */
+    radial-gradient(ellipse 75% 35% at 50% 100%,
       color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 55%, #ffffff) 50%, transparent) 0%,
-      color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 55%, #ffffff) 0%, transparent) 35%),
+      color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 55%, #ffffff) 0%, transparent) 100%),
     /* the top goes to black: 50% black at the very top edge, fading to nothing within the first 25% of the height */
     linear-gradient(to bottom,
       rgba(0,0,0,.5) 0%,
