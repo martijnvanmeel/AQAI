@@ -109,7 +109,7 @@ body.aspect-horizontal #view-home{overflow:visible !important}
 /* 16:9: the logo beside the "More songs at" button has the button's colour (the artist colour at 80%, no colour cycling) */
 body.aspect-horizontal .home-top .logo-text{
   animation:none !important;
-  color:#000000 !important;   /* black */
+  color:color-mix(in srgb, var(--artist-color, #ffffff) 80%, transparent) !important;
   text-shadow:none !important;
 }
 
@@ -117,7 +117,7 @@ body.aspect-horizontal .home-top .logo-text{
 body.aspect-horizontal #export-cta-pill{
   background:none !important;
   border-radius:25px !important;   /* rounded corners: 25px */
-  border:.5px solid #000000;   /* a hairline, black */
+  border:.5px solid color-mix(in srgb, var(--artist-color, #ffffff) 50%, transparent);   /* a hairline, 50% transparent */
   /* 4px bigger at the bottom only (2, then 2 more): more bottom padding, pulled back by the same amount with a negative margin so the text and
      the top edge stay exactly where they were */
   padding-bottom:calc(.559em + 4px) !important;
@@ -126,26 +126,20 @@ body.aspect-horizontal #export-cta-pill{
 }
 body.aspect-horizontal #export-cta-lead,
 body.aspect-horizontal #export-cta-url{
-  color:#000000 !important;   /* black */
+  color:color-mix(in srgb, var(--artist-color, #ffffff) 80%, transparent) !important;
   opacity:1 !important;
   position:relative;top:1px;      /* the text sits 1px lower */
 }
 
-/* 9:16, 1:1 and 4:5 get the same black treatment: the AQAI logo and the "More songs at" text are black, and the button has the same
-   0.5px black hairline stroke (it keeps its artist-colour fill there) */
-body.aspect-vertical .home-top .logo-text,
-body.aspect-square .home-top .logo-text,
-body.aspect-portrait .home-top .logo-text{
+/* IN THE VIDEO RENDERS ONLY (record=1 puts class "recording" on the body; a plain preview in the browser keeps the colours above):
+   the AQAI logo, the "More songs at" text and the button's stroke are black, in every format (the light gradient at the bottom of
+   the frame keeps them readable). 16:9 has the outline-only button with the logo inside; the other formats keep their filled
+   button, which just gets the same black hairline stroke. */
+body.recording .home-top .logo-text{
   animation:none !important;
   color:#000000 !important;
   text-shadow:none !important;
 }
-body.aspect-vertical #export-cta-pill,
-body.aspect-square #export-cta-pill,
-body.aspect-portrait #export-cta-pill{border:.5px solid #000000}
-body.aspect-vertical #export-cta-lead,
-body.aspect-square #export-cta-lead,
-body.aspect-portrait #export-cta-lead,
-body.aspect-vertical #export-cta-url,
-body.aspect-square #export-cta-url,
-body.aspect-portrait #export-cta-url{color:#000000 !important;opacity:1 !important}
+body.recording #export-cta-pill{border:.5px solid #000000}
+body.recording #export-cta-lead,
+body.recording #export-cta-url{color:#000000 !important;opacity:1 !important}

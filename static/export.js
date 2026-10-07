@@ -28,6 +28,7 @@ if (FORCED_SCENE){
   setBgVideoForTrack = function(){ sceneChoice = FORCED_SCENE; };
 }
 document.body.classList.add("export-mode", `aspect-${ASPECT}`);
+if (IS_RECORDING) document.body.classList.add("recording");   // (the black logo/text/stroke styling in export.css is for the video renders only)
 // index.html's markup starts every page with <body class="gate-active">
 // (see styles.css's body.gate-active rules), which hides .home-top/
 // #lyrics/#wave-canvas/.player until app.js's own dismissGate() removes
