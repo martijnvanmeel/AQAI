@@ -155,11 +155,11 @@ body.recording #export-cta-pill{border:.5px solid #000000}
 body.recording #export-cta-lead,
 body.recording #export-cta-url{color:#000000 !important;opacity:1 !important}
 
-/* 9:16: the bottom gradient is black instead of the artist colour: 60% black at the very bottom of the frame, fading to 100%
+/* 9:16: the bottom gradient is black instead of the artist colour: 85% black at the very bottom of the frame (was 60%), fading to 100%
    transparent at 25% of the frame's height (the top gradient - 50% black to 0 at 25% - stays as it is) */
 body.aspect-vertical #bg-gradient{
   background:
-    linear-gradient(to top, rgba(0,0,0,.6) 0%, rgba(0,0,0,0) 25%),
+    linear-gradient(to top, rgba(0,0,0,.85) 0%, rgba(0,0,0,0) 25%),
     linear-gradient(to bottom, rgba(0,0,0,.5) 0%, rgba(0,0,0,0) 25%) !important;
 }
 
