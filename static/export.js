@@ -756,11 +756,10 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
         animals.autoplay = true; animals.muted = true; animals.loop = true; animals.playsInline = true;
         animals.setAttribute("aria-hidden", "true");
         animals.style.cssText = "position:absolute;left:16.25%;width:67.5%;height:auto;bottom:75px;z-index:1;pointer-events:none;";   // 75px above the bottom edge
-        // a circle behind the animals, like the circle behind the 3D animal (artist-tinted black fading to solid black, 80% opaque)
+        // a circle behind the animals: full black
         const ring = document.createElement("div");
         ring.id = "export-cta-animals-circle";
-        ring.style.cssText = "position:absolute;z-index:1;pointer-events:none;border-radius:50%;opacity:.8;"
-          + "background:linear-gradient(to bottom, color-mix(in srgb, color-mix(in srgb, var(--artist-color, #7CFF9E) 20%, #000000) 50%, transparent) 0%, #000000 100%);";
+        ring.style.cssText = "position:absolute;z-index:1;pointer-events:none;border-radius:50%;background:#000000;";   // full black
         app.appendChild(ring);
         app.appendChild(animals);
       }
