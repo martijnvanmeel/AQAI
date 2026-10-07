@@ -109,7 +109,7 @@ body.aspect-horizontal #view-home{overflow:visible !important}
 /* 16:9: the logo beside the "More songs at" button has the button's colour (the artist colour at 80%, no colour cycling) */
 body.aspect-horizontal .home-top .logo-text{
   animation:none !important;
-  color:color-mix(in srgb, var(--artist-color, #ffffff) 80%, transparent) !important;
+  color:rgba(0,0,0,.7) !important;   /* black, 70% */
   text-shadow:none !important;
 }
 
@@ -117,7 +117,7 @@ body.aspect-horizontal .home-top .logo-text{
 body.aspect-horizontal #export-cta-pill{
   background:none !important;
   border-radius:25px !important;   /* rounded corners: 25px */
-  border:.5px solid color-mix(in srgb, var(--artist-color, #ffffff) 50%, transparent);   /* a hairline, 50% transparent */
+  border:.5px solid rgba(0,0,0,.7);   /* a hairline, black 70% */
   /* 4px bigger at the bottom only (2, then 2 more): more bottom padding, pulled back by the same amount with a negative margin so the text and
      the top edge stay exactly where they were */
   padding-bottom:calc(.559em + 4px) !important;
@@ -126,7 +126,7 @@ body.aspect-horizontal #export-cta-pill{
 }
 body.aspect-horizontal #export-cta-lead,
 body.aspect-horizontal #export-cta-url{
-  color:color-mix(in srgb, var(--artist-color, #ffffff) 80%, transparent) !important;
+  color:rgba(0,0,0,.7) !important;   /* black, 70% */
   opacity:1 !important;
   position:relative;top:1px;      /* the text sits 1px lower */
 }
