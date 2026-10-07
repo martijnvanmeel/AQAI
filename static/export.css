@@ -202,3 +202,7 @@ body.export-mode .meta .title,
 body.export-mode .meta .sub,
 body.export-mode .meta .by{text-shadow:none !important}
 #title-shadow-layer{display:none !important}
+
+/* 9:16: the dark shade over the bottom of the frame (it started just above the song title and darkened everything below it, in
+   front of the animal's feet) is removed - it read as a black shadow behind the title / artist */
+#export-bottom-shade{display:none !important}
