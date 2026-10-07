@@ -190,7 +190,7 @@ function applyWatermarkOffset(){
 // resolves once the page is laid out: the fonts are in, the bottom button / animals (9:16) are built and the animals clip is ready,
 // and the positions of the main elements have not changed for a while (checked twice, 350ms apart). Gives up after 10s.
 function layoutSettled(){
-  const SEL = ["#m-title", "#bg-title-watermark", "#fox-3d-canvas", ".home-top .logo-text", "#export-cta-pill", "#export-cta-animals",
+  const SEL = ["#m-title", "#bg-title-watermark", "#fox-3d-canvas", ".home-top .logo-text", "#export-cta-pill",
     "#export-cta-animals-circle", "#lyrics", "#vis-canvas", ".artist-photo-wrap"];
   const signature = () => SEL.map(q => {
     const e = document.querySelector(q);
@@ -204,8 +204,7 @@ function layoutSettled(){
     let last = "", stable = 0;
     const tick = () => {
       const fontsOk = !document.fonts || document.fonts.status === "loaded";
-      const an = document.getElementById("export-cta-animals");
-      const ready = fontsOk && (!needAnimals || (an && an.readyState >= 2 && document.getElementById("export-cta-animals-circle")));
+      const ready = fontsOk && (!needAnimals || document.getElementById("export-cta-animals-circle"));
       const sig = signature();
       stable = ready && sig === last ? stable + 1 : 0;
       last = sig;
@@ -787,30 +786,23 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
         + "animation:exportCtaRing 3.4s ease-out 2s 1 both;";
       hand.appendChild(ring);
       pill.appendChild(lead); pill.appendChild(url); pill.appendChild(hand);
-      // 9:16 only: the intro's animals animation (the start screen's transparent clip) stands along the bottom of the frame,
-      // 67.5% of the frame's width (75% of the earlier 90%; the clip is 16:9, so its height follows), behind the "More songs" button
+      // 9:16 only: a black circle at the bottom of the frame (it used to sit behind the intro's animals animation, which is removed now)
       if (ASPECT === "vertical"){
-        const animals = document.createElement("video");
-        animals.id = "export-cta-animals";
-        animals.src = "/assets/gate-creatures-black.webm";   // the intro clip with a black circle baked in behind the eyes of the bird, the jellyfish and the two deer
-        animals.autoplay = true; animals.muted = true; animals.loop = true; animals.playsInline = true;
-        animals.setAttribute("aria-hidden", "true");
-        animals.style.cssText = "position:absolute;left:16.25%;width:67.5%;height:auto;bottom:75px;z-index:1;pointer-events:none;-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 25px),transparent 100%);mask-image:linear-gradient(to bottom,#000 calc(100% - 25px),transparent 100%);";   // 75px above the bottom edge
-        // a circle behind the animals: full black
         const ring = document.createElement("div");
         ring.id = "export-cta-animals-circle";
         ring.style.cssText = "position:absolute;z-index:1;pointer-events:none;border-radius:50%;background:#000000;";   // full black
         app.appendChild(ring);
-        app.appendChild(animals);
       }
       box.appendChild(pill);
       app.appendChild(box);
     }
     const h = app.getBoundingClientRect().height;
     {
-      const ring = document.getElementById("export-cta-animals-circle"), an = document.getElementById("export-cta-animals");
-      if (ring && an){
-        const ar = app.getBoundingClientRect(), nr = an.getBoundingClientRect();
+      const ring = document.getElementById("export-cta-animals-circle");
+      if (ring){
+        const ar = app.getBoundingClientRect();
+        // the box the animation used to fill: 67.5% of the frame's width, 16:9, its bottom edge 75px above the frame's bottom
+        const nr = { height: ar.width * 0.675 * 9 / 16, bottom: ar.bottom - 75 };
         if (nr.height){
           const d = ar.width * 0.54 * 1.5 * 1.5;           // the circle's diameter: 121.5% of the frame width (150% of the earlier 81%)
           const w = d * 1.25;                              // 125% of the earlier width, same height (an ellipse now)
