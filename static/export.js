@@ -747,15 +747,17 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
         + "animation:exportCtaRing 3.4s ease-out 2s 1 both;";
       hand.appendChild(ring);
       pill.appendChild(lead); pill.appendChild(url); pill.appendChild(hand);
-      // the intro's animals animation (the start screen's transparent clip) stands on top of the "More songs" button, at most 100px
-      // high (the clip is 16:9, so that is 177.8px wide); the box is anchored at the bottom, so it grows upward
-      const animals = document.createElement("video");
-      animals.id = "export-cta-animals";
-      animals.src = "/assets/gate-creatures.webm";
-      animals.autoplay = true; animals.muted = true; animals.loop = true; animals.playsInline = true;
-      animals.setAttribute("aria-hidden", "true");
-      animals.style.cssText = "display:block;margin:0 auto;height:100px;max-height:100px;width:auto;pointer-events:none;";
-      if (ASPECT === "vertical") box.appendChild(animals);   // only the 9:16 version has the animals
+      // 9:16 only: the intro's animals animation (the start screen's transparent clip) stands along the bottom of the frame,
+      // 90% of the frame's width (the clip is 16:9, so its height follows), behind the "More songs" button
+      if (ASPECT === "vertical"){
+        const animals = document.createElement("video");
+        animals.id = "export-cta-animals";
+        animals.src = "/assets/gate-creatures.webm";
+        animals.autoplay = true; animals.muted = true; animals.loop = true; animals.playsInline = true;
+        animals.setAttribute("aria-hidden", "true");
+        animals.style.cssText = "position:absolute;left:5%;width:90%;height:auto;bottom:0;z-index:5;pointer-events:none;";
+        app.appendChild(animals);
+      }
       box.appendChild(pill);
       app.appendChild(box);
     }
