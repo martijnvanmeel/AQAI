@@ -6459,28 +6459,41 @@ function updateScanLine(){
 /* music player only: the audio visualiser line is not shown inside the circle behind the 3D animal - the canvas gets a
    circular hole (a radial mask) exactly where that circle is, recomputed every frame from the circle's on-screen box so it
    follows wherever the layout puts it. (The 9:16 export page has its own layout, so it is left alone there.) */
-/* the song title has a drop shadow that is only visible INSIDE the circle behind the 3D animal: the circle (overflow:hidden) draws an
-   invisible copy of the title whose text-shadow is the shadow, so the circle's own round edge clips it. The copy is sized and placed
-   from the live on-screen boxes of the circle and the title, whatever transforms/sliders they carry. */
+/* the song title has a drop shadow that is only visible INSIDE the circle behind the 3D animal, and it is drawn IN FRONT of the 3D
+   animal (above the animal, below the title text itself). It lives in its own round, overflow:hidden layer (#title-shadow-layer,
+   inside .player: the animal is layer 1, this 2, the title block 3) that is placed exactly on the circle; the layer holds an
+   invisible copy of the title whose text-shadow is what shows, so the circle's round edge cuts it off. The copy is sized and
+   placed from the live on-screen boxes of the circle and the title, whatever transforms/sliders they carry. */
 function updateTitleShadowInCircle(){
   const circle = document.querySelector(".artist-photo-fill"), title = document.getElementById("m-title");
-  if (!circle || !title || !title.textContent) return;
+  const player = document.querySelector(".player");
+  if (!circle || !title || !player || !title.textContent) return;
+  let layer = document.getElementById("title-shadow-layer");
+  if (!layer){
+    layer = document.createElement("div");
+    layer.id = "title-shadow-layer";
+    layer.setAttribute("aria-hidden", "true");
+    layer.innerHTML = '<span></span>';
+    player.appendChild(layer);
+  }
+  const txt = layer.firstChild;
   const cr = circle.getBoundingClientRect();
-  // the box of the title's actual TEXT (the title element itself can be taller than its text)
   const fillNode = document.getElementById("m-title-fill") || title;
   const rg = document.createRange(); rg.selectNodeContents(fillNode);
   const tr = rg.getBoundingClientRect();
-  if (!cr.width || !tr.width || !circle.offsetWidth || !title.offsetWidth) return;
-  const k = cr.width / circle.offsetWidth;                  // screen px per layout px of the circle
+  if (!cr.width || !tr.width || !title.offsetWidth) return;
+  // the layer is position:fixed: find where its own (0,0) is on screen, whatever contains it, then put it on the circle
+  layer.style.left = "0px"; layer.style.top = "0px"; layer.style.width = "0px"; layer.style.height = "0px";
+  const o = layer.getBoundingClientRect();
+  layer.style.left = (cr.left - o.left).toFixed(1) + "px";
+  layer.style.top = (cr.top - o.top).toFixed(1) + "px";
+  layer.style.width = cr.width.toFixed(1) + "px";
+  layer.style.height = cr.height.toFixed(1) + "px";
   const tk = tr.width / title.offsetWidth;                  // the title's own scale on screen
-  const fs = (parseFloat(getComputedStyle(title).fontSize) || 0) * tk / k;
-  const fillEl = document.getElementById("m-title-fill");
-  const text = (fillEl ? fillEl.textContent : title.textContent).trim();   // (the title holds the text twice: fill layer + outline layer)
-  if (circle.dataset.title !== text) circle.dataset.title = text;
-  const st = circle.style;
-  st.setProperty("--ts-fs", fs.toFixed(2) + "px");
-  st.setProperty("--ts-x", (((tr.left + tr.width / 2) - (cr.left + cr.width / 2)) / k).toFixed(1) + "px");
-  st.setProperty("--ts-y", (((tr.top + tr.height / 2) - (cr.top + cr.height / 2)) / k).toFixed(1) + "px");
+  const text = (document.getElementById("m-title-fill") ? document.getElementById("m-title-fill").textContent : title.textContent).trim();
+  if (txt.textContent !== text) txt.textContent = text;
+  txt.style.fontSize = ((parseFloat(getComputedStyle(title).fontSize) || 0) * tk).toFixed(2) + "px";
+  txt.style.transform = `translate(calc(-50% + ${((tr.left + tr.width / 2) - (cr.left + cr.width / 2)).toFixed(1)}px), calc(-50% + ${((tr.top + tr.height / 2) - (cr.top + cr.height / 2)).toFixed(1)}px))`;
 }
 function maskWaveAroundCircle(){
   if (document.body.classList.contains("export-mode")) return;

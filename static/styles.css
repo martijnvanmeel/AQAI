@@ -946,7 +946,6 @@ body.scene-hands #stage{background:linear-gradient(to top,
    the whole shape instead of a thin outline) - the fox now reads as the
    "face" here instead of a person, this is just its colour backdrop */
 .artist-photo-fill{
-  overflow:hidden;   /* clips the title's drop shadow (the ::after below) to the circle */
   position:absolute;left:0;top:50%;width:100%;aspect-ratio:1/1;z-index:2;pointer-events:none;
   /* a true circle now (was the oval profilepic.png mask): as wide as the
      old oval, centered on the same spot, so it grows upward/downward
@@ -959,13 +958,15 @@ body.scene-hands #stage{background:linear-gradient(to top,
   opacity:.8; /* 20% more transparent */
   transform:translateY(calc(-50% - 11.3636px)) scale(1.1859375); /* .825 x 1.25 x 1.15; 15px higher on screen (11.36px x the block's 1.32 scale) */
 }
-/* the song title's drop shadow, drawn inside the circle only (see updateTitleShadowInCircle() in app.js): an invisible copy of the
-   title, its text-shadow is what shows; the circle's overflow:hidden + round corners cut it off at the circle's edge */
-.artist-photo-fill::after{
-  content:attr(data-title);
+/* the song title's drop shadow: a round layer exactly on the circle behind the 3D animal, ABOVE the animal (z 2: the animal is 1, the
+   title block 3), clipped to the circle; it holds an invisible copy of the title whose text-shadow is what shows (see
+   updateTitleShadowInCircle() in app.js) */
+#title-shadow-layer{
+  position:fixed;z-index:2;pointer-events:none;border-radius:50%;overflow:hidden;
+}
+#title-shadow-layer span{
   position:absolute;left:50%;top:50%;
-  transform:translate(calc(-50% + var(--ts-x, 0px)), calc(-50% + var(--ts-y, 0px)));
-  font-family:var(--font-title);font-weight:700;font-size:var(--ts-fs, 24px);
+  font-family:var(--font-title);font-weight:700;
   word-spacing:.15em;text-transform:uppercase;white-space:nowrap;
   color:transparent;
   text-shadow:0 .22em .28em rgba(0,0,0,.85);   /* the drop shadow: down and soft */
