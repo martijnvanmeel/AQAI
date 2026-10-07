@@ -93,29 +93,46 @@ fetch("/api/panoramas2").then(r => r.json()).then(data => {
   PANORAMAS = (data.files || []).filter(f => f !== INTRO_PANO_FILE);
   PINGPONG_FILES = new Set(data.pingpong || []);
 }).catch(() => {});
-// every 5th background pick swaps the video-panorama sphere for a random
-// fully-3D environment instead (see sceneChoice / updateArtistBackground
-// further down) - the other 4 out of 5 keep picking a random panorama clip
+// every background pick is one of three kinds: 25% the portrait music-video clips (the numbered ones, shown three next to each
+// other), 25% a fully-3D environment (see sceneChoice / updateArtistBackground further down), and 50% the panorama sphere with one of
+// the other clips. The kinds are dealt from a shuffled hand of four ([portrait, 3D, sphere, sphere]) so the shares are exact over
+// every four songs, not just on average
 const ENVIRONMENT_SCENES = ["road", "mist", "maze", "tiles", "beams", "prism", "rings", "check", "cube", "portal", "domino"];
 let bgPickCount = 0;
 let sceneChoice = "sphere";
-
-// every song picks a genuinely random background (not tied to the track's
-// own identity) - the plain sphere (no video swap this time) counts as
-// one extra equally-weighted outcome alongside each individual clip, so
-// there's a 1-in-(N+1) chance the background just stays as it was
+let bgKindHand = [];
+function nextBgKind() {
+  if (!bgKindHand.length) {
+    bgKindHand = ["portrait", "scene", "sphere", "sphere"];
+    for (let i = bgKindHand.length - 1; i > 0; i--) {   // shuffle
+      const j = Math.floor(Math.random() * (i + 1));
+      [bgKindHand[i], bgKindHand[j]] = [bgKindHand[j], bgKindHand[i]];
+    }
+  }
+  return bgKindHand.pop();
+}
+// (the plain sphere, no video swap this time, still counts as one extra equally-weighted outcome among the sphere clips)
 function setBgVideoForTrack(track) {
   bgPickCount++;
-  if (bgPickCount % 5 === 0) {
+  const kind = nextBgKind();
+  const portraitClips = PANORAMAS.filter(f => /^\d{3} /.test(f));
+  const sphereClips = PANORAMAS.filter(f => !/^\d{3} /.test(f));
+  if (kind === "scene") {
     // the panorama sphere is hidden while a 3D environment is showing, so
     // there's no point swapping in a video clip nobody will see
     sceneChoice = ENVIRONMENT_SCENES[Math.floor(Math.random() * ENVIRONMENT_SCENES.length)];
     return;
   }
   sceneChoice = "sphere";
-  if (!PANORAMAS.length || typeof panoVideoEl === "undefined") return;
-  const idx = Math.floor(Math.random() * (PANORAMAS.length + 1));
-  if (idx < PANORAMAS.length) loadPanoFile(PANORAMAS[idx]);
+  if (typeof panoVideoEl === "undefined") return;
+  if (kind === "portrait" && portraitClips.length) {
+    loadPanoFile(portraitClips[Math.floor(Math.random() * portraitClips.length)]);
+    return;
+  }
+  if (!sphereClips.length) return;
+  // (coming from a portrait clip the sphere must switch to a normal clip, so there is no "stay as it was" outcome then)
+  const idx = Math.floor(Math.random() * (sphereClips.length + (panoNoSpin ? 0 : 1)));
+  if (idx < sphereClips.length) loadPanoFile(sphereClips[idx]);
 }
 function applyTheme(idx) {
   if (idx === currentThemeIndex) return;
