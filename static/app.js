@@ -7537,7 +7537,7 @@ function animate(t){
   updatePanoPingPongSpeed();
   updateScanLine();
   maskWaveAroundCircle();
-  updateTitleShadowInCircle();
+  { const l = document.getElementById("title-shadow-layer"); if (l) l.remove(); }   // (the song title's drop shadow is removed)
   if (TRACKS.length) updateUI();
   renderer.render(scene, camera);
 

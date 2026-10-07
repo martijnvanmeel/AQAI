@@ -958,19 +958,6 @@ body.scene-hands #stage{background:linear-gradient(to top,
   opacity:.8; /* 20% more transparent */
   transform:translateY(calc(-50% - 11.3636px)) scale(1.1859375); /* .825 x 1.25 x 1.15; 15px higher on screen (11.36px x the block's 1.32 scale) */
 }
-/* the song title's drop shadow: a round layer exactly on the circle behind the 3D animal, ABOVE the animal (z 2: the animal is 1, the
-   title block 3), clipped to the circle; it holds an invisible copy of the title whose text-shadow is what shows (see
-   updateTitleShadowInCircle() in app.js) */
-#title-shadow-layer{
-  position:fixed;z-index:2;pointer-events:none;border-radius:50%;overflow:hidden;
-}
-#title-shadow-layer span{
-  position:absolute;left:50%;top:50%;
-  font-family:var(--font-title);font-weight:700;
-  word-spacing:.15em;text-transform:uppercase;white-space:nowrap;
-  color:transparent;
-  text-shadow:0 .22em .28em rgba(0,0,0,.85);   /* the drop shadow: down and soft */
-}
 /* the real photo underneath is fully replaced by the solid colour fill
    above it now (no more real people "pretending" to be the band) -
    still loaded/measured by JS (positionArtistPhoto() etc.), just never
