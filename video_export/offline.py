@@ -139,7 +139,10 @@ async (d) => {
   if (d.td) R.td = un(d.td);
   // background <video> clips are paused and parked on the frame for the virtual time (they loop)
   const jobs = [];
-  for (const v of document.querySelectorAll('video')){
+  // (the background clips of the sphere / portrait scenes are <video> elements that are never in the page: reach them directly)
+  const vids = [...document.querySelectorAll('video')];
+  if (typeof panoVideoEl !== 'undefined') vids.push(panoVideoEl, ...(typeof panoSideVideos !== 'undefined' ? panoSideVideos : []));
+  for (const v of vids){
     if (!v.duration || !isFinite(v.duration) || v.readyState < 1) continue;
     if (!v.paused) v.pause();
     const want = ((d.t % v.duration) + v.duration) % v.duration;
@@ -163,7 +166,7 @@ ANIM_JS = r"""
 
 
 def render(track, aspect, out_path, static_dir, server_port, fps=60, seconds=None, start_at=0.0,
-           crf=14, preset="slow", progress_cb=None, log=print, shot_format="png", scene=None, maxrate=None, bufsize=None, jpeg_quality=95):
+           crf=14, preset="slow", progress_cb=None, log=print, shot_format="png", scene=None, pano=None, maxrate=None, bufsize=None, jpeg_quality=95):
     """Render `track` (a server track dict with 'id' and '_path') in the given aspect to out_path (mp4).
     seconds: only render that many seconds of the song (testing); start_at: first second to render."""
     from playwright.sync_api import sync_playwright
@@ -185,6 +188,9 @@ def render(track, aspect, out_path, static_dir, server_port, fps=60, seconds=Non
     url = f"http://127.0.0.1:{server_port}/export.html?id={track['id']}&aspect={aspect}&record=1"
     if scene:
         url += f"&scene={scene}"
+    if pano:
+        from urllib.parse import quote
+        url += f"&pano={quote(pano)}"
 
     cmd = [
         FFMPEG, "-y", "-v", "error",
@@ -307,12 +313,13 @@ if __name__ == "__main__":
     ap.add_argument("--start", type=float, default=0.0)
     ap.add_argument("--port", type=int, default=8420)
     ap.add_argument("--scene", default=None)
+    ap.add_argument("--pano", default=None, help="with --scene sphere: the background clip file (a numbered one = the upright portrait video)")
     ap.add_argument("--shot", default="png", choices=["png", "jpeg"])
     ap.add_argument("--maxrate", default=None)
     a = ap.parse_args()
     import server
     trk = next(x for x in server.scan_library() if x["id"] == a.track_id)
     render(trk, a.aspect, a.out, server.STATIC_DIR, a.port, fps=a.fps, seconds=a.seconds, start_at=a.start,
-           crf=a.crf, preset=a.preset, scene=a.scene, shot_format=a.shot, maxrate=a.maxrate,
+           crf=a.crf, preset=a.preset, scene=a.scene, pano=a.pano, shot_format=a.shot, maxrate=a.maxrate,
            log=lambda *m: print(*m, flush=True))
     print("DONE", a.out, flush=True)

@@ -24,8 +24,15 @@ const IS_RECORDING = params.get("record") === "1";
 // forces that fully-3D environment as the background of the export: no panorama/animation clips from the anims folder.
 // (setBgVideoForTrack is a plain function declaration in app.js, so reassigning it here replaces what load() calls.)
 const FORCED_SCENE = params.get("scene");
+// scene=sphere&pano=<clip file> shows that video clip on the sphere: a numbered portrait clip ("003 For You.mp4") shows as the upright
+// portrait video, any other clip as the panorama sphere. The clip stays on its own (no automatic switch to a next portrait clip).
+const FORCED_PANO = params.get("pano");
+if (FORCED_PANO) window.__noPortraitSwap = true;
 if (FORCED_SCENE){
-  setBgVideoForTrack = function(){ sceneChoice = FORCED_SCENE; };
+  setBgVideoForTrack = function(){
+    sceneChoice = FORCED_SCENE;
+    if (FORCED_SCENE === "sphere" && FORCED_PANO) loadPanoFile(FORCED_PANO);
+  };
 }
 document.body.classList.add("export-mode", `aspect-${ASPECT}`);
 if (ASPECT === "vertical") LYRIC_LINE_MAX_WORDS = 2;   // 9:16: the karaoke rows show at most two words
@@ -203,7 +210,9 @@ function layoutSettled(){
     let last = "", stable = 0;
     const tick = () => {
       const fontsOk = !document.fonts || document.fonts.status === "loaded";
-      const ready = fontsOk;
+      // (a forced background clip must have its first picture before the music starts)
+      const panoOk = !FORCED_PANO || (typeof panoVideoEl !== "undefined" && panoVideoEl.readyState >= 2 && !!panoVideoEl.videoWidth);
+      const ready = fontsOk && panoOk;
       const sig = signature();
       stable = ready && sig === last ? stable + 1 : 0;
       last = sig;

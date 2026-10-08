@@ -6686,7 +6686,7 @@ function setPortraitLoading(on){
 panoVideoEl.addEventListener("loadeddata", () => { if (panoPortraitLoading) setPortraitLoading(false); });
 // when one of the three portrait clips has played to its end, it is replaced by another portrait clip (never one that is on screen)
 function loadNextPortraitClip(v){
-  if (!panoNoSpin) return;
+  if (!panoNoSpin || window.__noPortraitSwap) return;
   const base = "/panorama2/";
   const onScreen = new Set([panoVideoEl, ...panoSideVideos].map(e => decodeURIComponent((e.getAttribute("src") || "").replace(base, ""))));
   const all = (typeof PANORAMAS !== "undefined" ? PANORAMAS : []).filter(f => /^\d{3} /.test(f));
