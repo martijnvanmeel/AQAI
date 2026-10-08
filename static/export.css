@@ -167,7 +167,7 @@ body.aspect-vertical #bg-gradient{
 
 /* 9:16: the bottom group - the rectangle's stroke, the "More songs at" text and the logo in it - is in the artist's colour (preview and render) */
 body.aspect-vertical #export-cta-pill,
-body.recording.aspect-vertical #export-cta-pill{border:2px solid #000000;background:none !important}   /* the button is only a stroke: 2px, full black (preview and render alike) */
+body.recording.aspect-vertical #export-cta-pill{border:1px solid #000000;background:none !important}   /* the button is only a stroke: 1px (2px, then 1px smaller), full black (preview and render alike) */
 body.aspect-vertical #export-cta-lead,
 body.aspect-vertical #export-cta-url,
 body.recording.aspect-vertical #export-cta-lead,
