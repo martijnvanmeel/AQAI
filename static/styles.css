@@ -935,7 +935,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
      the parent's own position/transform) doesn't touch .artist-photo-wrap's
      own bounding rect, so it doesn't drag the creature/visualiser/title
      (all of which anchor off that live rect) along with it */
-  transform:translateY(calc(-50% - 11.3636px)) scale(.7115625); /* .825 x 1.25 x 1.15 x .6 (60% of the earlier size); 15px higher on screen (11.36px x the block's 1.32 scale) */
+  transform:translateY(calc(-50% + 7.5758px)) scale(.889453125); /* .825 x 1.25 x 1.15 x .6 x 1.25 (125% of the 60% size); 15px higher on screen (11.36px x the block's 1.32 scale), then 25px lower (18.94px x 1.32): net 10px lower than the centre */
 }
 /* (no stroke around the disc any more) */
 .artist-photo{
@@ -956,7 +956,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
     color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 20%, #000000) 50%, transparent) 0%,
     #000000 100%);
   opacity:.8; /* 20% more transparent */
-  transform:translateY(calc(-50% - 11.3636px)) scale(.7115625); /* .825 x 1.25 x 1.15 x .6 (60% of the earlier size); 15px higher on screen (11.36px x the block's 1.32 scale) */
+  transform:translateY(calc(-50% + 7.5758px)) scale(.889453125); /* .825 x 1.25 x 1.15 x .6 x 1.25 (125% of the 60% size); 15px higher on screen (11.36px x the block's 1.32 scale), then 25px lower (18.94px x 1.32): net 10px lower than the centre */
 }
 /* the real photo underneath is fully replaced by the solid colour fill
    above it now (no more real people "pretending" to be the band) -
