@@ -1827,8 +1827,8 @@ nav{
 /* a portrait music-video pick: black behind everything until the clip's first picture is there (see setPortraitLoading() in app.js) */
 body.portrait-loading #stage{background:#000000 !important}
 
-/* the music player's song title is 75% of its earlier size (the export pages keep their own size) */
-body:not(.export-mode) .meta .title{font-size:clamp(17.188631px,5.371448vw,30.080105px)}
+/* the music player's song title: 75% of its original size, then 150% of that (the export pages keep their own size) */
+body:not(.export-mode) .meta .title{font-size:clamp(25.782947px,8.057172vw,45.120158px)}   /* 150% of the earlier 75% size */
 
 /* the music player's song title stroke is 90% of the artist colour (mixed with 10% black); the exports keep theirs */
 body:not(.export-mode) .title-stroke{-webkit-text-stroke-color:color-mix(in srgb, var(--artist-color, var(--active-green)) 90%, #000000)}
