@@ -1839,3 +1839,6 @@ body:not(.export-mode) .title-stroke{-webkit-text-stroke-width:3px}   /* 1px big
 
 /* the music player's song title (stroke + fill together) has a hard drop shadow: no blur, 3px down, full black (the exports have none) */
 body:not(.export-mode) .meta .title{filter:drop-shadow(0 3px 0 #000000)}
+
+/* the artist name ("by ..." line) in the music player: the same hard drop shadow as the song title - no blur, full black - but 2px down (the exports have none) */
+body:not(.export-mode) .meta .by{filter:drop-shadow(0 2px 0 #000000)}
