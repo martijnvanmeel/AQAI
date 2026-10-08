@@ -1840,5 +1840,5 @@ body:not(.export-mode) .title-stroke{-webkit-text-stroke-width:3px}   /* 1px big
 /* the music player's song title: letter spacing 1px smaller (the exports keep theirs) */
 body:not(.export-mode) .meta .title{letter-spacing:-1px}
 
-/* the music player's circle behind the 3D creature is the artist's colour at full strength (the exports keep their dark circle) */
-body:not(.export-mode) .artist-photo-fill{background:var(--artist-color, var(--active-green));opacity:1}
+/* the music player's circle behind the 3D creature: black, 50% black at the top fading to full black at the bottom (the exports keep their own) */
+body:not(.export-mode) .artist-photo-fill{background:linear-gradient(to bottom, rgba(0,0,0,.5) 0%, #000000 100%);opacity:1}
