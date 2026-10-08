@@ -2916,7 +2916,8 @@ function positionWaveCanvas(){
   positionFoxCanvas();
 }
 
-const panoMat = new THREE.MeshBasicMaterial({ map: panoTexture, transparent: true, opacity: 1.0 });
+const PANO_OPACITY = 0.9;   // the background videos are 10% transparent (the artist colour behind them shows through a little)
+const panoMat = new THREE.MeshBasicMaterial({ map: panoTexture, transparent: true, opacity: PANO_OPACITY });
 // music-reactive glow: the patch surface farthest from the camera brightens
 // toward white as the track gets louder, while the nearer surfaces around it
 // dim slightly in response — uMinDist/uMaxDist are the real min/max vertex
@@ -2994,7 +2995,7 @@ panoMat.onBeforeCompile = shader => {
       gl_FragColor.rgb += uArtistColor * 0.5 * 0.05 * aqaiGridMask * uFx;`);
 };
 const panoSideMats = panoSideTextures.map(t => {
-  const m = new THREE.MeshBasicMaterial({ map: t, transparent: true, opacity: 1.0 });
+  const m = new THREE.MeshBasicMaterial({ map: t, transparent: true, opacity: PANO_OPACITY });
   m.onBeforeCompile = panoMat.onBeforeCompile;   // the same glow / scanlines / vignette as the main patch
   return m;
 });
