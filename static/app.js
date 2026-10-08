@@ -2971,7 +2971,7 @@ panoMat.onBeforeCompile = shader => {
       // transparent than fully-black (lets 75% of the original brightness
       // through instead of 0%)
       float aqaiScan = step(0.5, fract(vUv.x * 900.0));
-      gl_FragColor.rgb *= mix(0.75, 1.0, aqaiScan); // scanlines apply on the intro sphere too (back at their original strength)
+      gl_FragColor.rgb *= mix(1.0, 1.0, aqaiScan); // the scanlines are fully transparent (not visible)
       // vignette baked into the video layer itself: a smooth, continuous
       // blend starting from full brightness at dead center all the way
       // out to the corners (aqaiR2 already holds the squared UV distance
@@ -2982,7 +2982,7 @@ panoMat.onBeforeCompile = shader => {
       // heavily dimmed than before (was 0.49) so the video reads clearly
       // instead of muddy; the intro sphere is unused now (see tunnelGroup)
       // but its 0.2 dim is kept as-is in case uGate is ever driven again
-      gl_FragColor.rgb *= mix(1.0, 0.2, uGate);
+      gl_FragColor.rgb *= mix(0.9, 0.2, uGate);   // the background video 10% darker
       // background grid: thin glowing horizontal lines baked onto the
       // curved surface itself (patch UV, like the scanlines above),
       // tinted half the current artist color and added on top rather
