@@ -764,7 +764,7 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
         @keyframes exportCtaRing{0%,46%{transform:translate(-50%,-50%) scale(.2);opacity:0}50%{opacity:.85}78%,100%{transform:translate(-50%,-50%) scale(2.6);opacity:0}}
         @keyframes exportCtaLight{0%,78%{background-position:160% 0}100%{background-position:-60% 0}}
         #export-cta-pill::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
-          background:linear-gradient(135deg,rgba(255,255,255,0) 30%,rgba(255,255,255,.5) 50%,rgba(255,255,255,0) 70%);background-size:220% 100%;background-repeat:no-repeat;background-position:160% 0;
+          background:linear-gradient(135deg,rgba(255,255,255,0) 30%,rgba(255,255,255,.25) 50%,rgba(255,255,255,0) 70%);background-size:220% 100%;background-repeat:no-repeat;background-position:160% 0;
           animation:exportCtaLight 17s ease-in-out 9s infinite}
         @keyframes exportCtaPill{0%,44%{box-shadow:0 0 0 rgba(255,255,255,0)}50%{box-shadow:0 0 1.1em rgba(255,255,255,.28)}70%,100%{box-shadow:0 0 0 rgba(255,255,255,0)}}`;
       document.head.appendChild(st);
