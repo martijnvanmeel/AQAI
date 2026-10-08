@@ -89,9 +89,16 @@ const INTRO_PANO_FILE = "From Klickpin.com- 68749462254-pin-id-68749462254.mp4";
 // side, so they ping-pong at a constant playback speed
 // (see updatePanoPingPongSpeed())
 let PINGPONG_FILES = new Set();
+// the portrait music-video clips: the numbered ones ("003 For You.mp4") and the "creation_..." ones of the anims/new folder
+const isPortraitClip = f => /^\d{3} /.test(f) || /^creation_/.test(f);
+// TEMPORARY: while the server lists only the clips of anims/new (data.onlyNew), every background pick is one of those portrait movies
+let ONLY_NEW_CLIPS = false;
 fetch("/api/panoramas2").then(r => r.json()).then(data => {
   PANORAMAS = (data.files || []).filter(f => f !== INTRO_PANO_FILE);
   PINGPONG_FILES = new Set(data.pingpong || []);
+  ONLY_NEW_CLIPS = !!data.onlyNew;
+  // the first song's background was picked before this list had arrived: pick again (the sphere is hidden behind the start screen anyway)
+  if (ONLY_NEW_CLIPS && typeof setBgVideoForTrack === "function") setBgVideoForTrack({});
 }).catch(() => {});
 // every background pick is one of three kinds: 50% the portrait music-video clips (the numbered ones, shown three next to each
 // other), 25% a fully-3D environment (see sceneChoice / updateArtistBackground further down), and 25% the panorama sphere with one of
@@ -114,10 +121,10 @@ function nextBgKind() {
 // (the plain sphere, no video swap this time, still counts as one extra equally-weighted outcome among the sphere clips)
 function setBgVideoForTrack(track) {
   bgPickCount++;
-  const kind = nextBgKind();
+  const kind = ONLY_NEW_CLIPS ? "portrait" : nextBgKind();
   setPortraitLoading(false);
-  const portraitClips = PANORAMAS.filter(f => /^\d{3} /.test(f));
-  const sphereClips = PANORAMAS.filter(f => !/^\d{3} /.test(f));
+  const portraitClips = PANORAMAS.filter(isPortraitClip);
+  const sphereClips = PANORAMAS.filter(f => !isPortraitClip(f));
   if (kind === "scene") {
     // the panorama sphere is hidden while a 3D environment is showing, so
     // there's no point swapping in a video clip nobody will see
@@ -6689,7 +6696,7 @@ function loadNextPortraitClip(v){
   if (!panoNoSpin || window.__noPortraitSwap) return;
   const base = "/panorama2/";
   const onScreen = new Set([panoVideoEl, ...panoSideVideos].map(e => decodeURIComponent((e.getAttribute("src") || "").replace(base, ""))));
-  const all = (typeof PANORAMAS !== "undefined" ? PANORAMAS : []).filter(f => /^\d{3} /.test(f));
+  const all = (typeof PANORAMAS !== "undefined" ? PANORAMAS : []).filter(isPortraitClip);
   const pool = all.filter(f => !onScreen.has(f));
   const file = (pool.length ? pool : all)[Math.floor(Math.random() * (pool.length || all.length))];
   if (!file) return;
@@ -6698,7 +6705,7 @@ function loadNextPortraitClip(v){
 }
 [panoVideoEl, ...panoSideVideos].forEach(v => v.addEventListener("ended", () => loadNextPortraitClip(v)));
 function loadPanoFile(file, base = "/panorama2/"){
-  panoNoSpin = /^\d{3} /.test(file);
+  panoNoSpin = isPortraitClip(file);
   if (panoNoSpin) sphereSpinRoll = 0;
   panoPingPong = PINGPONG_FILES.has(file);
   const src = base + file;

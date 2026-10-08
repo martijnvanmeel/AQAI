@@ -42,6 +42,10 @@ ANIMS_DIR = os.path.join(LIBRARY_ROOT, "anims")
 # stay on disk and still serve by name - the intro clip etc. use them).
 # Set back to True to restore the full pool.
 INCLUDE_OLD_PANORAMAS = False
+# TEMPORARY: while True and anims/new holds clips, ONLY those (portrait) movies are listed as backgrounds - every background pick is one
+# of them (the player then also skips the 3D scenes). Set to False to go back to the normal pool.
+TEMP_ONLY_NEW_CLIPS = True
+NEW_CLIPS_DIR = os.path.join(ANIMS_DIR, "new")
 SONG_NAMES_PATH = os.path.join(LIBRARY_ROOT, "song_names.json")
 # manually flagged by the owner from the player's "flag this song's lyrics"
 # button (see /api/lyrics-flag) - separate from the automatic heuristics in
@@ -701,6 +705,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
 
         if path == "/api/panoramas2":
+            if TEMP_ONLY_NEW_CLIPS and os.path.isdir(NEW_CLIPS_DIR):
+                new_clips = sorted((f for f in os.listdir(NEW_CLIPS_DIR) if f.lower().endswith(".mp4") and not f.startswith(".")),
+                                   key=lambda f: os.path.getmtime(os.path.join(NEW_CLIPS_DIR, f)), reverse=True)
+                if new_clips:
+                    self._send_json({"files": new_clips, "pingpong": [], "onlyNew": True})
+                    return
             files = []
             paths = {}
             has_anims = os.path.isdir(ANIMS_DIR) and any(f.lower().endswith((".mp4", ".gif")) for f in os.listdir(ANIMS_DIR))
@@ -732,6 +742,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not os.path.isfile(filepath):
                 filepath = os.path.join(ANIMS_DIR, name)
                 is_anim = True
+            if not os.path.isfile(filepath):
+                filepath = os.path.join(NEW_CLIPS_DIR, name)     # the clips of anims/new play as they are (no forward+reverse copy)
+                is_anim = False
             if not name.lower().endswith((".mp4", ".gif")) or not os.path.isfile(filepath):
                 self.send_error(404, "Panorama not found")
                 return
