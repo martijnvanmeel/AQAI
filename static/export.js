@@ -847,7 +847,7 @@ if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ //
           if (own){
             const s = logo._sc || 1;
             const inkC = lr.top + fa * s + (desc - asc) * s / 2;
-            const shiftY = Math.round((pr.top + pr.height / 2 + 2 - (inkC - prevY)) * 10) / 10;   // (+2: the logo in the button sits 2px lower than centred)
+            const shiftY = Math.round((pr.top + pr.height / 2 + 4 - (inkC - prevY)) * 10) / 10;   // (+4: the logo in the button sits 4px lower than centred - 2px, then 2px more)
             if (Math.abs(shiftY - prevY) > 0.05) logo._shiftY = shiftY;
           }
           logo.style.translate = (logo._shiftX || 0) + "px " + (logo._shiftY || 0) + "px";
