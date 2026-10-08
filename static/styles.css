@@ -464,8 +464,8 @@ body.scene-hands #stage{background:linear-gradient(to top,
 #artist-color-overlay{
   position:fixed;inset:0;z-index:1;pointer-events:none;
   background:radial-gradient(circle at 50% 50%,
-    color-mix(in srgb, var(--artist-color, var(--active-green)) 14.4%, transparent) 0%,
-    color-mix(in srgb, var(--artist-color, var(--active-green)) 8%, transparent) 100%);   /* 20% more transparent (was 18% / 10%) */
+    color-mix(in srgb, var(--artist-color, var(--active-green)) 7.2%, transparent) 0%,
+    color-mix(in srgb, var(--artist-color, var(--active-green)) 4%, transparent) 100%);   /* 20% more transparent (was 18% / 10%), then 50% more transparent again */
   mix-blend-mode:multiply;
 }
 /* readability scrim behind the whole bottom UI cluster (title/artist,
