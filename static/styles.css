@@ -1843,3 +1843,6 @@ body:not(.export-mode) .meta .title{letter-spacing:-1px}
 
 /* the music player's circle behind the 3D creature: black, 50% black at the top fading to full black at the bottom (the exports keep their own) */
 body:not(.export-mode) .artist-photo-fill{background:linear-gradient(to bottom, rgba(0,0,0,.5) 0%, #000000 100%);opacity:1}
+
+/* the colourful artist-colour layer on top of the background videos (the multiply tint over the whole screen) is not visible: fully transparent */
+#artist-color-overlay{display:none !important}
