@@ -2971,7 +2971,7 @@ panoMat.onBeforeCompile = shader => {
       // transparent than fully-black (lets 75% of the original brightness
       // through instead of 0%)
       float aqaiScan = step(0.5, fract(vUv.x * 900.0));
-      gl_FragColor.rgb *= mix(1.0, 1.0, aqaiScan); // the scanlines are fully transparent now (not visible)
+      gl_FragColor.rgb *= mix(0.88, 1.0, aqaiScan); // scanlines apply on the intro sphere too
       // vignette baked into the video layer itself: a smooth, continuous
       // blend starting from full brightness at dead center all the way
       // out to the corners (aqaiR2 already holds the squared UV distance

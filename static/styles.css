@@ -357,7 +357,8 @@ body.gate-active #dim-overlay{display:block}
 #sphere-vignette{
   position:fixed;inset:0;z-index:1;pointer-events:none;display:none;
   background-image:
-    /* (the horizontal scanlines are gone: fully transparent) */
+    repeating-linear-gradient(to bottom,
+      rgba(0,0,0,.15) 0px, rgba(0,0,0,.15) 1px, transparent 1px, transparent 3px),
     radial-gradient(circle at center,
       transparent 0%, transparent 40%, rgba(0,0,0,.5) 100%);
 }
@@ -367,7 +368,8 @@ body.scene-sphere #sphere-vignette{display:block}
 body.scene-sphere #stage{filter:brightness(1.725) saturate(1.25) contrast(1.08)}   /* (1.15 x 1.5) */
 body.scene-sphere #sphere-vignette{
   background-image:
-    /* (the horizontal scanlines are gone: fully transparent) */
+    repeating-linear-gradient(to bottom,
+      rgba(0,0,0,.15) 0px, rgba(0,0,0,.15) 1px, transparent 1px, transparent 3px),
     radial-gradient(circle at center,
       transparent 0%, transparent 40%, rgba(0,0,0,.3) 100%);
 }
