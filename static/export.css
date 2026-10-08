@@ -215,3 +215,10 @@ body.export-mode .meta .by{text-shadow:none !important}
    they are not part of the picture */
 html:has(body.recording)::before,
 html:has(body.recording)::after{display:none !important}
+
+/* 9:16 PREVIEW only (a normal browser tab; the video renders keep the black device): the bottom device - the rectangle's stroke, the
+   "More songs at" text and the logo in it - is in the artist's colour, 20% brighter (mixed with 20% white) */
+body.aspect-vertical:not(.recording) #export-cta-pill{border-color:color-mix(in srgb, var(--artist-color, #ffffff) 80%, #ffffff)}
+body.aspect-vertical:not(.recording) #export-cta-lead,
+body.aspect-vertical:not(.recording) #export-cta-url{color:color-mix(in srgb, var(--artist-color, #ffffff) 80%, #ffffff) !important}
+body.aspect-vertical:not(.recording) .home-top .logo-text.export-pill-logo{color:color-mix(in srgb, var(--artist-color, #ffffff) 80%, #ffffff) !important}
