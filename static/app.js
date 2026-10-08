@@ -2971,18 +2971,18 @@ panoMat.onBeforeCompile = shader => {
       // transparent than fully-black (lets 75% of the original brightness
       // through instead of 0%)
       float aqaiScan = step(0.5, fract(vUv.x * 900.0));
-      gl_FragColor.rgb *= mix(0.75, 1.0, aqaiScan); // scanlines apply on the intro sphere too
+      gl_FragColor.rgb *= mix(0.88, 1.0, aqaiScan); // scanlines apply on the intro sphere too
       // vignette baked into the video layer itself: a smooth, continuous
       // blend starting from full brightness at dead center all the way
       // out to the corners (aqaiR2 already holds the squared UV distance
       // from center, 0 at the middle up to ~0.5 at a corner)
-      float aqaiVignette = clamp(1.0 - smoothstep(0.0, 0.5, aqaiR2) * 0.984375, 0.0, 1.0);
+      float aqaiVignette = clamp(1.0 - smoothstep(0.0, 0.5, aqaiR2) * 0.6, 0.0, 1.0);
       gl_FragColor.rgb *= mix(aqaiVignette, 1.0, uGate);
       // overall sphere/background brightness on the music screen - less
       // heavily dimmed than before (was 0.49) so the video reads clearly
       // instead of muddy; the intro sphere is unused now (see tunnelGroup)
       // but its 0.2 dim is kept as-is in case uGate is ever driven again
-      gl_FragColor.rgb *= mix(0.78, 0.2, uGate);
+      gl_FragColor.rgb *= mix(1.0, 0.2, uGate);
       // background grid: thin glowing horizontal lines baked onto the
       // curved surface itself (patch UV, like the scanlines above),
       // tinted half the current artist color and added on top rather
