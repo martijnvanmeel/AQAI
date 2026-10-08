@@ -1837,5 +1837,5 @@ body:not(.export-mode) .title-stroke{-webkit-text-stroke-color:color-mix(in srgb
 body:not(.export-mode) .title-stroke{-webkit-text-stroke-width:3px}   /* 1px bigger again: 2px -> 3px */
 @media (max-width:480px){ body:not(.export-mode) .title-stroke{-webkit-text-stroke-width:2px} }
 
-/* the music player's song title (stroke + fill together) has a hard drop shadow: no blur, 10px down, black at 50% (the exports have none) */
-body:not(.export-mode) .meta .title{filter:drop-shadow(0 10px 0 rgba(0,0,0,.5))}
+/* the music player's song title (stroke + fill together) has a hard drop shadow: no blur, 3px down, full black (the exports have none) */
+body:not(.export-mode) .meta .title{filter:drop-shadow(0 3px 0 #000000)}
