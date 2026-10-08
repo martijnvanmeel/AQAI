@@ -365,6 +365,9 @@ body.scene-sphere #sphere-vignette{display:block}
 /* the background video sphere is stronger: no 25% darkening any more (the other 3D scenes keep it), brighter, more saturated and
    punchier, with a lighter corner vignette (50% -> 30% black) */
 body.scene-sphere #stage{filter:brightness(1.725) saturate(1.25) contrast(1.08)}   /* (1.15 x 1.5) */
+/* behind the background videos (wherever they do not cover the screen) the artist's colour: the stage's own 1.725x brightness is allowed for,
+   so it reads as the artist's colour on screen */
+body.scene-sphere #stage{background:color-mix(in srgb, var(--artist-color, var(--active-green)) 58%, #000000)}
 body.scene-sphere #sphere-vignette{
   background-image:
     /* (the horizontal scanlines are gone: fully transparent) */

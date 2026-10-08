@@ -2982,7 +2982,7 @@ panoMat.onBeforeCompile = shader => {
       // heavily dimmed than before (was 0.49) so the video reads clearly
       // instead of muddy; the intro sphere is unused now (see tunnelGroup)
       // but its 0.2 dim is kept as-is in case uGate is ever driven again
-      gl_FragColor.rgb *= mix(0.9, 0.2, uGate);   // the background video 10% darker
+      gl_FragColor.rgb *= mix(0.72, 0.2, uGate);   // the background video: 10% darker, then 20% darker again (0.9 x 0.8)
       // background grid: thin glowing horizontal lines baked onto the
       // curved surface itself (patch UV, like the scanlines above),
       // tinted half the current artist color and added on top rather
