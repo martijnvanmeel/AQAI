@@ -3042,7 +3042,7 @@ function buildPanoGeometry(aspect, fit = false){
   if (fit){
     // an upright portrait clip: the picture keeps its own proportions and is as tall as the view (plus a little margin) - a portrait
     // strip on the screen, never stretched or zoomed in to cover the whole look-around range
-    thetaLength = vFovHalf * 2 * 1.12;
+    thetaLength = (vFovHalf + 0.13) * 2;   // as tall as the view plus room for the gentle up/down drift
     phiLength = thetaLength * aspect;
   } else if (phiLength < minPhi){ phiLength = minPhi; thetaLength = phiLength / aspect; }
   phiLength = Math.min(phiLength, Math.PI * 1.9);
@@ -6913,7 +6913,9 @@ function animate(t){
     // the mouse no longer steers the sphere: it only ever follows the automatic corner tour (always beginning in the middle)
     const nowMs = performance.now();
     if (tourStartT === null) tourStartT = nowMs;
-    const [steerX, steerY] = panoNoSpin ? [0, 0] : tourPos((nowMs - tourStartT) / 1000);
+    // the portrait clips (panoNoSpin) do not roll, but the picture drifts: the same slow tour, only gentler (30% sideways, 15% up/down)
+    const [tourX, tourY] = tourPos((nowMs - tourStartT) / 1000);
+    const [steerX, steerY] = panoNoSpin ? [tourX * 0.3, tourY * 0.15] : [tourX, tourY];
     targetYaw = steerX * 1.1;
     targetPitch = steerY * 0.7;
     camSmooth = 0.015;
