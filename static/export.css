@@ -258,3 +258,7 @@ body.bgclip .artist-photo-wrap::before{display:none !important}
 /* the videos: the black circle does not change size; it gets more transparent the more intense the music is
    (--circle-beat is set every frame in app.js, 0 to 1): fully opaque at rest, down to 40% opaque at the strongest hits */
 body.bgclip .artist-photo-fill{opacity:calc(1 - var(--circle-beat, 0) * 0.6)}
+
+/* the videos: the circle's colour drifts through the artist colours (--circle-color, set every frame in app.js); it still gets more
+   transparent with the bass (opacity rule above) */
+body.bgclip .artist-photo-fill{background:var(--circle-color, #000000)}
