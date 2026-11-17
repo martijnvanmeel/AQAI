@@ -128,7 +128,14 @@ def cmd_make(args):
     if not open_songs:
         sys.exit("every song already has a video")
     rng = random.Random(args.seed)
-    picks = rng.sample(open_songs, min(args.count, len(open_songs)))
+    forced = []
+    for want in (args.include or []):
+        hit = [(k, t) for k, t in open_songs if f"{t['artist']} - {t['title']}".lower() == want.strip().lower()]
+        if not hit:
+            sys.exit(f"'{want}' not found among the songs without a video")
+        forced.append(hit[0])
+    rest = [kt for kt in open_songs if kt not in forced]
+    picks = forced + rng.sample(rest, max(0, min(args.count - len(forced), len(rest))))
     os.makedirs(OUT_DIR, exist_ok=True)
     clips = assign_clips(data, len(picks), rng)
     print(f"{len(open_songs)} songs have no video yet; rendering {len(picks)}:", flush=True)
@@ -182,6 +189,111 @@ def cmd_make(args):
     print(f"DONE in {(time.time() - started) / 3600:.2f}h; failed: {failed}", flush=True)
 
 
+BUFFER_CHANNELS = {            # Buffer channel ids (from list_channels)
+    "facebook": "6afb998aece6dfde5fee1906",
+    "instagram": "6afb8b24ece6dfde5fec981a",
+    "youtube": "6afb8be0ece6dfde5fecb84c",
+}
+HOST = "root@185.95.13.177"
+KEY = os.path.expanduser("~/.ssh/aqai_deploy")
+
+
+class Buffer:
+    """Minimal client for Buffer's hosted MCP server (the same one `claude mcp add buffer` points at); reads the key from ~/.claude.json
+    without ever printing it."""
+    def __init__(self):
+        import urllib.request
+        cfg = json.load(open(os.path.expanduser("~/.claude.json")))["mcpServers"]["buffer"]
+        self.url = cfg["url"]
+        self.headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", **cfg.get("headers", {})}
+        self.n = 0
+        self.sid = None
+        r = self._rpc({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {},
+                                                                                       "clientInfo": {"name": "aqai-social", "version": "1"}}})
+        try:
+            self._rpc({"jsonrpc": "2.0", "method": "notifications/initialized"})
+        except Exception:
+            pass
+
+    def _rpc(self, body):
+        import urllib.request
+        h = dict(self.headers)
+        if self.sid:
+            h["Mcp-Session-Id"] = self.sid
+        req = urllib.request.Request(self.url, data=json.dumps(body).encode(), headers=h, method="POST")
+        r = urllib.request.urlopen(req, timeout=120)
+        raw = r.read().decode()
+        self.sid = r.headers.get("Mcp-Session-Id") or self.sid
+        if "data:" in raw[:30] or raw.lstrip().startswith("event:"):
+            for line in raw.splitlines():
+                if line.startswith("data:"):
+                    try:
+                        return json.loads(line[5:].strip())
+                    except Exception:
+                        pass
+        return json.loads(raw) if raw.strip() else {}
+
+    def tool(self, name, args):
+        self.n += 1
+        r = self._rpc({"jsonrpc": "2.0", "id": 100 + self.n, "method": "tools/call", "params": {"name": name, "arguments": args}})
+        res = r.get("result", {})
+        txt = "".join(c.get("text", "") for c in res.get("content", []))
+        try:
+            data, _ = json.JSONDecoder().raw_decode(txt)
+        except Exception:
+            data = {"raw": txt}
+        return data, bool(res.get("isError")) or "error" in (data if isinstance(data, dict) else {})
+
+
+def live_track_ids():
+    import urllib.request
+    d = json.load(urllib.request.urlopen("https://aqaimusic.com/api/tracks", timeout=60))
+    d = d.get("tracks", d)
+    return {(t["artist"], t["title"]): t["id"] for t in d}
+
+
+def cmd_schedule(args):
+    from zoneinfo import ZoneInfo
+    data = load()
+    todo = [(k, s) for k, s in sorted(data["songs"].items(), key=lambda kv: (kv[1].get("made") or {}).get("at", ""))
+            if (s.get("made") or {}).get("bgclip") and not s.get("posted") and not s.get("scheduled")
+            and os.path.exists(os.path.join(HERE, s["made"]["file"]))]
+    if not todo:
+        sys.exit("no finished, unscheduled videos")
+    tz = ZoneInfo("Europe/Amsterdam")
+    times = [tuple(int(x) for x in t.split(":")) for t in args.times.split(",")]
+    day0 = datetime.date.fromisoformat(args.start)
+    live = live_track_ids()
+    buf = Buffer()
+    for i, (key, s) in enumerate(todo[: args.max]):
+        day = day0 + datetime.timedelta(days=i // len(times))
+        hh, mm = times[i % len(times)]
+        due = datetime.datetime(day.year, day.month, day.day, hh, mm, tzinfo=tz)
+        local = os.path.join(HERE, s["made"]["file"])
+        name = re.sub(r"[^a-z0-9]+", "-", f"{s['artist']}-{s['title']}".lower()).strip("-") + ".mp4"
+        subprocess.run(["scp", "-i", KEY, "-o", "BatchMode=yes", local, f"{HOST}:/opt/aqai/player/static/social/{name}"], check=True)
+        subprocess.run(["ssh", "-i", KEY, "-o", "BatchMode=yes", HOST, f"chown aqai:aqai /opt/aqai/player/static/social/{name}"], check=True)
+        url = "https://aqaimusic.com/social/" + name
+        tid = live.get((s["artist"], s["title"]))
+        text = f"Listening to \u201c{s['title']}\u201d by {s['artist']}" + (f"\nhttps://www.aqaimusic.com/?t={tid}" if tid else "")
+        sched = {}
+        for ch, cid in BUFFER_CHANNELS.items():
+            md = {"facebook": {"facebook": {"type": "reel"}},
+                  "instagram": {"instagram": {"type": "reel", "shouldShareToFeed": True, "isAiGenerated": True}},
+                  "youtube": {"youtube": {"title": f"{s['title']} \u2013 {s['artist']}"[:100], "categoryId": "10", "privacy": "public",
+                                           "madeForKids": False, "isAiGenerated": True}}}[ch]
+            res, err = buf.tool("create_post", {"channelId": cid, "schedulingType": "automatic", "mode": "customScheduled",
+                                                "dueAt": due.isoformat(), "text": text, "assets": [{"video": {"url": url}}], "metadata": md})
+            if err:
+                print(f"  {ch}: ERROR {res}", flush=True)
+            else:
+                sched[ch] = {"postId": res.get("id"), "dueAt": res.get("dueAt") or due.isoformat()}
+        if sched:
+            data["songs"][key]["scheduled"] = {"at": now(), "due": due.isoformat(), "video": url, "channels": sched}
+            save(data)
+        print(f"scheduled {s['artist']} - {s['title']} for {due.strftime('%a %d %b %H:%M')}: {', '.join(sched)}", flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -190,8 +302,14 @@ def main():
     m.add_argument("count", type=int)
     m.add_argument("--workers", type=int, default=4)
     m.add_argument("--seed", type=int, default=None)
+    m.add_argument("--include", action="append", help="\"Artist - Title\" that must be among the songs (repeatable)")
     m.add_argument("--min-seconds", type=int, default=60, help="skip songs shorter than this (default 60)")
     m.set_defaults(fn=cmd_make)
+    sc = sub.add_parser("schedule")
+    sc.add_argument("--start", required=True, help="first day, YYYY-MM-DD (Amsterdam time)")
+    sc.add_argument("--times", default="09:00,14:00,19:00")
+    sc.add_argument("--max", type=int, default=9)
+    sc.set_defaults(fn=cmd_schedule)
     p = sub.add_parser("posted")
     p.add_argument("song")
     p.add_argument("where", nargs="+", help="channel=URL, e.g. youtube=https://...")
