@@ -6871,8 +6871,8 @@ function animate(t){
   // speed factor, and integrate the steered scene roll
   const dtSec = lastAnimT === null ? 0.016 : Math.min(0.1, ((t || 0) - lastAnimT) * 0.001);
   lastAnimT = t || 0;
-  // the black circle behind the 3D animal pulses a little with the music: the low end (bass) pushes it out by up to ~7%, it eases back
-  // more slowly (see body.bgclip .artist-photo-fill in export.css)
+  // the black circle behind the 3D animal reacts to the music: --circle-beat (0 to 1) follows the low end (bass) and eases back more slowly;
+  // the video exports make the circle more transparent as it rises (see body.bgclip .artist-photo-fill in export.css)
   {
     // (the low bins of the analyser sit high all the time, so the level is measured against the recent lowest and highest bass: it
     // pulses with the changes in the bass, not with its constant presence)
@@ -6887,7 +6887,7 @@ function animate(t){
       bass = Math.pow(Math.max(0, Math.min(1, (raw - circleBassLo) / Math.max(0.06, circleBassHi - circleBassLo))), 1.5);
     }
     circleBeat += (bass - circleBeat) * (1 - Math.exp(-dtSec * (bass > circleBeat ? 18 : 6)));
-    document.documentElement.style.setProperty("--circle-beat", (circleBeat * 0.07).toFixed(4));
+    document.documentElement.style.setProperty("--circle-beat", circleBeat.toFixed(4));
   }
   // both the speed factor and the roll rate ease toward their key-driven
   // targets rather than jumping, so a press ramps in and a release ramps
