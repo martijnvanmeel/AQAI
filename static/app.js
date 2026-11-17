@@ -6859,6 +6859,7 @@ function syncLyricsGlow(){
   g.style.left = (cx - g.offsetWidth / 2).toFixed(1) + "px";
   g.style.top = (cy - g.offsetHeight / 2).toFixed(1) + "px";
 }
+let circleBeat = 0, circleBassHi = null, circleBassLo = 0;
 function animate(t){
   requestAnimationFrame(animate);
   syncLyricsGlow();
@@ -6870,6 +6871,24 @@ function animate(t){
   // speed factor, and integrate the steered scene roll
   const dtSec = lastAnimT === null ? 0.016 : Math.min(0.1, ((t || 0) - lastAnimT) * 0.001);
   lastAnimT = t || 0;
+  // the black circle behind the 3D animal pulses a little with the music: the low end (bass) pushes it out by up to ~7%, it eases back
+  // more slowly (see body.bgclip .artist-photo-fill in export.css)
+  {
+    // (the low bins of the analyser sit high all the time, so the level is measured against the recent lowest and highest bass: it
+    // pulses with the changes in the bass, not with its constant presence)
+    let bass = 0;
+    if (freqData && playing){
+      let raw = 0;
+      for (let i = 1; i <= 8; i++) raw += freqData[i];
+      raw /= 8 * 255;
+      if (circleBassHi === null){ circleBassHi = raw; circleBassLo = raw; }
+      circleBassHi = Math.max(raw, circleBassHi - dtSec * 0.04);
+      circleBassLo = Math.min(raw, circleBassLo + dtSec * 0.04);
+      bass = Math.pow(Math.max(0, Math.min(1, (raw - circleBassLo) / Math.max(0.06, circleBassHi - circleBassLo))), 1.5);
+    }
+    circleBeat += (bass - circleBeat) * (1 - Math.exp(-dtSec * (bass > circleBeat ? 18 : 6)));
+    document.documentElement.style.setProperty("--circle-beat", (circleBeat * 0.07).toFixed(4));
+  }
   // both the speed factor and the roll rate ease toward their key-driven
   // targets rather than jumping, so a press ramps in and a release ramps
   // out - motion stays smooth at both ends. The idle cruise itself

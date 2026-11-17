@@ -254,3 +254,6 @@ html:has(body.bgclip)::after{display:none !important}
 
 /* the videos: no soft artist-colour glow around the black circle either */
 body.bgclip .artist-photo-wrap::before{display:none !important}
+
+/* the videos: the black circle reacts to the music (--circle-beat is set every frame in app.js, 0 to ~0.07) */
+body.bgclip .artist-photo-fill{scale:calc(1 + var(--circle-beat, 0))}
