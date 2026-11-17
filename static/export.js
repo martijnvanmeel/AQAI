@@ -323,6 +323,88 @@ function startExport(){
 // writable binding) and must happen before waitForTracks() below, which
 // may call startExport() -> load() synchronously if tracksReady is
 // already true by this point in the script.
+// the videos: a title longer than 18 characters continues on the next line (whole words only, at most 18 characters per line; a single
+// longer word stays on its own line and is scaled down to fit by fitSongTitleWidth())
+const TITLE_LINE_MAX = 18;
+function applyTitleBreaks(){
+  if (!USE_BG_CLIP || typeof renderScaledTitle !== "function") return;
+  const tr = TRACKS[cur];
+  const fill = document.querySelector("#m-title-fill"), stroke = document.querySelector("#m-title-stroke");
+  if (!tr || !fill || !stroke) return;
+  const lines = [];
+  let line = "";
+  String(tr.title || "").trim().split(/\s+/).forEach(w => {
+    if (line && (line + " " + w).length > TITLE_LINE_MAX){ lines.push(line); line = w; }
+    else line = line ? line + " " + w : w;
+  });
+  if (line) lines.push(line);
+  fill.textContent = "";
+  lines.forEach((ln, i) => {
+    if (i) fill.appendChild(document.createElement("br"));
+    fill.appendChild(renderScaledTitle(ln));
+  });
+  stroke.innerHTML = fill.innerHTML;     // the stroke layer mirrors the fill layer exactly
+}
+// the videos: the "by artist" row always stays below the song title, whatever the number of lines or the slider values: when the
+// title's text reaches (or overlaps) the row, the row is pushed down by exactly the missing amount (--artist-extra, see export.css)
+const ARTIST_MIN_GAP = 10;  // css px between the bottom of the title text and the top of the "by" row
+function keepArtistBelowTitle(){
+  if (!USE_BG_CLIP) return;
+  const fill = document.querySelector("#m-title-fill"), row = document.querySelector(".meta-sub-row");
+  if (!fill || !row) return;
+  const root = document.documentElement;
+  const measure = () => row.getBoundingClientRect().top - fill.getBoundingClientRect().bottom;
+  root.style.setProperty("--artist-extra", "0px");
+  const gap0 = measure();
+  if (gap0 >= ARTIST_MIN_GAP) return;
+  // (the row sits inside a scaled block, so a shift of N css px moves it by more than N on screen: measured, then corrected)
+  const need = ARTIST_MIN_GAP - gap0;
+  root.style.setProperty("--artist-extra", need.toFixed(1) + "px");
+  const moved = measure() - gap0;
+  if (moved > 0) root.style.setProperty("--artist-extra", (need * need / moved).toFixed(1) + "px");
+}
+// the page can rebuild the title's letters at any moment (the track's info arriving, a track change): the line breaks, the 30px margins
+// and the "by" row are then put back, a moment after the last rebuild
+let titleRebuilding = false, titleRebuildTimer = 0;
+// the whole automated layout pass of one load(): clears the slider offsets, puts the title on its lines and within its margins,
+// positions the artist block, and puts every slider's current state back on top. Run after each load() and again whenever the page
+// rebuilds the title's letters (see below), so the result never depends on which of the two came first.
+function runLayoutPass(){
+  titleRebuilding = true;
+  try {
+    resetControlBaselines();
+    applyTitleBreaks();
+    if (ASPECT !== "horizontal" || USE_BG_CLIP) fitSongTitleWidth();
+    positionArtistBlockBottom();
+    alignTitleWithVisualiser();
+    separateTitleFromSubRow();
+    applyLyricsBaseTransform();
+    buildControlPanel();
+    // every load(), not just the first - re-derives each control's natural base from this track's own (just-recomputed-above)
+    // layout and reasserts its current slider state on top, so a track change (or a page reload, which re-triggers the very first
+    // load()) can never silently wipe a manual adjustment back to the automated default the way it used to
+    captureAndReapplyControls();
+    keepArtistBelowTitle();
+  } finally {
+    setTimeout(() => { titleRebuilding = false; }, 0);
+  }
+  watchTitleForRebuilds();
+  // (again once everything has settled)
+  setTimeout(keepArtistBelowTitle, 900);
+  setTimeout(keepArtistBelowTitle, 2500);
+}
+function watchTitleForRebuilds(){
+  const fill = document.querySelector("#m-title-fill");
+  if (!USE_BG_CLIP || !fill || fill._watched) return;
+  fill._watched = true;
+  new MutationObserver(() => {
+    if (titleRebuilding) return;
+    clearTimeout(titleRebuildTimer);
+    titleRebuildTimer = setTimeout(() => {
+      runLayoutPass();
+    }, 60);
+  }).observe(fill, { childList: true });
+}
 function fitSongTitleWidth(){
   const app = document.querySelector("#app");
   const title = document.querySelector("#m-title");
@@ -338,8 +420,10 @@ function fitSongTitleWidth(){
   title.style.transformOrigin = "center top";
   title.style.display = "inline-block";
   const frameWidth = app.getBoundingClientRect().width;
-  const available = frameWidth * 0.9; // 5% margin each side
-  const titleWidth = title.getBoundingClientRect().width;
+  // the videos: always 30px free on the left and on the right of the frame, measured on the text itself (the box has 40px padding)
+  const fillEl = document.querySelector("#m-title-fill");
+  const available = USE_BG_CLIP ? frameWidth - 60 : frameWidth * 0.9; // (other exports: 5% margin each side)
+  const titleWidth = USE_BG_CLIP && fillEl ? fillEl.getBoundingClientRect().width : title.getBoundingClientRect().width;
   if (titleWidth > available){
     const factor = available / titleWidth;
     title.style.transform = `${baseTransform} scale(${factor})`;
@@ -688,22 +772,9 @@ load = function(i, autoplay){
   // async positioning (e.g. its onload handler re-running
   // positionArtistPhoto()) can still be settling a frame or two in, and
   // re-fire after a too-early correction, silently undoing it
-  setTimeout(() => {
-    resetControlBaselines();
-    if (ASPECT !== "horizontal") fitSongTitleWidth();
-    positionArtistBlockBottom();
-    alignTitleWithVisualiser();
-    separateTitleFromSubRow();
-    applyLyricsBaseTransform();
-    buildControlPanel();
-    // every load(), not just the first - re-derives each control's
-    // natural base from this track's own (just-recomputed-above) layout
-    // and reasserts its current slider state on top, so a track change
-    // (or a page reload, which re-triggers the very first load()) can
-    // never silently wipe a manual adjustment back to the automated
-    // default the way it used to
-    captureAndReapplyControls();
-  }, 300);
+  setTimeout(runLayoutPass, 300);
+  // (the page can still be settling at 300ms on a slow load: the pass is repeated, it gives the same result each time)
+  if (USE_BG_CLIP){ setTimeout(runLayoutPass, 1500); setTimeout(runLayoutPass, 3500); }
 };
 
 /* 9:16 only: a light shade over the bottom of the frame - in FRONT of the 3D animal, BEHIND the song title and the

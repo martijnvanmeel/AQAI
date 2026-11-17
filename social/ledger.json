@@ -1,0 +1,186 @@
+{
+ "songs": {
+  "1975/I'm an Idiot.wav": {
+   "artist": "Polaroid",
+   "folder": "1975",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-16T00:00:00+01:00",
+    "bgclip": null,
+    "file": "exports/showcase/Polaroid - I Am An Idiot (9x16).mp4",
+    "note": "showcase video, older look (sphere background, with the bottom pill)"
+   },
+   "title": "I Am An Idiot"
+  },
+  "AirBreath/Lovesickness.wav": {
+   "artist": "Aveluna",
+   "folder": "AirBreath",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-16T00:00:00+01:00",
+    "bgclip": null,
+    "file": "exports/showcase/Aveluna - Lovesickness (9x16).mp4",
+    "note": "showcase video, older look (sphere background, with the bottom pill)"
+   },
+   "title": "Lovesickness"
+  },
+  "BOBS PLACE/Wasted Parade.m4a": {
+   "artist": "Downtown",
+   "folder": "BOBS PLACE",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-16T00:00:00+01:00",
+    "bgclip": null,
+    "file": "exports/showcase/Downtown - Wasted Parade (9x16).mp4",
+    "note": "showcase video, older look (sphere background, with the bottom pill)"
+   },
+   "title": "Wasted Parade"
+  },
+  "BeatlesBeltolf/One of Those Things (1).wav": {
+   "artist": "Benjamin Bloom",
+   "folder": "BeatlesBeltolf",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-16T00:00:00+01:00",
+    "bgclip": null,
+    "file": "exports/showcase/Benjamin Bloom - One of Those Things (9x16).mp4",
+    "note": "showcase video, older look (sphere background, with the bottom pill)"
+   },
+   "title": "One of Those Things"
+  },
+  "Collective/Believing.wav": {
+   "artist": "AQAI Collective",
+   "folder": "Collective",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-17T01:39:00+01:00",
+    "bgclip": null,
+    "file": "exports/social/AQAI Collective - Believing (9x16).mp4",
+    "note": "sphere background with a new portrait clip"
+   },
+   "posted": {
+    "facebook": {
+     "at": "2026-11-17T01:43:24+01:00",
+     "url": "https://www.facebook.com/reel/1161918346415166/"
+    },
+    "instagram": {
+     "at": "2026-11-17T01:46:02+01:00",
+     "url": "https://www.instagram.com/reel/Df0q-O5k6xM/"
+    },
+    "youtube": {
+     "at": "2026-11-17T01:43:20+01:00",
+     "url": "https://www.youtube.com/shorts/yajfdl5Ayfw"
+    }
+   },
+   "title": "Believing"
+  },
+  "Collective/Headlights (Cover) (Remastered).wav": {
+   "artist": "AQAI Collective",
+   "folder": "Collective",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-16T00:00:00+01:00",
+    "bgclip": null,
+    "file": "exports/showcase/AQAI Collective - Headlights (9x16).mp4",
+    "note": "showcase video, older look (sphere background, with the bottom pill)"
+   },
+   "title": "Headlights"
+  },
+  "Collective/I Would If I Could.wav": {
+   "artist": "AQAI Collective",
+   "folder": "Collective",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-16T00:00:00+01:00",
+    "bgclip": null,
+    "file": "exports/showcase/AQAI Collective - I Would If I Could (9x16).mp4",
+    "note": "showcase video, older look (sphere background, with the bottom pill)"
+   },
+   "title": "I Would If I Could"
+  },
+  "FrontLinie/Rare Mensen.wav": {
+   "artist": "FrontLinie",
+   "folder": "FrontLinie",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-16T00:00:00+01:00",
+    "bgclip": null,
+    "file": "exports/showcase/FrontLinie - Rare Mensen (9x16).mp4",
+    "note": "showcase video, older look (sphere background, with the bottom pill)"
+   },
+   "title": "Rare Mensen"
+  },
+  "Instrumental/Untitled (1).mp3": {
+   "artist": "Instrumental",
+   "folder": "Instrumental",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-16T00:00:00+01:00",
+    "bgclip": null,
+    "file": "exports/showcase/Instrumental - Untitled (9x16).mp4",
+    "note": "showcase video, older look (sphere background, with the bottom pill)"
+   },
+   "title": "Untitled"
+  },
+  "SilkyRustSoul Woman/Sometime.m4a": {
+   "artist": "Ruby Monroe",
+   "folder": "SilkyRustSoul Woman",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-16T00:00:00+01:00",
+    "bgclip": null,
+    "file": "exports/showcase/Ruby Monroe - Sometime (9x16).mp4",
+    "note": "showcase video, older look (sphere background, with the bottom pill)"
+   },
+   "title": "Sometime"
+  },
+  "SmoothFemaleSinger/A Short Stay (V6).wav": {
+   "artist": "Gold Pennies",
+   "folder": "SmoothFemaleSinger",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-16T00:00:00+01:00",
+    "bgclip": null,
+    "file": "exports/showcase/Gold Pennies - A Short Stay (9x16).mp4",
+    "note": "showcase video, older look (sphere background, with the bottom pill)"
+   },
+   "title": "A Short Stay"
+  },
+  "SmoothSinger/Circling Around Each Other.m4a": {
+   "artist": "Little Wonders",
+   "folder": "SmoothSinger",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-16T00:00:00+01:00",
+    "bgclip": null,
+    "file": "exports/showcase/Little Wonders - Circling Around Each Other (9x16).mp4",
+    "note": "showcase video, older look (sphere background, with the bottom pill)"
+   },
+   "title": "Circling Around Each Other"
+  },
+  "SmoothSinger/Is There Something There.mp3": {
+   "artist": "Little Wonders",
+   "folder": "SmoothSinger",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-16T00:00:00+01:00",
+    "bgclip": null,
+    "file": "exports/showcase/Little Wonders - Is There Something There (9x16).mp4",
+    "note": "showcase video, older look (sphere background, with the bottom pill)"
+   },
+   "title": "Is There Something There?"
+  },
+  "Volux by AQAI/Bitter Heart.m4a": {
+   "artist": "Volux",
+   "folder": "Volux by AQAI",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-16T00:00:00+01:00",
+    "bgclip": null,
+    "file": "exports/showcase/Volux - Bitter Heart (9x16).mp4",
+    "note": "showcase video, older look (sphere background, with the bottom pill)"
+   },
+   "title": "Bitter Heart"
+  }
+ }
+}

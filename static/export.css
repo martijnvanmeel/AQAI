@@ -263,3 +263,13 @@ body.bgclip .artist-photo-fill{opacity:calc(1 - var(--circle-beat, 0) * 0.7)}
 
 /* the videos: the circle is black again (no colour drift) */
 body.bgclip .artist-photo-fill{background:#000000}
+
+/* the videos: a title on several lines sits close together */
+body.bgclip .meta .title{line-height:calc(1em - 5px)}   /* line spacing 5px tighter */
+
+/* the videos: the "by artist" row is where the slider places it (it was 15px lower for a moment, then 15px up again), plus whatever
+   keepArtistBelowTitle() adds (export.js) so it is always below the song title */
+body.bgclip .meta-sub-row{translate:0 var(--artist-extra, 0px)}
+
+/* (no transitions on the title and the "by" row in the videos: their positions are measured to keep the row below the title) */
+body.bgclip .meta .title, body.bgclip #m-title, body.bgclip .meta-sub-row{transition:none !important}
