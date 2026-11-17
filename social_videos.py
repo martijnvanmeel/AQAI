@@ -265,10 +265,19 @@ def cmd_schedule(args):
     day0 = datetime.date.fromisoformat(args.start)
     live = live_track_ids()
     buf = Buffer()
+    taken = [datetime.datetime.fromisoformat(v["scheduled"]["due"]) for v in data["songs"].values() if v.get("scheduled")]
+    floor = max([datetime.datetime.now(tz)] + taken)
+    def slots():
+        day = day0
+        while True:
+            for hh, mm in times:
+                d = datetime.datetime(day.year, day.month, day.day, hh, mm, tzinfo=tz)
+                if d > floor:
+                    yield d
+            day += datetime.timedelta(days=1)
+    slot_iter = slots()
     for i, (key, s) in enumerate(todo[: args.max]):
-        day = day0 + datetime.timedelta(days=i // len(times))
-        hh, mm = times[i % len(times)]
-        due = datetime.datetime(day.year, day.month, day.day, hh, mm, tzinfo=tz)
+        due = next(slot_iter)
         local = os.path.join(HERE, s["made"]["file"])
         name = re.sub(r"[^a-z0-9]+", "-", f"{s['artist']}-{s['title']}".lower()).strip("-") + ".mp4"
         subprocess.run(["scp", "-i", KEY, "-o", "BatchMode=yes", local, f"{HOST}:/opt/aqai/player/static/social/{name}"], check=True)
@@ -294,6 +303,67 @@ def cmd_schedule(args):
         print(f"scheduled {s['artist']} - {s['title']} for {due.strftime('%a %d %b %H:%M')}: {', '.join(sched)}", flush=True)
 
 
+def cmd_cleanup(args):
+    """For every scheduled video whose Buffer posts have all been sent: record the posts as posted (with their links) and delete the
+    video from the server (Buffer fetches the file when the post goes out, so it has to stay until then)."""
+    data = load()
+    buf = None
+    for key, s in data["songs"].items():
+        sch = s.get("scheduled")
+        if sch and not s.get("posted") and not sch.get("removed"):
+            buf = buf or Buffer()
+            states = {}
+            for ch, info in sch["channels"].items():
+                res, err = buf.tool("get_post", {"postId": info["postId"]})
+                states[ch] = (res.get("status"), res.get("externalLink") or res.get("sharedLink") or "")
+            if all(st == "sent" for st, _ in states.values()):
+                s["posted"] = {ch: {"url": url, "at": now()} for ch, (st, url) in states.items()}
+                name = sch["video"].rsplit("/", 1)[-1]
+                subprocess.run(["ssh", "-i", KEY, "-o", "BatchMode=yes", HOST, f"rm -f /opt/aqai/player/static/social/{name}"], check=True)
+                sch["removed"] = now()
+                print(f"posted + removed from the server: {s['artist']} - {s['title']}", flush=True)
+            else:
+                print(f"waiting: {s['artist']} - {s['title']} {states}", flush=True)
+            save(data)
+
+
+def cmd_remove_hosted(args):
+    """Delete a hosted video from the server by file name (only for videos whose posts are all sent)."""
+    subprocess.run(["ssh", "-i", KEY, "-o", "BatchMode=yes", HOST, f"rm -f /opt/aqai/player/static/social/{os.path.basename(args.name)}"], check=True)
+    print("removed", args.name)
+
+
+def cmd_auto(args):
+    """Keeps the schedule filled: removes sent videos from the server, renders more songs when fewer than --days-ahead days are scheduled,
+    schedules them, and sleeps. Run it in the background; stop it with Ctrl+C / kill."""
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo("Europe/Amsterdam")
+    per_day = len(args.times.split(","))
+    while True:
+        try:
+            cmd_cleanup(args)
+        except Exception as e:
+            print("cleanup problem:", e, flush=True)
+        data = load()
+        n_future = sum(1 for v in data["songs"].values()
+                       if v.get("scheduled") and datetime.datetime.fromisoformat(v["scheduled"]["due"]) > datetime.datetime.now(tz))
+        n_ready = sum(1 for v in data["songs"].values()
+                      if (v.get("made") or {}).get("bgclip") and not v.get("scheduled") and not v.get("posted"))
+        target = args.days_ahead * per_day
+        print(f"[{now()}] scheduled ahead: {n_future} (target {target}), rendered and waiting: {n_ready}", flush=True)
+        try:
+            if n_ready:
+                cmd_schedule(argparse.Namespace(start=datetime.datetime.now(tz).date().isoformat(), times=args.times, max=n_ready))
+            elif n_future < target:
+                cmd_make(argparse.Namespace(count=min(4, target - n_future), workers=4, seed=None, include=None, min_seconds=60))
+                continue
+        except SystemExit as e:
+            print("stopped step:", e, flush=True)
+        except Exception as e:
+            print("problem:", e, flush=True)
+        time.sleep(args.sleep_minutes * 60)
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -310,6 +380,15 @@ def main():
     sc.add_argument("--times", default="09:00,14:00,19:00")
     sc.add_argument("--max", type=int, default=9)
     sc.set_defaults(fn=cmd_schedule)
+    sub.add_parser("cleanup").set_defaults(fn=cmd_cleanup)
+    rh = sub.add_parser("remove-hosted")
+    rh.add_argument("name")
+    rh.set_defaults(fn=cmd_remove_hosted)
+    au = sub.add_parser("auto")
+    au.add_argument("--days-ahead", type=int, default=14)
+    au.add_argument("--times", default="09:00,14:00,19:00")
+    au.add_argument("--sleep-minutes", type=int, default=30)
+    au.set_defaults(fn=cmd_auto)
     p = sub.add_parser("posted")
     p.add_argument("song")
     p.add_argument("where", nargs="+", help="channel=URL, e.g. youtube=https://...")
