@@ -36,6 +36,35 @@
    },
    "title": "Wasted Parade"
   },
+  "BeatlesBeltolf/I'm So Happy With You.wav": {
+   "artist": "Benjamin Bloom",
+   "folder": "BeatlesBeltolf",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-17T08:30:13+01:00",
+    "bgclip": "021 I Can Feel My Own Heartbeat.mp4",
+    "file": "exports/social/Benjamin Bloom - I'm So Happy With You (9x16).mp4"
+   },
+   "scheduled": {
+    "at": "2026-11-17T21:30:59+01:00",
+    "channels": {
+     "facebook": {
+      "dueAt": "2026-11-18T18:00:00.000Z",
+      "postId": "6afcb98130e8d67e7ca1a5ed"
+     },
+     "instagram": {
+      "dueAt": "2026-11-18T18:00:00.000Z",
+      "postId": "6afcb98230e8d67e7ca1a675"
+     }
+    },
+    "due": "2026-11-18T19:00:00+01:00",
+    "skipped": {
+     "youtube": "longer than 3 minutes (YouTube Shorts)"
+    },
+    "video": "https://aqaimusic.com/social/benjamin-bloom-i-m-so-happy-with-you.mp4"
+   },
+   "title": "I'm So Happy With You"
+  },
   "BeatlesBeltolf/One of Those Things (1).wav": {
    "artist": "Benjamin Bloom",
    "folder": "BeatlesBeltolf",
@@ -97,6 +126,36 @@
     "note": "showcase video, older look (sphere background, with the bottom pill)"
    },
    "title": "I Would If I Could"
+  },
+  "Collective/So Difficult With You.wav": {
+   "artist": "AQAI Collective",
+   "folder": "Collective",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-17T08:19:32+01:00",
+    "bgclip": "001 Another Thing Is Different.mp4",
+    "file": "exports/social/AQAI Collective - So Difficult With You (9x16).mp4"
+   },
+   "scheduled": {
+    "at": "2026-11-17T21:30:38+01:00",
+    "channels": {
+     "facebook": {
+      "dueAt": "2026-11-18T09:00:00+01:00",
+      "postId": "6afca0de7ab2c2731e0b602a"
+     },
+     "instagram": {
+      "dueAt": "2026-11-18T09:00:00+01:00",
+      "postId": "6afca0e01521a8d022960cb8"
+     },
+     "youtube": {
+      "dueAt": "2026-11-18T09:00:00+01:00",
+      "postId": "6afca0e27ab2c2731e0b6198"
+     }
+    },
+    "due": "2026-11-18T09:00:00+01:00",
+    "video": "https://aqaimusic.com/social/aqai-collective-so-difficult-with-you.mp4"
+   },
+   "title": "So Difficult With You"
   },
   "FrontLinie/Rare Mensen.wav": {
    "artist": "FrontLinie",
@@ -169,6 +228,36 @@
     "note": "showcase video, older look (sphere background, with the bottom pill)"
    },
    "title": "Is There Something There?"
+  },
+  "SmoothSinger/Things That Go About.wav": {
+   "artist": "Little Wonders",
+   "folder": "SmoothSinger",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-17T08:22:37+01:00",
+    "bgclip": "026 Me And Complexity.mp4",
+    "file": "exports/social/Little Wonders - Things That Go About (9x16).mp4"
+   },
+   "scheduled": {
+    "at": "2026-11-17T21:30:52+01:00",
+    "channels": {
+     "facebook": {
+      "dueAt": "2026-11-18T14:00:00+01:00",
+      "postId": "6afca0e676241fcf0c6c2854"
+     },
+     "instagram": {
+      "dueAt": "2026-11-18T14:00:00+01:00",
+      "postId": "6afca0e87ab2c2731e0b695a"
+     },
+     "youtube": {
+      "dueAt": "2026-11-18T13:00:00.000Z",
+      "postId": "6afcb97ca4d3be4123fcce66"
+     }
+    },
+    "due": "2026-11-18T14:00:00+01:00",
+    "video": "https://aqaimusic.com/social/little-wonders-things-that-go-about.mp4"
+   },
+   "title": "Things That Go About"
   },
   "Volux by AQAI/Bitter Heart.m4a": {
    "artist": "Volux",

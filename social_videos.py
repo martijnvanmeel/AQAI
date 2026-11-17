@@ -125,6 +125,8 @@ def cmd_make(args):
     open_songs = [(k, t) for k, t in lib if not (data["songs"].get(k) or {}).get("made")]
     if args.min_seconds:
         open_songs = [(k, t) for k, t in open_songs if (t.get("duration") or 0) >= args.min_seconds]
+    if getattr(args, "max_seconds", None):
+        open_songs = [(k, t) for k, t in open_songs if (t.get("duration") or 0) <= args.max_seconds]
     if not open_songs:
         sys.exit("every song already has a video")
     rng = random.Random(args.seed)
@@ -242,7 +244,7 @@ class Buffer:
             data, _ = json.JSONDecoder().raw_decode(txt)
         except Exception:
             data = {"raw": txt}
-        return data, bool(res.get("isError")) or "error" in (data if isinstance(data, dict) else {})
+        return data, bool(res.get("isError")) or bool(isinstance(data, dict) and data.get("error"))
 
 
 def live_track_ids():
@@ -256,7 +258,8 @@ def cmd_schedule(args):
     from zoneinfo import ZoneInfo
     data = load()
     todo = [(k, s) for k, s in sorted(data["songs"].items(), key=lambda kv: (kv[1].get("made") or {}).get("at", ""))
-            if (s.get("made") or {}).get("bgclip") and not s.get("posted") and not s.get("scheduled")
+            if (s.get("made") or {}).get("bgclip") and not s.get("posted")
+            and len((s.get("scheduled") or {}).get("channels", {})) + len((s.get("scheduled") or {}).get("skipped", {})) < len(BUFFER_CHANNELS)
             and os.path.exists(os.path.join(HERE, s["made"]["file"]))]
     if not todo:
         sys.exit("no finished, unscheduled videos")
@@ -277,7 +280,8 @@ def cmd_schedule(args):
             day += datetime.timedelta(days=1)
     slot_iter = slots()
     for i, (key, s) in enumerate(todo[: args.max]):
-        due = next(slot_iter)
+        prev = s.get("scheduled")
+        due = datetime.datetime.fromisoformat(prev["due"]) if prev else next(slot_iter)
         local = os.path.join(HERE, s["made"]["file"])
         name = re.sub(r"[^a-z0-9]+", "-", f"{s['artist']}-{s['title']}".lower()).strip("-") + ".mp4"
         subprocess.run(["scp", "-i", KEY, "-o", "BatchMode=yes", local, f"{HOST}:/opt/aqai/player/static/social/{name}"], check=True)
@@ -285,21 +289,27 @@ def cmd_schedule(args):
         url = "https://aqaimusic.com/social/" + name
         tid = live.get((s["artist"], s["title"]))
         text = f"Listening to \u201c{s['title']}\u201d by {s['artist']}" + (f"\nhttps://www.aqaimusic.com/?t={tid}" if tid else "")
-        sched = {}
+        sched = dict((prev or {}).get("channels", {}))
         for ch, cid in BUFFER_CHANNELS.items():
+            if ch in sched:
+                continue          # (this channel's post already exists in Buffer: never created twice)
             md = {"facebook": {"facebook": {"type": "reel"}},
                   "instagram": {"instagram": {"type": "reel", "shouldShareToFeed": True, "isAiGenerated": True}},
                   "youtube": {"youtube": {"title": f"{s['title']} \u2013 {s['artist']}"[:100], "categoryId": "10", "privacy": "public",
                                            "madeForKids": False, "isAiGenerated": True}}}[ch]
             res, err = buf.tool("create_post", {"channelId": cid, "schedulingType": "automatic", "mode": "customScheduled",
                                                 "dueAt": due.isoformat(), "text": text, "assets": [{"video": {"url": url}}], "metadata": md})
-            if err:
-                print(f"  {ch}: ERROR {res}", flush=True)
+            if err and "no longer than 3 minutes" in json.dumps(res):
+                skipped = data["songs"][key].setdefault("scheduled", {"at": now(), "due": due.isoformat(), "video": url, "channels": sched})
+                skipped.setdefault("skipped", {})[ch] = "longer than 3 minutes (YouTube Shorts)"
+                save(data)
+                print(f"  {ch}: skipped (video longer than 3 minutes)", flush=True)
+            elif err:
+                print(f"  {ch}: ERROR {json.dumps(res)[:300]}", flush=True)
             else:
                 sched[ch] = {"postId": res.get("id"), "dueAt": res.get("dueAt") or due.isoformat()}
-        if sched:
-            data["songs"][key]["scheduled"] = {"at": now(), "due": due.isoformat(), "video": url, "channels": sched}
-            save(data)
+                data["songs"][key]["scheduled"] = {"at": now(), "due": due.isoformat(), "video": url, "channels": sched}
+                save(data)        # (after every channel, so a stop in the middle never loses track of a post)
         print(f"scheduled {s['artist']} - {s['title']} for {due.strftime('%a %d %b %H:%M')}: {', '.join(sched)}", flush=True)
 
 
@@ -355,7 +365,7 @@ def cmd_auto(args):
             if n_ready:
                 cmd_schedule(argparse.Namespace(start=datetime.datetime.now(tz).date().isoformat(), times=args.times, max=n_ready))
             elif n_future < target:
-                cmd_make(argparse.Namespace(count=min(4, target - n_future), workers=4, seed=None, include=None, min_seconds=60))
+                cmd_make(argparse.Namespace(count=min(4, target - n_future), workers=2, seed=None, include=None, min_seconds=60, max_seconds=179))
                 continue
         except SystemExit as e:
             print("stopped step:", e, flush=True)
@@ -373,6 +383,7 @@ def main():
     m.add_argument("--workers", type=int, default=4)
     m.add_argument("--seed", type=int, default=None)
     m.add_argument("--include", action="append", help="\"Artist - Title\" that must be among the songs (repeatable)")
+    m.add_argument("--max-seconds", type=int, default=None, help="skip songs longer than this (YouTube Shorts allow 180)")
     m.add_argument("--min-seconds", type=int, default=60, help="skip songs shorter than this (default 60)")
     m.set_defaults(fn=cmd_make)
     sc = sub.add_parser("schedule")
