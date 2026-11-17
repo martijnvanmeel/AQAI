@@ -231,3 +231,16 @@ body.bgclip #stage, body.bgclip #sphere-vignette{display:none !important}
 /* the background clip is 40% transparent (60% opaque), over black, so it comes out darker */
 body.bgclip #export-bg-clip{opacity:.6}
 body.bgclip #app{background:#000000}
+
+/* the video exports, back to front: the background clip, the black circle, the karaoke lyrics, the visualiser, the 3D animal, the song
+   title and the artist name. .player stops being its own layer, so all of its parts can be placed between the lyrics and the rest. */
+body.bgclip .player{z-index:auto}
+body.bgclip .artist-photo-wrap{z-index:2}     /* the black circle (it is the only visible thing in this wrapper) */
+body.bgclip #lyrics{z-index:3}                /* the karaoke lyrics: in front of the circle */
+body.bgclip #wave-canvas{z-index:4}           /* the visualiser: in front of the lyrics */
+body.bgclip #fox-3d-canvas,
+body.bgclip #fox-lower-shade{z-index:5}       /* the 3D animal: in front of the visualiser */
+body.bgclip .meta-row{z-index:6}              /* song title + "by" artist name: in front of everything */
+/* the pill / device at the bottom is not in the videos */
+body.bgclip #export-cta,
+body.bgclip .logo-text.export-pill-logo{display:none !important}

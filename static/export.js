@@ -776,6 +776,7 @@ const EXPORT_CTA_TEXT = "More songs at ";
 const EXPORT_CTA_URL = "aqaimusic.com";
 if (ASPECT === "vertical" || ASPECT === "square" || ASPECT === "horizontal"){ // 9:16, 1:1 and 16:9 (not 4:5)
   (function bottomCta(){
+    if (USE_BG_CLIP) return;   // the videos have no pill / device at the bottom (and the logo stays at the top)
     const app = document.querySelector("#app");
     if (!app){ requestAnimationFrame(bottomCta); return; }
     let box = document.getElementById("export-cta");
