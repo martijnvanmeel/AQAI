@@ -248,6 +248,8 @@ body.bgclip .logo-text.export-pill-logo{display:none !important}
 /* the videos: no artist-colour glow at the bottom (and no coloured strip at the window's bottom edge in the preview); the black fade at the top stays */
 body.bgclip #bg-gradient{
   background:
+    /* a dark gradient from the bottom: black at 50% at the bottom edge, fading to 0% at one third of the height */
+    linear-gradient(to top, rgba(0,0,0,.5) 0%, rgba(0,0,0,0) 33.333%),
     linear-gradient(to bottom, rgba(0,0,0,.5) 0%, rgba(0,0,0,0) 25%) !important;
 }
 html:has(body.bgclip)::after{display:none !important}
