@@ -6860,8 +6860,6 @@ function syncLyricsGlow(){
   g.style.top = (cy - g.offsetHeight / 2).toFixed(1) + "px";
 }
 let circleBeat = 0, circleBassHi = null, circleBassLo = 0;
-const CIRCLE_COLORS = ["#7ED957", "#FF8A73", "#FF8FDB", "#7FD6FF", "#FFC27A", "#9B72FF", "#1E90FF", "#FF7F27", "#8C6FFF", "#52C41A", "#FFD700", "#CBA378", "#7CFF9E"]
-  .map(h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)));
 function animate(t){
   requestAnimationFrame(animate);
   syncLyricsGlow();
@@ -6890,13 +6888,6 @@ function animate(t){
     }
     circleBeat += (bass - circleBeat) * (1 - Math.exp(-dtSec * (bass > circleBeat ? 18 : 6)));
     document.documentElement.style.setProperty("--circle-beat", circleBeat.toFixed(4));
-    // the circle's colour drifts slowly through the artist colours (4s from one to the next, tied to the song's own time, so a
-    // song always gets the same colours); darkened to ~60% so the white title in front of it stays readable
-    const songT = (typeof audioEls !== "undefined" && audioEls[cur]) ? audioEls[cur].currentTime : (t || 0) * 0.001;
-    const pos = (songT / 4) % CIRCLE_COLORS.length, i0 = Math.floor(pos), f0 = pos - i0, f = f0 * f0 * (3 - 2 * f0);
-    const c0 = CIRCLE_COLORS[i0], c1 = CIRCLE_COLORS[(i0 + 1) % CIRCLE_COLORS.length];
-    const mix = k => Math.round((c0[k] + (c1[k] - c0[k]) * f) * 0.6);
-    document.documentElement.style.setProperty("--circle-color", `rgb(${mix(0)}, ${mix(1)}, ${mix(2)})`);
   }
   // both the speed factor and the roll rate ease toward their key-driven
   // targets rather than jumping, so a press ramps in and a release ramps
