@@ -2,5 +2,13 @@
 # Caddy automatically provisions and renews HTTPS via Let's Encrypt -
 # no certbot, no manual cert config.
 aqaimusic.com, www.aqaimusic.com {
-    reverse_proxy 127.0.0.1:8420
+    # /social/ holds the clips that are posted to social networks (Buffer, Instagram ...): served straight by Caddy,
+    # which answers HEAD requests and byte ranges - the app server does not answer HEAD
+    handle /social/* {
+        root * /opt/aqai/player/static
+        file_server
+    }
+    handle {
+        reverse_proxy 127.0.0.1:8420
+    }
 }
