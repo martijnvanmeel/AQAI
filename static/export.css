@@ -273,3 +273,7 @@ body.bgclip .meta-sub-row{translate:0 var(--artist-extra, 0px)}
 
 /* (no transitions on the title and the "by" row in the videos: their positions are measured to keep the row below the title) */
 body.bgclip .meta .title, body.bgclip #m-title, body.bgclip .meta-sub-row{transition:none !important}
+
+/* the videos: nothing coloured behind the background clip - the artist-colour wash that sits behind the sphere is off, so the clip
+   lies on pure black (this was tinting the whole picture in the artist's colour) */
+body.bgclip #pre-sphere-layer{display:none !important}
