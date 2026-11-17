@@ -95,7 +95,7 @@ def main():
         t, scene, aspect, label, final, key = job
         part = final[:-4] + ".part.mp4"
         cmd = [sys.executable, "-m", "video_export.offline", t["id"], aspect, part, "--fps", str(a.fps), "--crf", a.crf,
-               "--maxrate", a.maxrate, "--preset", a.preset, "--shot", "jpeg", "--scene", scene, "--port", str(a.port)]
+               "--maxrate", a.maxrate, "--preset", a.preset, "--shot", "jpeg", "--port", str(a.port)]   # (the background clip is picked per song by the renderer)
         log = open(os.path.join(a.out, "render.log"), "a")
         log.write(f"\n=== {t['id']} {aspect} scene={scene} {t.get('artist')} - {t['title']}\n")
         log.flush()

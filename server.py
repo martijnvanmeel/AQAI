@@ -44,7 +44,7 @@ ANIMS_DIR = os.path.join(LIBRARY_ROOT, "anims")
 INCLUDE_OLD_PANORAMAS = False
 # TEMPORARY: while True and anims/new holds clips, ONLY those (portrait) movies are listed as backgrounds - every background pick is one
 # of them (the player then also skips the 3D scenes). Set to False to go back to the normal pool.
-TEMP_ONLY_NEW_CLIPS = True
+TEMP_ONLY_NEW_CLIPS = False   # (off again: the clips of anims/new are not used)
 NEW_CLIPS_DIR = os.path.join(ANIMS_DIR, "new")
 SONG_NAMES_PATH = os.path.join(LIBRARY_ROOT, "song_names.json")
 # manually flagged by the owner from the player's "flag this song's lyrics"
@@ -704,6 +704,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send_json({"files": files})
             return
 
+        if path == "/api/anim-clips":
+            # every clip of the anims folder (and its "new" sub-folder): the video exports pick one of these as a full-screen background
+            # (only the clips directly in anims/: never the _pp copies or the "new" sub-folder)
+            names = sorted(f for f in os.listdir(ANIMS_DIR) if f.lower().endswith(".mp4") and not f.startswith(".")
+                           and os.path.isfile(os.path.join(ANIMS_DIR, f))) if os.path.isdir(ANIMS_DIR) else []
+            self._send_json({"files": names})
+            return
+
+        if path.startswith("/anim-clip/"):
+            # a clip of anims/ exactly as it is (not the forward+reverse copy of /panorama2/)
+            name = os.path.basename(path[len("/anim-clip/"):])
+            filepath = os.path.join(ANIMS_DIR, name)
+            if not name.lower().endswith(".mp4") or not os.path.isfile(filepath):
+                self.send_error(404, "Clip not found")
+                return
+            self._serve_audio(filepath)
+            return
+
         if path == "/api/panoramas2":
             if TEMP_ONLY_NEW_CLIPS and os.path.isdir(NEW_CLIPS_DIR):
                 new_clips = sorted((f for f in os.listdir(NEW_CLIPS_DIR) if f.lower().endswith(".mp4") and not f.startswith(".")),
@@ -723,7 +741,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                             paths[f] = os.path.join(d, f)
             files = sorted(paths, key=lambda f: os.path.getmtime(paths[f]), reverse=True)
             anim_names = set(os.listdir(ANIMS_DIR)) if os.path.isdir(ANIMS_DIR) else set()
-            self._send_json({"files": files, "pingpong": [f for f in files if f in anim_names and f not in ("_pp",)]})
+            self._send_json({"files": files, "pingpong": []})   # (no ping-pong copies: anims/_pp is not used)
             return
 
         if path.startswith("/panorama/"):
@@ -748,8 +766,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not name.lower().endswith((".mp4", ".gif")) or not os.path.isfile(filepath):
                 self.send_error(404, "Panorama not found")
                 return
-            if is_anim and name.lower().endswith(".mp4"):
-                filepath = ensure_pingpong(filepath)
+            # (the clips play as they are in anims/: the forward+reverse copies of anims/_pp are not used any more)
             self._serve_audio(filepath)
             return
 

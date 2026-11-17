@@ -27,6 +27,27 @@ const FORCED_SCENE = params.get("scene");
 // scene=sphere&pano=<clip file> shows that video clip on the sphere: a numbered portrait clip ("003 For You.mp4") shows as the upright
 // portrait video, any other clip as the panorama sphere. The clip stays on its own (no automatic switch to a next portrait clip).
 const FORCED_PANO = params.get("pano");
+// default for the exports: one clip of the anims folder as a flat full-screen background (no sphere). bgclip=<file> names the clip
+// (the video renders pick one per song); without it the preview picks a random one. scene=<id> still shows a 3D scene / the sphere.
+const USE_BG_CLIP = !FORCED_SCENE;
+if (USE_BG_CLIP){ window.__noSphere = true; document.body.classList.add("bgclip"); }
+const BG_CLIP_PARAM = params.get("bgclip");
+function initBgClip(){
+  const v = document.getElementById("export-bg-clip");
+  if (!USE_BG_CLIP || !v) return;
+  const start = file => {
+    v.src = "/anim-clip/" + encodeURIComponent(file);   // the clip as it is in anims/ (not the _pp copy)
+    v.muted = true; v.loop = true; v.playsInline = true;
+    window.__bgClipEl = v;
+    v.play().catch(() => {});
+  };
+  if (BG_CLIP_PARAM){ start(BG_CLIP_PARAM); return; }
+  fetch("/api/anim-clips").then(r => r.json()).then(d => {
+    const files = (d.files || []);
+    if (files.length) start(files[Math.floor(Math.random() * files.length)]);
+  }).catch(() => {});
+}
+
 if (FORCED_PANO) window.__noPortraitSwap = true;
 if (FORCED_SCENE){
   setBgVideoForTrack = function(){
@@ -212,7 +233,8 @@ function layoutSettled(){
       const fontsOk = !document.fonts || document.fonts.status === "loaded";
       // (a forced background clip must have its first picture before the music starts)
       const panoOk = !FORCED_PANO || (typeof panoVideoEl !== "undefined" && panoVideoEl.readyState >= 2 && !!panoVideoEl.videoWidth);
-      const ready = fontsOk && panoOk;
+      const clipOk = !USE_BG_CLIP || (window.__bgClipEl && window.__bgClipEl.readyState >= 2 && !!window.__bgClipEl.videoWidth);
+      const ready = fontsOk && panoOk && clipOk;
       const sig = signature();
       stable = ready && sig === last ? stable + 1 : 0;
       last = sig;
@@ -234,6 +256,7 @@ function startExport(){
   EDITABLE = false;
   updateEditControlsVisibility();
   dismissGate();
+  initBgClip();
   // a preview in a normal browser starts the music only when every element has been put in its place (see layoutSettled() below);
   // a recording starts straight away as before (its own clock drives it)
   load(idx, IS_RECORDING);

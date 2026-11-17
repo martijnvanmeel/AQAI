@@ -72,6 +72,14 @@ INIT_JS = r"""
 """
 
 
+def pick_bgclip(track_id, anims_dir=None):
+    """The flat background clip of a song's video: one of the clips directly in the anims folder, the same one every render of that song."""
+    import hashlib
+    base = anims_dir or os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "anims")
+    names = sorted(f for f in os.listdir(base) if f.lower().endswith(".mp4") and not f.startswith(".") and os.path.isfile(os.path.join(base, f)))   # (anims/ itself only: never _pp or new)
+    return names[int(hashlib.sha1(track_id.encode()).hexdigest(), 16) % len(names)] if names else None
+
+
 def _decode_mono(path, sr):
     p = subprocess.run([FFMPEG, "-v", "error", "-i", path, "-f", "f32le", "-ac", "1", "-ar", str(sr), "-"],
                        capture_output=True)
@@ -166,7 +174,7 @@ ANIM_JS = r"""
 
 
 def render(track, aspect, out_path, static_dir, server_port, fps=60, seconds=None, start_at=0.0,
-           crf=14, preset="slow", progress_cb=None, log=print, shot_format="png", scene=None, pano=None, maxrate=None, bufsize=None, jpeg_quality=95):
+           crf=14, preset="slow", progress_cb=None, log=print, shot_format="png", scene=None, pano=None, bgclip=None, maxrate=None, bufsize=None, jpeg_quality=95):
     """Render `track` (a server track dict with 'id' and '_path') in the given aspect to out_path (mp4).
     seconds: only render that many seconds of the song (testing); start_at: first second to render."""
     from playwright.sync_api import sync_playwright
@@ -186,6 +194,11 @@ def render(track, aspect, out_path, static_dir, server_port, fps=60, seconds=Non
     n_frames = int(round(seconds * fps))
     step_ms = 1000.0 / fps
     url = f"http://127.0.0.1:{server_port}/export.html?id={track['id']}&aspect={aspect}&record=1"
+    if not scene and not bgclip:
+        bgclip = pick_bgclip(track["id"])
+    if bgclip and not scene:
+        from urllib.parse import quote as _q
+        url += f"&bgclip={_q(bgclip)}"
     if scene:
         url += f"&scene={scene}"
     if pano:
@@ -313,6 +326,7 @@ if __name__ == "__main__":
     ap.add_argument("--start", type=float, default=0.0)
     ap.add_argument("--port", type=int, default=8420)
     ap.add_argument("--scene", default=None)
+    ap.add_argument("--bgclip", default=None, help="the flat full-screen background clip (default: one picked per song from the anims folder)")
     ap.add_argument("--pano", default=None, help="with --scene sphere: the background clip file (a numbered one = the upright portrait video)")
     ap.add_argument("--shot", default="png", choices=["png", "jpeg"])
     ap.add_argument("--maxrate", default=None)
@@ -320,6 +334,6 @@ if __name__ == "__main__":
     import server
     trk = next(x for x in server.scan_library() if x["id"] == a.track_id)
     render(trk, a.aspect, a.out, server.STATIC_DIR, a.port, fps=a.fps, seconds=a.seconds, start_at=a.start,
-           crf=a.crf, preset=a.preset, scene=a.scene, pano=a.pano, shot_format=a.shot, maxrate=a.maxrate,
+           crf=a.crf, preset=a.preset, scene=a.scene, pano=a.pano, bgclip=a.bgclip, shot_format=a.shot, maxrate=a.maxrate,
            log=lambda *m: print(*m, flush=True))
     print("DONE", a.out, flush=True)

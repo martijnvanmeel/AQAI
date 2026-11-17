@@ -222,3 +222,12 @@ body.aspect-vertical:not(.recording) #export-cta-pill{border-color:color-mix(in 
 body.aspect-vertical:not(.recording) #export-cta-lead,
 body.aspect-vertical:not(.recording) #export-cta-url{color:color-mix(in srgb, var(--artist-color, #ffffff) 64%, #ffffff) !important}
 body.aspect-vertical:not(.recording) .home-top .logo-text.export-pill-logo{color:color-mix(in srgb, var(--artist-color, #ffffff) 64%, #ffffff) !important}
+
+/* the video exports: a clip of the anims folder fills the frame as a flat background (object-fit: cover), instead of the sphere */
+#export-bg-clip{display:none}
+body.bgclip #export-bg-clip{display:block;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none}
+body.bgclip #stage, body.bgclip #sphere-vignette{display:none !important}
+
+/* the background clip is 40% transparent (60% opaque), over black, so it comes out darker */
+body.bgclip #export-bg-clip{opacity:.6}
+body.bgclip #app{background:#000000}

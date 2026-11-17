@@ -2983,7 +2983,7 @@ panoMat.onBeforeCompile = shader => {
       // heavily dimmed than before (was 0.49) so the video reads clearly
       // instead of muddy; the intro sphere is unused now (see tunnelGroup)
       // but its 0.2 dim is kept as-is in case uGate is ever driven again
-      gl_FragColor.rgb *= mix(0.72, 0.2, uGate);   // the background video: 10% darker, then 20% darker again (0.9 x 0.8)
+      gl_FragColor.rgb *= mix(0.36, 0.2, uGate);   // the background video: 10% darker, 20% darker again (0.9 x 0.8), then 50% darker (x 0.5)
       // background grid: thin glowing horizontal lines baked onto the
       // curved surface itself (patch UV, like the scanlines above),
       // tinted half the current artist color and added on top rather
@@ -6380,7 +6380,7 @@ function updateArtistBackground(tr){
   document.body.classList.toggle("scene-hands", wantHands);
   orbsGroup.visible = wantOrbs;
   const wantSphere = !gateActive && !want3d;
-  if (panoMesh) panoMesh.visible = wantSphere && !panoPortraitLoading;
+  if (panoMesh) panoMesh.visible = wantSphere && !panoPortraitLoading && !window.__noSphere;   // (the video exports show a flat full-screen clip instead of the sphere)
   if (!wantSphere) panoSideMeshes.forEach(m => { m.visible = false; });
   // snap the lerp-follow camera state straight to the tunnel's centerline
   // the instant this scene turns on - otherwise the camera starts at
