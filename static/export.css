@@ -244,3 +244,12 @@ body.bgclip .meta-row{z-index:6}              /* song title + "by" artist name: 
 /* the pill / device at the bottom is not in the videos */
 body.bgclip #export-cta,
 body.bgclip .logo-text.export-pill-logo{display:none !important}
+
+/* the videos: the artist-colour glow at the bottom is 50% less strong (35% in its centre, was 70%); the black fade at the top stays */
+body.bgclip #bg-gradient{
+  background:
+    radial-gradient(ellipse 75% 35% at 50% 100%,
+      color-mix(in srgb, var(--artist-color, var(--active-green)) 35%, transparent) 0%,
+      color-mix(in srgb, var(--artist-color, var(--active-green)) 0%, transparent) 100%),
+    linear-gradient(to bottom, rgba(0,0,0,.5) 0%, rgba(0,0,0,0) 25%) !important;
+}
