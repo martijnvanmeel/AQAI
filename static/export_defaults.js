@@ -7,47 +7,47 @@ window.EXPORT_DEFAULTS = {
     "targets": {
       "Circle/creature": {
         "x": 0.0,
-        "y": 593.0,
-        "scale": 0.78
+        "y": -83.0,
+        "scale": 1.9
       },
       "Visualiser": {
         "x": 0.0,
-        "y": 572.5,
-        "scale": 0.99
+        "y": 0.0,
+        "scale": 0.71
       },
       "Song title": {
         "x": 0.0,
-        "y": 410.7,
-        "scale": 1.0
+        "y": 197.3,
+        "scale": 0.83
       },
       "By/artist": {
         "x": 0.0,
-        "y": 320.4,
-        "scale": 0.95
+        "y": -73.0,
+        "scale": 0.89
       },
       "AQAI logo": {
-        "x": 0.0,
-        "y": -23.1,
-        "scale": 1.51
+        "x": -3.1,
+        "y": 677.0,
+        "scale": 1.08
       },
       "3D object": {
-        "x": 0.0,
-        "y": -68.0,
-        "scale": 1.13
+        "x": 2.0,
+        "y": -210.5,
+        "scale": 1.34
       },
       "Karaoke text": {
         "x": 0.0,
-        "y": 31.5,
-        "scale": 1.02
+        "y": 100.8,
+        "scale": 0.9
       }
     },
     "watermark": {
-      "y": -52.5,
-      "scale": 1.14
+      "y": -49.2,
+      "scale": 1.05
     },
     "frame": {
-      "w": 586.0,
-      "h": 1042.0
+      "w": 550.0,
+      "h": 978.0
     }
   },
   "square": {
@@ -148,47 +148,47 @@ window.EXPORT_DEFAULTS = {
     "targets": {
       "Circle/creature": {
         "x": 0.0,
-        "y": 373.0,
+        "y": 365.2,
         "scale": 1.01
       },
       "Visualiser": {
         "x": 0.0,
-        "y": 289.0,
-        "scale": 1.0
+        "y": 0.0,
+        "scale": 0.73
       },
       "Song title": {
         "x": 0.0,
-        "y": 147.0,
-        "scale": 1.22
+        "y": 79.1,
+        "scale": 1.1
       },
       "By/artist": {
         "x": 0.0,
-        "y": 43.0,
-        "scale": 1.22
+        "y": -39.0,
+        "scale": 0.97
       },
       "AQAI logo": {
-        "x": -170.4,
-        "y": 751.1,
+        "x": -1.0,
+        "y": 672.0,
         "scale": 0.624
       },
       "3D object": {
         "x": 0.0,
-        "y": -89.0,
+        "y": -924.3,
         "scale": 0.95
       },
       "Karaoke text": {
         "x": 0.0,
-        "y": 60.0,
-        "scale": 1.66
+        "y": -12.0,
+        "scale": 1.32
       }
     },
     "watermark": {
-      "y": -47.2,
+      "y": -46.2,
       "scale": 1.09
     },
     "frame": {
-      "w": 1448.0,
-      "h": 815.0
+      "w": 1418.0,
+      "h": 798.0
     }
   }
 };

@@ -42,7 +42,7 @@ INIT_JS = r"""
   let seed = 0x9E3779B9;
   Math.random = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
   const R = window.__R = { playing: false, t0: 0, base: 0, go: false, waiter: null, freq: null, td: null, audioEl: null };
-  const nowT = () => R.base + (performance.now() - R.t0) / 1000;
+  const nowT = () => R.base + (performance.now() - R.t0) / 1000 - (R.lag || 0);   // (R.lag: the render loop's own head start, see render())
   const P = HTMLMediaElement.prototype;
   const dCur = Object.getOwnPropertyDescriptor(P, 'currentTime');
   Object.defineProperty(P, 'currentTime', {
@@ -72,11 +72,33 @@ INIT_JS = r"""
 """
 
 
+def pinned_bgclip(track):
+    """The background clip the owner pinned to this song in the player (social/bgclips.json), if it still exists."""
+    try:
+        import json
+        here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))          # .../player
+        root = os.path.dirname(here)                                                 # the library root
+        with open(os.path.join(here, "social", "bgclips.json"), encoding="utf-8") as fh:
+            pins = json.load(fh)
+        clip = pins.get(os.path.relpath(track.get("_path", ""), root))
+        if clip and os.path.isfile(os.path.join(root, "anims", clip)):
+            return clip
+    except (OSError, ValueError, TypeError):
+        pass
+    return None
+
+
 def pick_bgclip(track_id, anims_dir=None):
     """The flat background clip of a song's video: one of the clips directly in the anims folder, the same one every render of that song."""
     import hashlib
     base = anims_dir or os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "anims")
-    names = sorted(f for f in os.listdir(base) if f.lower().endswith(".mp4") and not f.startswith(".") and os.path.isfile(os.path.join(base, f)))   # (anims/ itself only: never _pp or new)
+    try:                                         # (the clips the owner excluded on the preview page: anims/.excluded.json)
+        import json
+        with open(os.path.join(base, ".excluded.json"), encoding="utf-8") as fh:
+            skip = set(json.load(fh))
+    except (OSError, ValueError):
+        skip = set()
+    names = sorted(f for f in os.listdir(base) if f.lower().endswith(".mp4") and not f.startswith(".") and f not in skip and os.path.isfile(os.path.join(base, f)))   # (anims/ itself only: never _pp or new)
     return names[int(hashlib.sha1(track_id.encode()).hexdigest(), 16) % len(names)] if names else None
 
 
@@ -174,7 +196,7 @@ ANIM_JS = r"""
 
 
 def render(track, aspect, out_path, static_dir, server_port, fps=60, seconds=None, start_at=0.0,
-           crf=14, preset="slow", progress_cb=None, log=print, shot_format="png", scene=None, pano=None, bgclip=None, maxrate=None, bufsize=None, jpeg_quality=95):
+           crf=14, preset="slow", progress_cb=None, log=print, shot_format="png", scene=None, pano=None, bgclip=None, maxrate=None, bufsize=None, jpeg_quality=95, fade_out=None):
     """Render `track` (a server track dict with 'id' and '_path') in the given aspect to out_path (mp4).
     seconds: only render that many seconds of the song (testing); start_at: first second to render."""
     from playwright.sync_api import sync_playwright
@@ -195,7 +217,7 @@ def render(track, aspect, out_path, static_dir, server_port, fps=60, seconds=Non
     step_ms = 1000.0 / fps
     url = f"http://127.0.0.1:{server_port}/export.html?id={track['id']}&aspect={aspect}&record=1"
     if not scene and not bgclip:
-        bgclip = pick_bgclip(track["id"])
+        bgclip = pinned_bgclip(track) or pick_bgclip(track["id"])
     if bgclip and not scene:
         from urllib.parse import quote as _q
         url += f"&bgclip={_q(bgclip)}"
@@ -210,7 +232,9 @@ def render(track, aspect, out_path, static_dir, server_port, fps=60, seconds=Non
         "-f", "image2pipe", "-framerate", str(fps), "-c:v", "png" if shot_format == "png" else "mjpeg", "-i", "pipe:0",
         "-ss", f"{start_at:.3f}", "-t", f"{seconds:.3f}", "-i", audio_path,
         "-map", "0:v", "-map", "1:a",
-        "-vf", f"scale={w}:{h}:flags=lanczos:in_range=full:out_range=tv:out_color_matrix=bt709,format=yuv420p",
+        "-vf", f"scale={w}:{h}:flags=lanczos:in_range=full:out_range=tv:out_color_matrix=bt709,format=yuv420p"
+               + (f",fade=t=out:st={max(0.0, seconds - fade_out):.3f}:d={fade_out:.3f}" if fade_out else ""),
+        *(["-af", f"afade=t=out:st={max(0.0, seconds - fade_out):.3f}:d={fade_out:.3f}"] if fade_out else []),
         "-c:v", "libx264", "-preset", preset, "-crf", str(crf), "-profile:v", "high", "-level", "5.2",
         *(["-maxrate", maxrate, "-bufsize", bufsize or maxrate] if maxrate else []),
         "-r", str(fps), "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv",
@@ -265,6 +289,11 @@ def render(track, aspect, out_path, static_dir, server_port, fps=60, seconds=Non
             }""")
             page.clock.run_for(50)
             clock_ms = 0
+            # sync: frame i is photographed after the clock has been moved to (i+1)/fps, and the clock already ran 50 ms before the loop (the
+            # music was started before run_for(50), unless start_at resets it at frame 0). Without this correction the page's music time -
+            # and with it the karaoke and every animation that follows it - would run (50 ms +) one frame AHEAD of the audio in the file.
+            lag = (0.0 if start_at else 0.05) + 1.0 / fps
+            page.evaluate("(lag) => { window.__R.lag = lag; }", lag)
             log('viewport in page:', page.evaluate('[innerWidth, innerHeight, devicePixelRatio, document.querySelector("#app").getBoundingClientRect().width]'))
             prof = [0.0, 0.0, 0.0, 0.0]
             ar = page.evaluate('(() => { const r = document.querySelector("#app").getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; })()')
@@ -328,12 +357,13 @@ if __name__ == "__main__":
     ap.add_argument("--scene", default=None)
     ap.add_argument("--bgclip", default=None, help="the flat full-screen background clip (default: one picked per song from the anims folder)")
     ap.add_argument("--pano", default=None, help="with --scene sphere: the background clip file (a numbered one = the upright portrait video)")
+    ap.add_argument("--fade-out", type=float, default=None, help="fade the picture and the sound out over the last N seconds (a trimmed video)")
     ap.add_argument("--shot", default="png", choices=["png", "jpeg"])
     ap.add_argument("--maxrate", default=None)
     a = ap.parse_args()
     import server
     trk = next(x for x in server.scan_library() if x["id"] == a.track_id)
     render(trk, a.aspect, a.out, server.STATIC_DIR, a.port, fps=a.fps, seconds=a.seconds, start_at=a.start,
-           crf=a.crf, preset=a.preset, scene=a.scene, pano=a.pano, bgclip=a.bgclip, shot_format=a.shot, maxrate=a.maxrate,
+           crf=a.crf, preset=a.preset, scene=a.scene, pano=a.pano, bgclip=a.bgclip, shot_format=a.shot, maxrate=a.maxrate, fade_out=a.fade_out,
            log=lambda *m: print(*m, flush=True))
     print("DONE", a.out, flush=True)

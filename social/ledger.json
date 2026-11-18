@@ -12,6 +12,36 @@
    },
    "title": "I Am An Idiot"
   },
+  "1975/Some People.wav": {
+   "artist": "Polaroid",
+   "folder": "1975",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-18T00:06:00+01:00",
+    "bgclip": "009 No, She Left Me.mp4",
+    "file": "exports/social/Polaroid - Some People (9x16).mp4"
+   },
+   "scheduled": {
+    "at": "2026-11-18T00:34:04+01:00",
+    "channels": {
+     "facebook": {
+      "dueAt": "2026-11-20T13:00:00.000Z",
+      "postId": "6afce468fc933ac285acd51a"
+     },
+     "instagram": {
+      "dueAt": "2026-11-20T13:00:00.000Z",
+      "postId": "6afce46af0c5ce9361a9a8bf"
+     },
+     "youtube": {
+      "dueAt": "2026-11-20T13:00:00.000Z",
+      "postId": "6afce46cf0c5ce9361a9ac5c"
+     }
+    },
+    "due": "2026-11-20T14:00:00+01:00",
+    "video": "https://aqaimusic.com/social/polaroid-some-people.mp4"
+   },
+   "title": "Some People"
+  },
   "AirBreath/Lovesickness.wav": {
    "artist": "Aveluna",
    "folder": "AirBreath",
@@ -45,6 +75,16 @@
     "bgclip": "021 I Can Feel My Own Heartbeat.mp4",
     "file": "exports/social/Benjamin Bloom - I'm So Happy With You (9x16).mp4"
    },
+   "posted": {
+    "facebook": {
+     "at": "2026-11-17T22:13:09+01:00",
+     "url": "https://www.facebook.com/reel/1974655533701404/"
+    },
+    "instagram": {
+     "at": "2026-11-17T22:13:09+01:00",
+     "url": "https://www.instagram.com/reel/Df20NGTCkgl/"
+    }
+   },
    "scheduled": {
     "at": "2026-11-17T21:30:59+01:00",
     "channels": {
@@ -58,12 +98,43 @@
      }
     },
     "due": "2026-11-18T19:00:00+01:00",
+    "removed": "2026-11-17T22:13:10+01:00",
     "skipped": {
      "youtube": "longer than 3 minutes (YouTube Shorts)"
     },
     "video": "https://aqaimusic.com/social/benjamin-bloom-i-m-so-happy-with-you.mp4"
    },
    "title": "I'm So Happy With You"
+  },
+  "BeatlesBeltolf/One Little Thing (V6).wav": {
+   "artist": "Benjamin Bloom",
+   "folder": "BeatlesBeltolf",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-17T22:11:28+01:00",
+    "bgclip": "003 For You.mp4",
+    "file": "exports/social/Benjamin Bloom - One Little Thing (9x16).mp4"
+   },
+   "scheduled": {
+    "at": "2026-11-17T22:13:35+01:00",
+    "channels": {
+     "facebook": {
+      "dueAt": "2026-11-19T18:00:00.000Z",
+      "postId": "6afcc37ca739830f974559bd"
+     },
+     "instagram": {
+      "dueAt": "2026-11-19T18:00:00.000Z",
+      "postId": "6afcc37e843fae727bb6290c"
+     },
+     "youtube": {
+      "dueAt": "2026-11-19T18:00:00.000Z",
+      "postId": "6afcc37fa739830f97455a5f"
+     }
+    },
+    "due": "2026-11-19T19:00:00+01:00",
+    "video": "https://aqaimusic.com/social/benjamin-bloom-one-little-thing.mp4"
+   },
+   "title": "One Little Thing"
   },
   "BeatlesBeltolf/One of Those Things (1).wav": {
    "artist": "Benjamin Bloom",
@@ -136,6 +207,20 @@
     "bgclip": "001 Another Thing Is Different.mp4",
     "file": "exports/social/AQAI Collective - So Difficult With You (9x16).mp4"
    },
+   "posted": {
+    "facebook": {
+     "at": "2026-11-17T22:13:10+01:00",
+     "url": "https://www.facebook.com/reel/1676516100860493/"
+    },
+    "instagram": {
+     "at": "2026-11-17T22:13:10+01:00",
+     "url": "https://www.instagram.com/reel/Df2z_NnlYNd/"
+    },
+    "youtube": {
+     "at": "2026-11-17T22:13:10+01:00",
+     "url": "https://www.youtube.com/shorts/bsoXCP8JfSI"
+    }
+   },
    "scheduled": {
     "at": "2026-11-17T21:30:38+01:00",
     "channels": {
@@ -153,9 +238,40 @@
      }
     },
     "due": "2026-11-18T09:00:00+01:00",
+    "removed": "2026-11-17T22:13:11+01:00",
     "video": "https://aqaimusic.com/social/aqai-collective-so-difficult-with-you.mp4"
    },
    "title": "So Difficult With You"
+  },
+  "FrontLinie/Ik zie je al niet meer.wav": {
+   "artist": "FrontLinie",
+   "folder": "FrontLinie",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-17T21:52:12+01:00",
+    "bgclip": "011 She Is Magnetic.mp4",
+    "file": "exports/social/FrontLinie - Ik zie je al niet meer (9x16).mp4"
+   },
+   "scheduled": {
+    "at": "2026-11-17T22:13:27+01:00",
+    "channels": {
+     "facebook": {
+      "dueAt": "2026-11-19T13:00:00.000Z",
+      "postId": "6afcc374bbe886f1b512d061"
+     },
+     "instagram": {
+      "dueAt": "2026-11-19T13:00:00.000Z",
+      "postId": "6afcc376953f4c1b18bf4ca3"
+     },
+     "youtube": {
+      "dueAt": "2026-11-19T13:00:00.000Z",
+      "postId": "6afcc377bbe886f1b512d147"
+     }
+    },
+    "due": "2026-11-19T14:00:00+01:00",
+    "video": "https://aqaimusic.com/social/frontlinie-ik-zie-je-al-niet-meer.mp4"
+   },
+   "title": "Ik zie je al niet meer"
   },
   "FrontLinie/Rare Mensen.wav": {
    "artist": "FrontLinie",
@@ -205,6 +321,36 @@
    },
    "title": "A Short Stay"
   },
+  "SmoothFemaleSinger/Right Now.m4a": {
+   "artist": "Gold Pennies",
+   "folder": "SmoothFemaleSinger",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-18T00:33:52+01:00",
+    "bgclip": "019 Being So Amazing I Am.mp4",
+    "file": "exports/social/Gold Pennies - Right Now (9x16).mp4"
+   },
+   "scheduled": {
+    "at": "2026-11-18T00:34:20+01:00",
+    "channels": {
+     "facebook": {
+      "dueAt": "2026-11-21T08:00:00.000Z",
+      "postId": "6afce4789f3765f6ab18aed4"
+     },
+     "instagram": {
+      "dueAt": "2026-11-21T08:00:00.000Z",
+      "postId": "6afce47a93fa11d37df0b483"
+     },
+     "youtube": {
+      "dueAt": "2026-11-21T08:00:00.000Z",
+      "postId": "6afce47cab47737bddb231fc"
+     }
+    },
+    "due": "2026-11-21T09:00:00+01:00",
+    "video": "https://aqaimusic.com/social/gold-pennies-right-now.mp4"
+   },
+   "title": "Right Now"
+  },
   "SmoothSinger/Circling Around Each Other.m4a": {
    "artist": "Little Wonders",
    "folder": "SmoothSinger",
@@ -216,6 +362,36 @@
     "note": "showcase video, older look (sphere background, with the bottom pill)"
    },
    "title": "Circling Around Each Other"
+  },
+  "SmoothSinger/Cocaine White .wav": {
+   "artist": "Little Wonders",
+   "folder": "SmoothSinger",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-18T00:12:46+01:00",
+    "bgclip": "012 She Is Magnetic, I'm Electric.mp4",
+    "file": "exports/social/Little Wonders - Cocaine White (9x16).mp4"
+   },
+   "scheduled": {
+    "at": "2026-11-18T00:34:12+01:00",
+    "channels": {
+     "facebook": {
+      "dueAt": "2026-11-20T18:00:00.000Z",
+      "postId": "6afce4709f3765f6ab18ad96"
+     },
+     "instagram": {
+      "dueAt": "2026-11-20T18:00:00.000Z",
+      "postId": "6afce472fc933ac285acd746"
+     },
+     "youtube": {
+      "dueAt": "2026-11-20T18:00:00.000Z",
+      "postId": "6afce474f0c5ce9361a9afdb"
+     }
+    },
+    "due": "2026-11-20T19:00:00+01:00",
+    "video": "https://aqaimusic.com/social/little-wonders-cocaine-white.mp4"
+   },
+   "title": "Cocaine White "
   },
   "SmoothSinger/Is There Something There.mp3": {
    "artist": "Little Wonders",
@@ -229,6 +405,36 @@
    },
    "title": "Is There Something There?"
   },
+  "SmoothSinger/Song With a Song.wav": {
+   "artist": "Little Wonders",
+   "folder": "SmoothSinger",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-17T21:47:52+01:00",
+    "bgclip": "002 Everything Is Fine.mp4",
+    "file": "exports/social/Little Wonders - Song With a Song (9x16).mp4"
+   },
+   "scheduled": {
+    "at": "2026-11-17T22:13:20+01:00",
+    "channels": {
+     "facebook": {
+      "dueAt": "2026-11-19T08:00:00.000Z",
+      "postId": "6afcc36dbbe886f1b512c926"
+     },
+     "instagram": {
+      "dueAt": "2026-11-19T08:00:00.000Z",
+      "postId": "6afcc36e843fae727bb62655"
+     },
+     "youtube": {
+      "dueAt": "2026-11-19T08:00:00.000Z",
+      "postId": "6afcc3709b0477630c941466"
+     }
+    },
+    "due": "2026-11-19T09:00:00+01:00",
+    "video": "https://aqaimusic.com/social/little-wonders-song-with-a-song.mp4"
+   },
+   "title": "Song With a Song"
+  },
   "SmoothSinger/Things That Go About.wav": {
    "artist": "Little Wonders",
    "folder": "SmoothSinger",
@@ -237,6 +443,20 @@
     "at": "2026-11-17T08:22:37+01:00",
     "bgclip": "026 Me And Complexity.mp4",
     "file": "exports/social/Little Wonders - Things That Go About (9x16).mp4"
+   },
+   "posted": {
+    "facebook": {
+     "at": "2026-11-17T22:13:12+01:00",
+     "url": "https://www.facebook.com/reel/29005147695822308/"
+    },
+    "instagram": {
+     "at": "2026-11-17T22:13:12+01:00",
+     "url": "https://www.instagram.com/reel/Df20OT5En-J/"
+    },
+    "youtube": {
+     "at": "2026-11-17T22:13:12+01:00",
+     "url": "https://www.youtube.com/shorts/KxdHjU3uYDY"
+    }
    },
    "scheduled": {
     "at": "2026-11-17T21:30:52+01:00",
@@ -255,6 +475,7 @@
      }
     },
     "due": "2026-11-18T14:00:00+01:00",
+    "removed": "2026-11-17T22:13:12+01:00",
     "video": "https://aqaimusic.com/social/little-wonders-things-that-go-about.mp4"
    },
    "title": "Things That Go About"
@@ -270,6 +491,36 @@
     "note": "showcase video, older look (sphere background, with the bottom pill)"
    },
    "title": "Bitter Heart"
+  },
+  "Volux by AQAI/Half a Year.m4a": {
+   "artist": "Volux",
+   "folder": "Volux by AQAI",
+   "made": {
+    "aspect": "9:16",
+    "at": "2026-11-17T22:13:08+01:00",
+    "bgclip": "008 Just Get In Line Now.mp4",
+    "file": "exports/social/Volux - Half a Year (9x16).mp4"
+   },
+   "scheduled": {
+    "at": "2026-11-17T22:13:43+01:00",
+    "channels": {
+     "facebook": {
+      "dueAt": "2026-11-20T08:00:00.000Z",
+      "postId": "6afcc384fa88ce86dcafe0ba"
+     },
+     "instagram": {
+      "dueAt": "2026-11-20T08:00:00.000Z",
+      "postId": "6afcc3859b0477630c941c63"
+     },
+     "youtube": {
+      "dueAt": "2026-11-20T08:00:00.000Z",
+      "postId": "6afcc387953f4c1b18bf5102"
+     }
+    },
+    "due": "2026-11-20T09:00:00+01:00",
+    "video": "https://aqaimusic.com/social/volux-half-a-year.mp4"
+   },
+   "title": "Half a Year"
   }
  }
 }

@@ -41,10 +41,61 @@ function initBgClip(){
     window.__bgClipEl = v;
     v.play().catch(() => {});
   };
-  if (BG_CLIP_PARAM){ start(BG_CLIP_PARAM); return; }
-  fetch("/api/anim-clips").then(r => r.json()).then(d => {
+  const trackId = params.get("id") || "";
+  // the preview (not a recording) gets a small toolbar: previous / next background clip, and "exclude this clip" (never used again)
+  const buildClipBar = (files, first) => {
+    if (IS_RECORDING || document.getElementById("clip-bar")) return;
+    let list = files.slice(), i = Math.max(0, list.indexOf(first)), lastExcluded = null;
+    const bar = document.createElement("div");
+    bar.id = "clip-bar";
+    bar.style.cssText = "position:fixed;left:8px;bottom:8px;z-index:999991;display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:8px;" +
+      "background:rgba(0,0,0,.85);color:#fff;font:11px/1.2 sans-serif;max-width:330px";
+    const mk = (txt, title) => {
+      const b = document.createElement("button");
+      b.textContent = txt; b.title = title;
+      b.style.cssText = "cursor:pointer;border:0;border-radius:5px;padding:4px 8px;background:#3a6df0;color:#fff;font:inherit";
+      return b;
+    };
+    const prev = mk("\u25C0", "Previous background clip"), next = mk("\u25B6", "Next background clip");
+    const excl = mk("Exclude", "Never use this background clip again (videos and player)");
+    excl.style.background = "#c0392b";
+    const undo = mk("Undo", "Put the last excluded clip back");
+    undo.style.background = "#666"; undo.style.display = "none";
+    const label = document.createElement("span");
+    label.style.cssText = "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+    const show = () => {
+      if (!list.length){ label.textContent = "no clips left"; return; }
+      i = (i + list.length) % list.length;
+      label.textContent = (i + 1) + "/" + list.length + "  " + list[i];
+      start(list[i]);
+    };
+    prev.onclick = () => { i--; show(); };
+    next.onclick = () => { i++; show(); };
+    excl.onclick = () => {
+      const name = list[i];
+      if (!name) return;
+      fetch("/api/anim-clips/exclude", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, excluded: true }) })
+        .then(r => r.json()).then(() => {
+          list.splice(i, 1); lastExcluded = name; undo.style.display = ""; undo.title = "Put back " + name; show();
+        }).catch(() => { label.textContent = "could not exclude (server not restarted?)"; });
+    };
+    undo.onclick = () => {
+      if (!lastExcluded) return;
+      const name = lastExcluded;
+      fetch("/api/anim-clips/exclude", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, excluded: false }) })
+        .then(r => r.json()).then(() => { list.push(name); list.sort(); i = list.indexOf(name); lastExcluded = null; undo.style.display = "none"; show(); }).catch(() => {});
+    };
+    [prev, label, next, excl, undo].forEach(e => bar.appendChild(e));
+    document.body.appendChild(bar);
+    label.textContent = (i + 1) + "/" + list.length + "  " + (list[i] || "");
+  };
+  if (BG_CLIP_PARAM) start(BG_CLIP_PARAM);     // (a render knows its clip already: starts at once, as before)
+  fetch("/api/anim-clips" + (trackId ? "?id=" + encodeURIComponent(trackId) : "")).then(r => r.json()).then(d => {
     const files = (d.files || []);
-    if (files.length) start(files[Math.floor(Math.random() * files.length)]);
+    // a preview shows the clip a render of this song really uses (the same pick); the toolbar then steps through the others
+    const first = BG_CLIP_PARAM || d.pick || (files.length ? files[Math.floor(Math.random() * files.length)] : "");
+    if (first && !BG_CLIP_PARAM) start(first);
+    buildClipBar(files, first);
   }).catch(() => {});
 }
 
@@ -56,6 +107,7 @@ if (FORCED_SCENE){
   };
 }
 document.body.classList.add("export-mode", `aspect-${ASPECT}`);
+LYRIC_LEAD = 0;   // the videos: karaoke words and sentences change exactly on the sync times (the player itself shows them 0.12 s early)
 if (ASPECT === "vertical") LYRIC_LINE_MAX_WORDS = 2;   // 9:16: the karaoke rows show at most two words
 if (IS_RECORDING) document.body.classList.add("recording");   // (the black logo/text/stroke styling in export.css is for the video renders only)
 // index.html's markup starts every page with <body class="gate-active">
@@ -100,16 +152,35 @@ function overrideDrawWaveCanvas(){
     dctx.strokeStyle = WAVE_COLOR;
     dctx.fillStyle = WAVE_COLOR;
     dctx.lineCap = "round";
-    let prevX = 0, prevY = midY;
+    // videos: the canvas is 400px wider on each side (export.css); the wave itself keeps its old width in the middle and the
+    // line carries straight on, level, 400px to the left and 400px to the right of it
+    const EXT = (typeof USE_BG_CLIP !== "undefined" && USE_BG_CLIP) ? 400 : 0;
+    const ww = w - 2 * EXT;
+    const THICK = 1;   // line thickness factor (1 = normal)
+    const LIGHTEN = EXT ? 0.5 : 0;   // videos: the line is 50% lighter (mixed 50% towards white; the loud parts get brighter still)
+    const lineColor = intensity => mixWithWhite(WAVE_COLOR, LIGHTEN + (1 - LIGHTEN) * intensity * 0.6);
+    const lineStyle = (x0, x1, y, intensity) => {
+      dctx.lineWidth = (1 + intensity * 6) * THICK;
+      dctx.globalAlpha = 1;
+      dctx.strokeStyle = lineColor(intensity);
+      dctx.beginPath(); dctx.moveTo(x0, y); dctx.lineTo(x1, y); dctx.stroke();
+    };
+    if (EXT){
+      for (const [u, a, b] of [[0, 0, EXT], [1, w - EXT, w]]){
+        const val = waveCurveAt(display, u);
+        lineStyle(a, b, midY - Math.abs(val) * ampPx, Math.min(1, Math.abs(val) * 1.6));
+      }
+    }
+    let prevX = EXT, prevY = midY;
     for (let s = 0; s <= WAVE_SEGMENTS; s++){
       const u = s / WAVE_SEGMENTS;
       const val = waveCurveAt(display, u);
-      const x = u * w, y = midY - Math.abs(val) * ampPx;
+      const x = EXT + u * ww, y = midY - Math.abs(val) * ampPx;
       if (s > 0){
         const intensity = Math.min(1, Math.abs(val) * 1.6);
-        dctx.lineWidth = 1 + intensity * 6;
+        dctx.lineWidth = (1 + intensity * 6) * THICK;
         dctx.globalAlpha = 1;
-        dctx.strokeStyle = mixWithWhite(WAVE_COLOR, intensity * 0.6);
+        dctx.strokeStyle = lineColor(intensity);
         dctx.beginPath();
         dctx.moveTo(prevX, prevY);
         dctx.lineTo(x, y);
@@ -323,14 +394,39 @@ function startExport(){
 // writable binding) and must happen before waitForTracks() below, which
 // may call startExport() -> load() synchronously if tracksReady is
 // already true by this point in the script.
-// the videos: a title longer than 18 characters continues on the next line (whole words only, at most 18 characters per line; a single
-// longer word stays on its own line and is scaled down to fit by fitSongTitleWidth())
+// the videos: a title that fits within the 30px margins stays on ONE line (same font size); a longer one continues on the next line
+// (whole words only, at most 18 characters per line; a single longer word stays on its own line and is scaled down to fit by
+// fitSongTitleWidth())
 const TITLE_LINE_MAX = 18;
+// the current scale of the "Song title" slider (panel entry if the panel is built already, else the saved/default layout)
+function titleSliderScale(){
+  const entry = panelEntries.find(e => e.label === "Song title");
+  if (entry && entry.state) return entry.state.scale || 1;
+  try {
+    const sv = scaleSavedToFrame(loadSavedControls());
+    const t = sv && sv.targets && sv.targets["Song title"];
+    if (t && isFinite(t.scale)) return t.scale;
+  } catch (e){}
+  return 1;
+}
 function applyTitleBreaks(){
   if (!USE_BG_CLIP || typeof renderScaledTitle !== "function") return;
   const tr = TRACKS[cur];
   const fill = document.querySelector("#m-title-fill"), stroke = document.querySelector("#m-title-stroke");
   if (!tr || !fill || !stroke) return;
+  // first try the whole title on ONE line at the normal font size: it stays on one line when its width (with the "Song title" slider's
+  // scale on top, as it is drawn) fits within the frame's 30px side margins; only then are the 18-character line breaks used
+  const fullTitle = String(tr.title || "").trim().replace(/\s+/g, " ");
+  const app = document.querySelector("#app");
+  if (app && fullTitle){
+    fill.textContent = "";
+    fill.appendChild(renderScaledTitle(fullTitle));
+    const sliderScale = titleSliderScale();
+    if (fill.getBoundingClientRect().width * sliderScale <= app.getBoundingClientRect().width - 60){
+      stroke.innerHTML = fill.innerHTML;
+      return;
+    }
+  }
   const lines = [];
   let line = "";
   String(tr.title || "").trim().split(/\s+/).forEach(w => {
@@ -363,6 +459,22 @@ function keepArtistBelowTitle(){
   const moved = measure() - gap0;
   if (moved > 0) root.style.setProperty("--artist-extra", (need * need / moved).toFixed(1) + "px");
 }
+// the 9:16 and 16:9 videos: the visualiser's flat line (its baseline, 65% down its canvas) sits exactly halfway between the bottom of the "by artist" row and
+// the top of the AQAI logo - whatever the frame size (the page's own layout formulas are not proportional to the frame, so a fixed slider value put
+// the line higher in the real render than in the preview) and however many lines the title has. The "Visualiser" slider is an extra offset on top.
+function placeVisualiserBetween(){
+  if (!USE_BG_CLIP || (ASPECT !== "vertical" && ASPECT !== "horizontal")) return;
+  const entry = panelEntries.find(e => e.label === "Visualiser");
+  const canvas = document.querySelector("#wave-canvas");
+  const row = document.querySelector(".meta-sub-row"), logo = document.querySelector(".home-top .logo-text");
+  if (!entry || !canvas || !row || !logo) return;
+  const mid = (row.getBoundingClientRect().bottom + logo.getBoundingClientRect().top) / 2;
+  const cr = canvas.getBoundingClientRect();
+  if (!cr.height) return;
+  const baseline = cr.top + cr.height * 0.65 - entry.state.y;        // where the baseline would be with the slider at 0
+  entry.baseTop += mid - baseline;
+  applyEntry(entry);
+}
 // the page can rebuild the title's letters at any moment (the track's info arriving, a track change): the line breaks, the 30px margins
 // and the "by" row are then put back, a moment after the last rebuild
 let titleRebuilding = false, titleRebuildTimer = 0;
@@ -385,6 +497,7 @@ function runLayoutPass(){
     // load()) can never silently wipe a manual adjustment back to the automated default the way it used to
     captureAndReapplyControls();
     keepArtistBelowTitle();
+    placeVisualiserBetween();
   } finally {
     setTimeout(() => { titleRebuilding = false; }, 0);
   }
@@ -981,4 +1094,38 @@ function cutBelowVisualiser(){
 (function waitForTracks(){
   if (typeof tracksReady !== "undefined" && tracksReady) startExport();
   else setTimeout(waitForTracks, 50);
+})();
+
+
+// preview only (not in the recording): the frame sits between whole pixels in a scaled browser tab, and the GPU-composited background clip then
+// leaks a faint 1px line just outside the frame's left and right edge. A transparent box with a 3px black outer shadow, drawn above everything
+// and following #app's live box, blacks it out. (A recording has a whole-pixel frame: nothing leaks there, so it gets no mask.)
+(function edgeMask(){
+  if (typeof IS_RECORDING !== "undefined" && IS_RECORDING) return;
+  if (typeof USE_BG_CLIP === "undefined" || !USE_BG_CLIP) return;
+  const m = document.createElement("div");
+  m.id = "edge-mask";
+  m.style.cssText = "position:fixed;pointer-events:none;z-index:999990;box-shadow:0 0 0 4px #000";
+  document.body.appendChild(m);
+  const place = () => {
+    const app = document.querySelector("#app");
+    if (!app) return;
+    const r = app.getBoundingClientRect();
+    m.style.left = r.left + "px"; m.style.top = r.top + "px"; m.style.width = r.width + "px"; m.style.height = r.height + "px";
+  };
+  place();
+  window.addEventListener("resize", place);
+  setInterval(place, 1000);
+})();
+
+
+// the videos: a solid black 8px frame round the very edge of the picture (corners included), drawn above every other layer
+(function edgeFrame(){
+  if (typeof USE_BG_CLIP === "undefined" || !USE_BG_CLIP) return;
+  const app = document.querySelector("#app");
+  if (!app || document.getElementById("edge-frame")) return;
+  const f = document.createElement("div");
+  f.id = "edge-frame";
+  f.style.cssText = "position:absolute;inset:0;z-index:2147483000;pointer-events:none;box-shadow:inset 0 0 0 8px #000000";
+  app.appendChild(f);
 })();

@@ -134,6 +134,9 @@
       <button class="util-btn" id="btn-flag-lyrics" aria-label="Flag this song's lyrics for re-syncing" aria-pressed="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4"/><path d="M4 4h14l-2.5 4L18 12H4"/></svg>
       </button>
+      <button class="util-btn" id="btn-priority" aria-label="Heart this song: publish it first on the socials" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+      </button>
       <button class="util-btn" id="btn-make-video" aria-label="Make a video from this song">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m23 7-7 5 7 5V7Z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
       </button>
@@ -155,6 +158,24 @@
 
     <div id="lyrics-glow" aria-hidden="true"></div>
     <div id="lyrics"><div id="lyric-rows" aria-live="polite"></div></div>
+    <div id="bg-clip-bar" aria-label="Background video of this song">
+      <button type="button" id="bgc-prev" title="Previous background video">&#9664;</button>
+      <span id="bgc-label">background video</span>
+      <button type="button" id="bgc-next" title="Next background video">&#9654;</button>
+      <button type="button" id="bgc-pin" title="Use this background video for this song when it is rendered">Pin to song</button>
+    </div>
+    <div id="lyrics-y-tuner" aria-label="Text positions">
+      <label for="lyrics-y-slider">Karaoke Y <output id="lyrics-y-val">0</output></label>
+      <input type="range" id="lyrics-y-slider" min="-400" max="400" step="1" value="0">
+      <label for="title-y-slider">Title Y <output id="title-y-val">0</output></label>
+      <input type="range" id="title-y-slider" min="-300" max="300" step="1" value="0">
+      <label for="title-scale-slider">Title size <output id="title-scale-val">100</output>%</label>
+      <input type="range" id="title-scale-slider" min="50" max="200" step="1" value="100">
+      <label for="artist-y-slider">By artist Y <output id="artist-y-val">0</output></label>
+      <input type="range" id="artist-y-slider" min="-300" max="300" step="1" value="0">
+      <label for="artist-scale-slider">By artist size <output id="artist-scale-val">100</output>%</label>
+      <input type="range" id="artist-scale-slider" min="50" max="250" step="1" value="100">
+    </div>
 
     <div class="player">
       <div class="artist-photo-wrap">

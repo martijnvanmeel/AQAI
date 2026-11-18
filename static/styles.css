@@ -58,10 +58,13 @@ body:not(.owner-mode) #btn-relocate-artist,
 body:not(.owner-mode) #lf-edit-btns,
 body:not(.owner-mode) #lyrics-audit-block,
 body:not(.owner-mode) #btn-flag-lyrics,
+body:not(.owner-mode) #btn-priority,
+body:not(.owner-mode) #bg-clip-bar,
 body:not(.owner-mode) #btn-make-video,
 body:not(.owner-mode) #btn-preview-video,
 body:not(.owner-mode) #btn-creature-tune,
-body:not(.owner-mode) #btn-color-picker{
+body:not(.owner-mode) #btn-color-picker,
+body:not(.owner-mode) #lyrics-y-tuner{
   display:none !important;
 }
 body{
@@ -662,7 +665,7 @@ body.scene-hands #stage{background:linear-gradient(to top,
    axes - top:50%/translateY(-50%) for vertical, left/right:10% (instead
    of a fixed-px padding) for horizontal */
 #lyrics{
-  position:absolute;left:10%;right:10%;top:50%;transform:translateY(calc(-50% - 43px - 10vh)) scale(1.5);
+  position:absolute;left:10%;right:10%;top:50%;transform:translateY(calc(-50% - 43px - 10vh + var(--lyrics-y, 0px))) scale(1.5);
   z-index:1;pointer-events:none; /* below the logo (z2) and the player block with the 3D animal (z3), so they are always in front of the lyrics */
   text-align:center;
   height:calc(clamp(18px,calc(14vw - 10px),70px) * 4.6);overflow:hidden;
@@ -717,10 +720,10 @@ body.scene-hands #stage{background:linear-gradient(to top,
 /* the previous and the coming sentences are solid text in a neutral colour of their own (not an artist colour); the depth
    dimming (brightness filters on .near/.far/the 4th) still applies on top */
 .lyric-row:not(.active-row) .w,
-.lyric-row.coming .w{color:#d6dde8;-webkit-text-stroke:0}
+.lyric-row.coming .w{color:color-mix(in srgb, var(--artist-color, var(--active-green)) 80%, white);-webkit-text-stroke:0}   /* the other sentences: the artist colour (20% white), no longer greyish */
 .lyric-row.active-row .w{color:color-mix(in srgb, color-mix(in srgb, var(--artist-color, var(--active-green)) 70%, black) 75%, white);opacity:1}
 @media (max-width:640px){
-  #lyrics{transform:translateY(calc(-50% - 73px - 10vh)) scale(1.5)}
+  #lyrics{transform:translateY(calc(-50% - 73px - 10vh + var(--lyrics-y, 0px))) scale(1.5)}
 }
 
 /* full lyrics overlay */
@@ -1846,3 +1849,61 @@ body:not(.export-mode) .artist-photo-fill{background:linear-gradient(to bottom, 
 
 /* the colourful artist-colour layer on top of the background videos (the multiply tint over the whole screen) is not visible: fully transparent */
 #artist-color-overlay{display:none !important}
+
+/* owner-only slider that moves the karaoke text up/down (px on screen; saved in this browser; the video renders are separate, see export.js) */
+#lyrics-y-tuner{
+  position:fixed;left:12px;bottom:12px;z-index:60;display:grid;grid-template-columns:auto 150px;align-items:center;gap:4px 8px;
+  padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.55);color:#fff;font-size:12px;font-family:var(--font-body);
+}
+#lyrics-y-tuner label{display:flex;gap:6px;white-space:nowrap;justify-content:space-between}
+#lyrics-y-tuner output{min-width:3ch;text-align:right;opacity:.8}
+#lyrics-y-tuner input{width:150px}
+body.export-mode #lyrics-y-tuner{display:none !important}
+
+/* the music player's song title and "by <artist>" line get the same styling as the 9:16 videos: no outline round the title, white
+   title, white "by artist" (no coloured halo behind it) and the bigger soft black drop shadow behind both (letter spacing -1px stays) */
+body:not(.export-mode) .title-stroke{-webkit-text-stroke:0 transparent !important;visibility:hidden}
+body:not(.export-mode) .meta .title,
+body:not(.export-mode) #m-title-fill{color:#ffffff}
+body:not(.export-mode) .meta .by,
+body:not(.export-mode) .meta .sub{color:#ffffff;animation:none}
+body:not(.export-mode) .meta .by::before,
+body:not(.export-mode) .meta .sub::before{display:none}
+body:not(.export-mode) .meta .title,
+body:not(.export-mode) .meta-sub-row{filter:drop-shadow(0 8px 52px rgba(0,0,0,.55))}
+
+/* TEMPORARY (main player only): the 3D creature and the black circle behind it are not shown for now. visibility, not display, because
+   positionArtistPhoto()/positionFoxCanvas() still measure these boxes to place the title and the rest. Delete this block to bring them back. */
+body:not(.export-mode) #fox-3d-canvas,
+body:not(.export-mode) .artist-photo-wrap{visibility:hidden !important}
+
+/* the owner sliders of the main screen for the song title and the "by artist" row (px up/down and size %; saved in this browser) */
+body:not(.export-mode) .meta .title{translate:0 var(--title-y, 0px);scale:var(--title-scale, 1)}
+body:not(.export-mode) .meta-sub-row{translate:0 var(--artist-y, 0px);scale:var(--artist-scale, 1)}
+
+/* the big outlined song title that sweeps across the background of the main screen is hidden */
+body:not(.export-mode) #bg-title-watermark{display:none !important}
+
+/* the "Delete song" button in the top-left corner of the main screen is hidden (delete this rule to bring it back) */
+#btn-delete{display:none !important}
+
+/* the text-position sliders panel (bottom-left of the main screen) is hidden; their saved values stay applied. Open the player with ?tune=1
+   in the address to show the panel again */
+#lyrics-y-tuner{display:none !important}
+body.show-tuner #lyrics-y-tuner{display:grid !important}
+
+/* the heart button: filled red when this song is first in line for publishing on the socials */
+#btn-priority[aria-pressed="true"]{color:#ff4d6d;border-color:#ff4d6d}
+#btn-priority[aria-pressed="true"] svg{fill:#ff4d6d}
+
+/* owner-only bar (bottom-left of the main screen): browse the background videos and pin one to the song that is playing - the video renders of that
+   song then use the pinned clip */
+#bg-clip-bar{
+  position:fixed;left:12px;bottom:12px;z-index:60;display:flex;align-items:center;gap:6px;max-width:min(420px,calc(100vw - 24px));
+  padding:6px 8px;border-radius:10px;background:rgba(0,0,0,.6);color:#fff;font:12px/1.2 var(--font-body);
+}
+#bg-clip-bar button{cursor:pointer;border:0;border-radius:6px;padding:5px 9px;background:#3a6df0;color:#fff;font:inherit}
+#bg-clip-bar #bgc-pin{background:#2e8b57}
+#bg-clip-bar #bgc-pin.pinned{background:#c9a227;color:#000}
+#bg-clip-bar span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body.export-mode #bg-clip-bar{display:none !important}

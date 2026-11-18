@@ -46,6 +46,73 @@ INCLUDE_OLD_PANORAMAS = False
 # of them (the player then also skips the 3D scenes). Set to False to go back to the normal pool.
 TEMP_ONLY_NEW_CLIPS = False   # (off again: the clips of anims/new are not used)
 NEW_CLIPS_DIR = os.path.join(ANIMS_DIR, "new")
+
+
+# background clips the owner has excluded (button on the video preview page): never picked for a video, never shown in the player.
+# Stored next to the clips so it follows the library: anims/.excluded.json = ["name.mp4", ...]
+EXCLUDED_CLIPS_FILE = os.path.join(ANIMS_DIR, ".excluded.json")
+
+
+def excluded_clips():
+    try:
+        with open(EXCLUDED_CLIPS_FILE, encoding="utf-8") as fh:
+            return set(json.load(fh))
+    except (OSError, ValueError):
+        return set()
+
+
+def set_clip_excluded(name, excluded=True):
+    names = excluded_clips()
+    (names.add if excluded else names.discard)(name)
+    with open(EXCLUDED_CLIPS_FILE, "w", encoding="utf-8") as fh:
+        json.dump(sorted(names), fh, indent=1)
+    return sorted(names)
+
+
+# songs the owner hearted ("publish these first on the socials"): social/priority.json = ["<audio path relative to the library root>", ...]
+# (the same keys as social/ledger.json; tools/social_videos.py renders these songs first)
+PRIORITY_FILE = os.path.join(os.path.dirname(__file__), "social", "priority.json")
+
+
+def priority_keys():
+    try:
+        with open(PRIORITY_FILE, encoding="utf-8") as fh:
+            return set(json.load(fh))
+    except (OSError, ValueError):
+        return set()
+
+
+def set_priority(key, on):
+    keys = priority_keys()
+    (keys.add if on else keys.discard)(key)
+    os.makedirs(os.path.dirname(PRIORITY_FILE), exist_ok=True)
+    with open(PRIORITY_FILE, "w", encoding="utf-8") as fh:
+        json.dump(sorted(keys), fh, indent=1)
+
+
+# the background clip pinned to a song (owner, in the player): social/bgclips.json = {"<audio path relative to the library root>": "clip.mp4"}.
+# The video renders (video_export.offline, social_videos.py) and the export preview use the pinned clip of a song.
+SONG_CLIPS_FILE = os.path.join(os.path.dirname(__file__), "social", "bgclips.json")
+
+
+def song_clips():
+    try:
+        with open(SONG_CLIPS_FILE, encoding="utf-8") as fh:
+            d = json.load(fh)
+            return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def set_song_clip(key, clip):
+    d = song_clips()
+    if clip:
+        d[key] = clip
+    else:
+        d.pop(key, None)
+    os.makedirs(os.path.dirname(SONG_CLIPS_FILE), exist_ok=True)
+    with open(SONG_CLIPS_FILE, "w", encoding="utf-8") as fh:
+        json.dump(d, fh, indent=1, ensure_ascii=False, sort_keys=True)
 SONG_NAMES_PATH = os.path.join(LIBRARY_ROOT, "song_names.json")
 # manually flagged by the owner from the player's "flag this song's lyrics"
 # button (see /api/lyrics-flag) - separate from the automatic heuristics in
@@ -704,12 +771,46 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send_json({"files": files})
             return
 
+        if path == "/api/song-clips":
+            if not _track_index:
+                refresh_index()
+            pins = song_clips()
+            out = {}
+            for tid, t in _track_index.items():
+                if t.get("_path"):
+                    c = pins.get(os.path.relpath(t["_path"], LIBRARY_ROOT))
+                    if c:
+                        out[tid] = c
+            self._send_json({"clips": out})
+            return
+
+        if path == "/api/priority":
+            keys = priority_keys()
+            if not _track_index:
+                refresh_index()
+            ids = [tid for tid, t in _track_index.items() if os.path.relpath(t.get("_path", ""), LIBRARY_ROOT) in keys]
+            self._send_json({"ids": ids})
+            return
+
         if path == "/api/anim-clips":
             # every clip of the anims folder (and its "new" sub-folder): the video exports pick one of these as a full-screen background
             # (only the clips directly in anims/: never the _pp copies or the "new" sub-folder)
+            skip = excluded_clips()
             names = sorted(f for f in os.listdir(ANIMS_DIR) if f.lower().endswith(".mp4") and not f.startswith(".")
-                           and os.path.isfile(os.path.join(ANIMS_DIR, f))) if os.path.isdir(ANIMS_DIR) else []
-            self._send_json({"files": names})
+                           and f not in skip and os.path.isfile(os.path.join(ANIMS_DIR, f))) if os.path.isdir(ANIMS_DIR) else []
+            out = {"files": names, "excluded": sorted(skip)}
+            tid = urllib.parse.parse_qs(parsed.query).get("id", [""])[0]
+            if tid and names:      # the clip a render of this song uses (same pick as video_export.offline.pick_bgclip)
+                import hashlib
+                out["pick"] = names[int(hashlib.sha1(tid.encode()).hexdigest(), 16) % len(names)]
+                tr = _track_index.get(tid) or (refresh_index() or _track_index.get(tid))
+                pinned = song_clips().get(os.path.relpath(tr["_path"], LIBRARY_ROOT)) if tr and tr.get("_path") else None
+                if pinned:                      # a clip pinned to this song wins
+                    out["pick"] = pinned
+                    out["pinned"] = pinned
+                    if pinned not in names:
+                        out["files"] = sorted(set(names) | {pinned})
+            self._send_json(out)
             return
 
         if path.startswith("/anim-clip/"):
@@ -739,7 +840,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     for f in os.listdir(d):
                         if f.lower().endswith((".mp4", ".gif")):
                             paths[f] = os.path.join(d, f)
-            files = sorted(paths, key=lambda f: os.path.getmtime(paths[f]), reverse=True)
+            skip = excluded_clips()
+            files = sorted((f for f in paths if f not in skip), key=lambda f: os.path.getmtime(paths[f]), reverse=True)
             anim_names = set(os.listdir(ANIMS_DIR)) if os.path.isdir(ANIMS_DIR) else set()
             self._send_json({"files": files, "pingpong": []})   # (no ping-pong copies: anims/_pp is not used)
             return
@@ -865,6 +967,72 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with open(sync_path, "w", encoding="utf-8") as fh:
                 json.dump(payload, fh)
             self._send_json({"ok": True})
+            return
+
+        if path == "/api/song-clips":
+            # pin (or unpin: clip null) a background clip to a song (owner only)
+            if self._is_public_request():
+                self.send_error(403, "Editing is only available locally")
+                return
+            length = int(self.headers.get("Content-Length", 0))
+            try:
+                payload = json.loads(self.rfile.read(length))
+            except json.JSONDecodeError:
+                self.send_error(400, "Invalid JSON")
+                return
+            tid = str(payload.get("id", ""))
+            if tid not in _track_index:
+                refresh_index()
+            track = _track_index.get(tid)
+            if not track or not track.get("_path"):
+                self.send_error(404, "Track not found")
+                return
+            clip = os.path.basename(str(payload.get("clip") or ""))
+            if clip and not os.path.isfile(os.path.join(ANIMS_DIR, clip)):
+                self.send_error(404, "Clip not found")
+                return
+            set_song_clip(os.path.relpath(track["_path"], LIBRARY_ROOT), clip or None)
+            self._send_json({"ok": True, "clip": clip or None})
+            return
+
+        if path == "/api/priority":
+            # the heart button: this song is (or is no longer) first in line for publishing on the socials (owner only)
+            if self._is_public_request():
+                self.send_error(403, "Editing is only available locally")
+                return
+            length = int(self.headers.get("Content-Length", 0))
+            try:
+                payload = json.loads(self.rfile.read(length))
+            except json.JSONDecodeError:
+                self.send_error(400, "Invalid JSON")
+                return
+            tid = str(payload.get("id", ""))
+            if tid not in _track_index:
+                refresh_index()
+            track = _track_index.get(tid)
+            if not track or not track.get("_path"):
+                self.send_error(404, "Track not found")
+                return
+            set_priority(os.path.relpath(track["_path"], LIBRARY_ROOT), bool(payload.get("on", True)))
+            self._send_json({"ok": True, "on": bool(payload.get("on", True))})
+            return
+
+        if path == "/api/anim-clips/exclude":
+            # the "exclude this background video" button of the video preview page (owner only)
+            if self._is_public_request():
+                self.send_error(403, "Editing is only available locally")
+                return
+            length = int(self.headers.get("Content-Length", 0))
+            try:
+                payload = json.loads(self.rfile.read(length))
+            except json.JSONDecodeError:
+                self.send_error(400, "Invalid JSON")
+                return
+            name = os.path.basename(str(payload.get("name", "")))
+            if not name.lower().endswith(".mp4") or not os.path.isfile(os.path.join(ANIMS_DIR, name)):
+                self.send_error(404, "Clip not found")
+                return
+            self._send_json({"ok": True, "excluded": set_clip_excluded(name, bool(payload.get("excluded", True)))})
             return
 
         if path == "/api/make-video":

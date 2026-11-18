@@ -229,7 +229,7 @@ body.bgclip #export-bg-clip{display:block;position:absolute;inset:0;width:100%;h
 body.bgclip #stage, body.bgclip #sphere-vignette{display:none !important}
 
 /* the background clip is 49% visible, then 9% darker (x 0.91 = 44.6%), over black */
-body.bgclip #export-bg-clip{opacity:.446}
+body.bgclip #export-bg-clip{opacity:1;filter:brightness(1.045)}   /* .836 x 1.25 = 1.045: opacity tops out at 1, so the last bit is brightness */
 body.bgclip #app{background:#000000}
 
 /* the video exports, back to front: the background clip, the black circle, the karaoke lyrics, the visualiser, the 3D animal, the song
@@ -265,7 +265,7 @@ body.bgclip .artist-photo-fill{opacity:calc(1 - var(--circle-beat, 0) * 0.7)}
 body.bgclip .artist-photo-fill{background:#000000}
 
 /* the videos: a title on several lines sits close together */
-body.bgclip .meta .title{line-height:calc(1em - 5px)}   /* line spacing 5px tighter */
+body.bgclip .meta .title{line-height:calc(1em - 16px)}   /* line spacing 16px tighter */
 
 /* the videos: the "by artist" row is where the slider places it (it was 15px lower for a moment, then 15px up again), plus whatever
    keepArtistBelowTitle() adds (export.js) so it is always below the song title */
@@ -277,3 +277,63 @@ body.bgclip .meta .title, body.bgclip #m-title, body.bgclip .meta-sub-row{transi
 /* the videos: nothing coloured behind the background clip - the artist-colour wash that sits behind the sphere is off, so the clip
    lies on pure black (this was tinting the whole picture in the artist's colour) */
 body.bgclip #pre-sphere-layer{display:none !important}
+
+/* no black circle in the videos any more (visibility, not display: positionArtistPhoto() still measures the wrapper); instead the same soft
+   black drop shadow as behind the karaoke text (styles.css #lyrics) sits behind the 3D animal, the song title and the "by" artist name */
+body.bgclip .artist-photo-wrap{visibility:hidden !important}
+body.bgclip #fox-3d-canvas{
+  filter:
+    drop-shadow(1px 0 0 var(--outline-color))
+    drop-shadow(-1px 0 0 var(--outline-color))
+    drop-shadow(0 1px 0 var(--outline-color))
+    drop-shadow(0 -1px 0 var(--outline-color))
+    drop-shadow(0 6px 36.4px rgba(0,0,0,.42));
+}
+body.bgclip .meta .title,
+body.bgclip .meta-sub-row{filter:drop-shadow(0 8px 52px rgba(0,0,0,.55))}   /* a little bigger (and a bit stronger) than the karaoke's shadow */
+/* the "by <artist>" line is white in the videos */
+body.export-mode.bgclip .meta .by, body.export-mode.bgclip .meta .sub{color:#ffffff !important}
+
+/* videos: no outline around the song title, and the title text is white */
+body.bgclip .title-stroke{-webkit-text-stroke:0 transparent !important;visibility:hidden}
+body.bgclip .meta .title, body.bgclip #m-title-fill{color:#ffffff}   /* (white again) */
+body.bgclip .meta .title{letter-spacing:-1px}   /* letter spacing: -1px */
+
+/* videos: the visualiser's canvas is 400px wider on the left and on the right, so its line can run on 400px past both ends of the wave
+   (drawWaveCanvas() in export.js draws the flat extensions; #app clips whatever goes past the frame edge) */
+body.bgclip #wave-canvas{left:-410px;width:calc(100% + 820px)}
+
+/* videos: thin HORIZONTAL lines over the background clip (behind the lyrics, visualiser, animal and title): 1px lines, 80% black, with 2px between them
+   (no vertical lines) */
+body.bgclip #app::before{
+  content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
+  background-image:linear-gradient(to bottom, rgba(0,0,0,.8) 1px, transparent 1px);
+  background-size:100% 3px;
+}
+
+/* videos: a 2px border line in the artist's colour all round the frame, 10px in from the frame edge, with 50px rounded corners, 50% transparent */
+body.bgclip #app::after{
+  content:"";position:absolute;inset:10px;z-index:50;pointer-events:none;
+  border:3px solid color-mix(in srgb, var(--artist-color, #ffffff) 50%, transparent);   /* 3px (1px thicker), 50% transparent */
+  border-radius:50px;box-sizing:border-box;
+  box-shadow:0 0 0 3000px #000000;   /* everything outside the line is black - the sides, the corners and the strip to the frame edge; #app clips it */
+}
+
+/* videos: a solid black 3px frame right at the frame edge, above everything - hides the faint 1px vertical seam that the clip
+   showed along the left and right edge (sub-pixel clipping) */
+body.bgclip #app{outline:3px solid #000000;outline-offset:-3px}
+
+/* videos: the last pixel column on the left and right of the frame never shows the clip (nor anything else): the frame is clipped 1px in
+   from each edge, so only the black outline/margin is ever drawn there (also in a scaled preview, where the edge falls between pixels) */
+body.bgclip #app{clip-path:inset(1px)}
+
+/* 16:9 videos: no big background song title (the outlined letters sweeping across the picture) */
+body.export-mode.aspect-horizontal #bg-title-watermark{display:none !important}
+
+/* 16:9 and 9:16 videos: the AQAI logo is bright - the artist colour mixed 65% with white, steady (no colour cycling); the white light that
+   sweeps over it stays */
+body.export-mode.bgclip.aspect-horizontal .home-top .logo-text,
+body.export-mode.bgclip.aspect-vertical .home-top .logo-text{
+  color:color-mix(in srgb, var(--artist-color, #ffffff) 35%, #ffffff) !important;
+  animation:none !important;
+}

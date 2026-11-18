@@ -515,7 +515,7 @@ function ensureLyricsLoaded(i){
 }
 
 let lineIdx = -1;
-const LYRIC_LEAD = 0.12;
+let LYRIC_LEAD = 0.12;   // (the video export pages set this to 0: their lyrics change exactly on the sync times)
 const LYRIC_MIN_ON = 0.12;
 const LYRIC_MAX_ON = 0.75;
 
@@ -2770,6 +2770,7 @@ function waveCurveAt(arr, u){
   return a0 * f * f * f + a1 * f * f + a2 * f + a3;
 }
 const WAVE_SEGMENTS = 320;
+const WAVE_WIDTH_FRAC = 0.6;   // the main screen's wave takes 60% of the screen width (was 100%); a flat line runs on to both screen edges
 let WAVE_COLOR = "#7CFF9E"; // updated per-track to the artist's color in renderMeta()
 // mixes a hex color toward white by `frac` (0 = unchanged, 1 = white) -
 // same math as the CSS color-mix(..., white) used for the logo/pill cycle
@@ -2779,6 +2780,9 @@ function mixWithWhite(hex, frac){
   const mix = c => Math.round(c + (255 - c) * frac);
   return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
 }
+// the main screen's visualiser is 33% brighter: the artist colour is mixed 33% towards white before the loud parts brighten it further
+const WAVE_BRIGHTEN = 0.33;
+const waveLineColor = intensity => mixWithWhite(WAVE_COLOR, WAVE_BRIGHTEN + (1 - WAVE_BRIGHTEN) * intensity * 0.6);
 function drawWaveCanvas(){
   const canvas = $("#wave-canvas");
   if (!canvas) return;
@@ -2791,11 +2795,7 @@ function drawWaveCanvas(){
   // horizontal middle, so nothing draws behind whatever sits there (the
   // logo) - unlike before, this is a fixed width, not tied to the logo's
   // own measured size
-  const maskWidth = 108;
-  dctx.beginPath();
-  dctx.rect(0, 0, w, h);
-  dctx.rect(w / 2 - maskWidth / 2, 0, maskWidth, h);
-  dctx.clip("evenodd");
+  // (no gap any more: the line is continuous through the middle)
   const display = new Array(WAVE_N);
   for (let i = 0; i < WAVE_N; i++){
     const env = 0.1 + 0.9 * (1 - Math.abs(i / (WAVE_N - 1) - 0.5) * 2);
@@ -2810,20 +2810,33 @@ function drawWaveCanvas(){
   dctx.strokeStyle = WAVE_COLOR;
   dctx.fillStyle = WAVE_COLOR;
   dctx.lineCap = "round";
-  let prevX = 0, prevY = midY;
+  // the wave itself takes only the middle WAVE_WIDTH_FRAC of the screen; a flat line carries on from both ends of it all the way
+  // to the left and the right side of the screen
+  const ww = w * WAVE_WIDTH_FRAC, x0 = (w - ww) / 2;
+  const segment = (xa, xb, y, intensity) => {
+    dctx.lineWidth = 1 + intensity * 6;
+    dctx.globalAlpha = 1;
+    dctx.strokeStyle = waveLineColor(intensity);
+    dctx.beginPath(); dctx.moveTo(xa, y); dctx.lineTo(xb, y); dctx.stroke();
+  };
+  for (const [u, xa, xb] of [[0, 0, x0], [1, x0 + ww, w]]){
+    const val = waveCurveAt(display, u);
+    segment(xa, xb, midY - Math.abs(val) * ampPx, Math.min(1, Math.abs(val) * 1.6));
+  }
+  let prevX = x0, prevY = midY;
   for (let s = 0; s <= WAVE_SEGMENTS; s++){
     const u = s / WAVE_SEGMENTS;
     const val = waveCurveAt(display, u);
     // rectified: rests on the midY baseline and only ever moves up from
     // it (never dips below), instead of swinging both above and below
-    const x = u * w, y = midY - Math.abs(val) * ampPx;
+    const x = x0 + u * ww, y = midY - Math.abs(val) * ampPx;
     if (s > 0){
       const intensity = Math.min(1, Math.abs(val) * 1.6);
       dctx.lineWidth = 1 + intensity * 6; // 1px quiet -> ~7px loud, thickness tracks loudness
       dctx.globalAlpha = 1; // opaque
       // artist colour, brightened toward white on the most intense/tallest
       // parts of the line
-      dctx.strokeStyle = mixWithWhite(WAVE_COLOR, intensity * 0.6);
+      dctx.strokeStyle = waveLineColor(intensity);
       dctx.beginPath();
       dctx.moveTo(prevX, prevY);
       dctx.lineTo(x, y);
@@ -6650,8 +6663,16 @@ function updateFoxLowerShade(){
   g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,.5)");
   ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
 }
+// the cut-out of the visualiser line round the black circle is switched off: the line runs unbroken through the middle (the circle is not shown
+// at the moment either). Set WAVE_CIRCLE_CUTOUT to true to get the cut-out back.
+const WAVE_CIRCLE_CUTOUT = false;
 function maskWaveAroundCircle(){
   if (document.body.classList.contains("export-mode")) return;
+  if (!WAVE_CIRCLE_CUTOUT){
+    const c = document.querySelector("#wave-canvas");
+    if (c && c._circleMask !== ""){ c._circleMask = ""; c.style.webkitMaskImage = ""; c.style.maskImage = ""; }
+    return;
+  }
   const canvas = document.querySelector("#wave-canvas");
   const circle = document.querySelector(".artist-photo-fill");
   if (!canvas || !circle) return;
@@ -8022,7 +8043,7 @@ if (gateHintEl){
 const OWNER_ONLY_SELECTORS = [
   "#pano-btns", "#btn-delete", "#btn-edit-title", "#btn-edit-artist",
   "#btn-edit-lyrics", "#btn-relocate-artist", "#lf-edit-btns",
-  "#lyrics-audit-block", "#btn-flag-lyrics", "#btn-make-video", "#btn-preview-video",
+  "#lyrics-audit-block", "#btn-flag-lyrics", "#btn-priority", "#bg-clip-bar", "#btn-make-video", "#btn-preview-video",
   "#btn-creature-tune", "#btn-color-picker",
 ];
 // true only when the server confirms this request never crossed the public
@@ -8086,3 +8107,105 @@ $("#gate-btn").onclick = () => {
   dismissGate();
   if (TRACKS.length) load(Math.floor(Math.random() * TRACKS.length), true);
 };
+
+
+// owner-only text sliders (#lyrics-y-tuner): each sets a CSS variable on the page that styles.css uses - the karaoke text's Y, and the Y and
+// size (%) of the song title and of the "by artist" row. Saved per browser. The video renders have their own sliders (export.js) and ignore these.
+(function initTextTuner(){
+  const defs = [
+    { id: "lyrics-y",      key: "aqai_lyrics_y",      css: "--lyrics-y",      fmt: v => v + "px", def: 0 },
+    { id: "title-y",       key: "aqai_title_y",       css: "--title-y",       fmt: v => v + "px", def: 0 },
+    { id: "title-scale",   key: "aqai_title_scale",   css: "--title-scale",   fmt: v => v / 100,   def: 100 },
+    { id: "artist-y",      key: "aqai_artist_y",      css: "--artist-y",      fmt: v => v + "px", def: 0 },
+    { id: "artist-scale",  key: "aqai_artist_scale",  css: "--artist-scale",  fmt: v => v / 100,   def: 100 },
+  ];
+  defs.forEach(d => {
+    const slider = document.getElementById(d.id + "-slider"), out = document.getElementById(d.id + "-val");
+    if (!slider) return;
+    const apply = v => { document.documentElement.style.setProperty(d.css, String(d.fmt(v))); if (out) out.textContent = v; };
+    let v = d.def;
+    try { const saved = parseFloat(localStorage.getItem(d.key)); if (isFinite(saved)) v = saved; } catch (e){}
+    slider.value = v; apply(v);
+    slider.addEventListener("input", () => {
+      const n = parseFloat(slider.value); const val = isFinite(n) ? n : d.def;
+      apply(val);
+      try { localStorage.setItem(d.key, String(val)); } catch (e){}
+      if (typeof syncLyricsGlow === "function") try { syncLyricsGlow(); } catch (e){}
+    });
+  });
+})();
+
+// ?tune=1 shows the owner's text-position sliders panel again (it is hidden by default)
+if (/[?&]tune=1\b/.test(location.search)) document.body.classList.add("show-tuner");
+
+
+// the heart (#btn-priority, owner only): marks the current song as first in line for publishing on the socials. Saved on the server
+// (social/priority.json); tools/social_videos.py makes the hearted songs first.
+(function initPriorityHeart(){
+  const btn = document.getElementById("btn-priority");
+  if (!btn) return;
+  let hearted = new Set();
+  const show = () => {
+    const tr = (typeof TRACKS !== "undefined" && TRACKS[cur]) || null;
+    btn.setAttribute("aria-pressed", tr && hearted.has(tr.id) ? "true" : "false");
+  };
+  const loadAll = () => fetch("/api/priority").then(r => r.json()).then(d => { hearted = new Set(d.ids || []); show(); }).catch(() => {});
+  btn.addEventListener("click", () => {
+    const tr = TRACKS[cur];
+    if (!tr) return;
+    const on = !hearted.has(tr.id);
+    fetch("/api/priority", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: tr.id, on }) })
+      .then(r => r.json()).then(() => {
+        on ? hearted.add(tr.id) : hearted.delete(tr.id);
+        show();
+        toast(on ? "\u2665 first in line for the socials" : "no longer first in line");
+      }).catch(() => toast("could not save the heart"));
+  });
+  loadAll();
+  setInterval(show, 700);      // follows the song that is playing (cheap: only flips an attribute)
+})();
+
+
+// owner-only background video browser (#bg-clip-bar): the arrows step through the background videos (they are shown on the sphere), "Pin to song" connects
+// the clip on screen to the song that is playing (social/bgclips.json on the server) - the video renders of that song then use that clip.
+(function initBgClipBar(){
+  const bar = document.getElementById("bg-clip-bar");
+  if (!bar) return;
+  const label = document.getElementById("bgc-label"), prev = document.getElementById("bgc-prev"), next = document.getElementById("bgc-next"), pin = document.getElementById("bgc-pin");
+  let files = [], i = -1, pins = {};
+  const curTrack = () => (typeof TRACKS !== "undefined" && TRACKS[cur]) || null;
+  const pinned = () => { const t = curTrack(); return t ? pins[t.id] || null : null; };
+  const refresh = () => {
+    const pc = pinned(), shown = i >= 0 ? files[i] : null;
+    if (shown) label.textContent = (i + 1) + "/" + files.length + "  " + shown;
+    else label.textContent = pc ? "pinned: " + pc : "background video";
+    pin.classList.toggle("pinned", !!pc && pc === shown);
+    pin.textContent = pc && pc === shown ? "Pinned \u2713 (unpin)" : "Pin to song";
+  };
+  const showClip = () => {
+    if (!files.length) return;
+    i = (i + files.length) % files.length;
+    sceneChoice = "sphere";
+    try { setPortraitLoading(isPortraitClip(files[i])); } catch (e){}
+    loadPanoFile(files[i]);
+    refresh();
+  };
+  prev.onclick = () => { i = i < 0 ? files.length - 1 : i - 1; showClip(); };
+  next.onclick = () => { i = i + 1; showClip(); };
+  pin.onclick = () => {
+    const t = curTrack(), shown = i >= 0 ? files[i] : null;
+    if (!t) return;
+    const unpin = pinned() && pinned() === shown;
+    if (!shown && !unpin){ toast("first browse to a background video with the arrows"); return; }
+    fetch("/api/song-clips", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: t.id, clip: unpin ? null : shown }) })
+      .then(r => r.json()).then(() => {
+        if (unpin) delete pins[t.id]; else pins[t.id] = shown;
+        refresh();
+        toast(unpin ? "unpinned" : "pinned: this song's video will use this background");
+      }).catch(() => toast("could not save (restart the player server)"));
+  };
+  fetch("/api/anim-clips").then(r => r.json()).then(d => { files = d.files || []; refresh(); }).catch(() => {});
+  fetch("/api/song-clips").then(r => r.json()).then(d => { pins = d.clips || {}; refresh(); }).catch(() => {});
+  let lastTrack = null;
+  setInterval(() => { const t = curTrack(); const id = t ? t.id : null; if (id !== lastTrack){ lastTrack = id; i = -1; refresh(); } }, 600);   // a new song starts without a browsed clip
+})();
