@@ -122,6 +122,9 @@ def assign_clips(data, count, rng):
 
 SHORT_MAX = 179          # a YouTube Short is at most 3 minutes: a longer song gets its first 2:59, faded out
 FPS = 24                 # the new format: 24 frames per second
+# Buffer refuses a 16:9 video for YouTube ("Video must be vertical (portrait orientation) for YouTube Shorts"): its YouTube channel only takes Shorts.
+# So the 16:9 videos are rendered and kept, but not scheduled through Buffer (set True if that ever changes).
+WIDE_VIA_BUFFER = False
 
 
 def needs_video(song, kind):
@@ -317,6 +320,8 @@ def cmd_schedule(args):
                 and os.path.exists(os.path.join(HERE, m["file"])))
 
     def wide_ready(s):
+        if not WIDE_VIA_BUFFER:
+            return False
         m = s.get("made_wide") or {}
         return bool(m.get("bgclip") and not s.get("scheduled_wide") and not s.get("posted_wide") and os.path.exists(os.path.join(HERE, m["file"])))
 
@@ -446,7 +451,7 @@ def cmd_auto(args):
                        if v.get("scheduled") and datetime.datetime.fromisoformat(v["scheduled"]["due"]) > datetime.datetime.now(tz))
         n_ready = sum(1 for v in data["songs"].values()
                       if ((v.get("made") or {}).get("bgclip") and (v.get("made") or {}).get("fps") == FPS and not v.get("scheduled") and not v.get("posted"))
-                      or ((v.get("made_wide") or {}).get("bgclip") and not v.get("scheduled_wide") and not v.get("posted_wide")))
+                      or (WIDE_VIA_BUFFER and (v.get("made_wide") or {}).get("bgclip") and not v.get("scheduled_wide") and not v.get("posted_wide")))
         target = args.days_ahead * per_day
         print(f"[{now()}] scheduled ahead: {n_future} (target {target}), rendered and waiting: {n_ready}", flush=True)
         try:

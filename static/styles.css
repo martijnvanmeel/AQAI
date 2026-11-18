@@ -1907,3 +1907,20 @@ body.show-tuner #lyrics-y-tuner{display:grid !important}
 #bg-clip-bar #bgc-pin.pinned{background:#c9a227;color:#000}
 #bg-clip-bar span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 body.export-mode #bg-clip-bar{display:none !important}
+
+/* a close button (X, like the one of the full-lyrics overlay) in the Songs, Mixes and AQAI screens: back to the player screen */
+.view-close{
+  position:fixed;right:13px;top:13px;z-index:30;
+  width:34px;height:34px;border-radius:11.2px;
+  display:flex;align-items:center;justify-content:center;
+  color:#000000;border:1.5px solid #aaaaaa;background:#ffffff;backdrop-filter:blur(8px);
+  cursor:pointer;transition:transform .1s,color .3s ease,background .3s ease;
+}
+.view-close svg{width:18px;height:18px}
+.view-close:hover{color:#ffffff;background:#000000;border-color:#000000}
+.view-close:active{transform:scale(.94)}
+
+/* the artist animals are not shown on the start screen, the Songs screen (header) and the Mixes screen */
+#gate-creatures{display:none !important}
+.group-header-creature{display:none !important}
+.mix-icon-box{display:none !important}

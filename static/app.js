@@ -1878,6 +1878,7 @@ function showView(name){
   if (name === "home") positionWaveCanvas();
 }
 document.querySelectorAll(".nav-btn").forEach(b => b.onclick = () => showView(b.dataset.view));
+document.querySelectorAll(".view-close").forEach(b => b.onclick = () => showView("home"));   // the X of Songs / Mixes / AQAI: back to the player screen
 
 // clicking the artist name in the player jumps to the Songs list and
 // scrolls straight to that artist's section, instead of leaving the
@@ -8112,24 +8113,34 @@ $("#gate-btn").onclick = () => {
 // owner-only text sliders (#lyrics-y-tuner): each sets a CSS variable on the page that styles.css uses - the karaoke text's Y, and the Y and
 // size (%) of the song title and of the "by artist" row. Saved per browser. The video renders have their own sliders (export.js) and ignore these.
 (function initTextTuner(){
+  // the defaults are the owner's tuned values (set with these sliders in a 978 px high window); a browser that has no saved value of its own - every
+  // visitor of the live site - gets them scaled to its own window height, so the title / "by artist" / karaoke sit where they do for the owner
+  const REF_H = 978;
   const defs = [
-    { id: "lyrics-y",      key: "aqai_lyrics_y",      css: "--lyrics-y",      fmt: v => v + "px", def: 0 },
-    { id: "title-y",       key: "aqai_title_y",       css: "--title-y",       fmt: v => v + "px", def: 0 },
-    { id: "title-scale",   key: "aqai_title_scale",   css: "--title-scale",   fmt: v => v / 100,   def: 100 },
-    { id: "artist-y",      key: "aqai_artist_y",      css: "--artist-y",      fmt: v => v + "px", def: 0 },
-    { id: "artist-scale",  key: "aqai_artist_scale",  css: "--artist-scale",  fmt: v => v / 100,   def: 100 },
+    { id: "lyrics-y",      key: "aqai_lyrics_y",      css: "--lyrics-y",      fmt: v => v + "px", def: 79,   scales: true },
+    { id: "title-y",       key: "aqai_title_y",       css: "--title-y",       fmt: v => v + "px", def: -167, scales: true },
+    { id: "title-scale",   key: "aqai_title_scale",   css: "--title-scale",   fmt: v => v / 100,   def: 84 },
+    { id: "artist-y",      key: "aqai_artist_y",      css: "--artist-y",      fmt: v => v + "px", def: -171, scales: true },
+    { id: "artist-scale",  key: "aqai_artist_scale",  css: "--artist-scale",  fmt: v => v / 100,   def: 90 },
   ];
   defs.forEach(d => {
     const slider = document.getElementById(d.id + "-slider"), out = document.getElementById(d.id + "-val");
+    let saved = null;
+    try { const sv = parseFloat(localStorage.getItem(d.key)); if (isFinite(sv)) saved = sv; } catch (e){}
+    const value = () => saved !== null ? saved : (d.scales ? Math.round(d.def * window.innerHeight / REF_H) : d.def);
+    const apply = () => {
+      const v = value();
+      document.documentElement.style.setProperty(d.css, String(d.fmt(v)));
+      if (slider) slider.value = v;
+      if (out) out.textContent = v;
+    };
+    apply();
+    if (d.scales) window.addEventListener("resize", () => { if (saved === null) apply(); });
     if (!slider) return;
-    const apply = v => { document.documentElement.style.setProperty(d.css, String(d.fmt(v))); if (out) out.textContent = v; };
-    let v = d.def;
-    try { const saved = parseFloat(localStorage.getItem(d.key)); if (isFinite(saved)) v = saved; } catch (e){}
-    slider.value = v; apply(v);
     slider.addEventListener("input", () => {
-      const n = parseFloat(slider.value); const val = isFinite(n) ? n : d.def;
-      apply(val);
-      try { localStorage.setItem(d.key, String(val)); } catch (e){}
+      const n = parseFloat(slider.value); saved = isFinite(n) ? n : d.def;
+      apply();
+      try { localStorage.setItem(d.key, String(saved)); } catch (e){}
       if (typeof syncLyricsGlow === "function") try { syncLyricsGlow(); } catch (e){}
     });
   });
