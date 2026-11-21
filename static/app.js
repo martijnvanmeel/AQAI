@@ -970,8 +970,7 @@ function resizeLyricsFullCard(){
   const listPaddingX = 46; // #lf-list's own left+right padding (38 left + 8 right) - as tight as the 38px-left/close-button constraints allow
   const scrollbarW = 35.7; // custom scrollbar channel width (see #lf-list::-webkit-scrollbar)
   const viewportCap = window.innerWidth - 20; // 10px clear on each side, always
-  // the card always leaves 5% of the screen width clear on each side
-  overlay.style.width = (window.innerWidth * 0.9) + "px";
+    overlay.style.width = Math.min(560, window.innerWidth - 44) + "px"; // the same content width as the About text (560px, 22px clear on small screens)
 }
 /* click-to-edit a sentence (local-only, see EDITABLE/#lf-list.editable):
    swaps the row's word spans for a plain input pre-filled with its text;
@@ -1830,7 +1829,7 @@ function fitScreenTitles(){
   const navRect = document.querySelector("nav").getBoundingClientRect();
   // ...and, on narrow screens, keep the same 22px of space on the right as on the left
   const SIDE = 22 - window.innerWidth * 0.01; // 22px of side space, less 1% of the screen width
-  const avail = Math.min(navRect.width, window.innerWidth - 2 * SIDE) - 4; // small safety so the last glyph's overhang isn't clipped
+  const avail = Math.min(navRect.width || Infinity, window.innerWidth - 2 * SIDE, 560) - 4; // (nav is 0 wide while the tap-to-listen screen hides it) // never wider than the 560px content column // small safety so the last glyph's overhang isn't clipped
   let common = Infinity;
   titles.forEach(h => {
     const cs = getComputedStyle(h);
@@ -1845,7 +1844,7 @@ function fitScreenTitles(){
     h.style.whiteSpace = "nowrap";
     h.style.letterSpacing = LS_PX + "px";
     h.style.fontSize = common.toFixed(2) + "px";
-    h.style.marginLeft = (SIDE - 22) + "px"; // 1% of the screen width closer to the left edge than the lists below
+    h.style.marginLeft = "0px"; // centred over the content column (see .list-head h2 in styles.css)
     // the line under the title sits exactly 10px below the BOTTOM OF THE LETTERS
     // (the baseline), not below the h2's box, which has font spacing under the caps
     const cs = getComputedStyle(h);
@@ -1953,7 +1952,7 @@ function deleteCurrentSong(){
     reindexAudioElsAfterDelete(idx);
     TRACKS.splice(idx, 1);
     toast("Song deleted");
-    $("#info-count").textContent = TRACKS.length;
+    { const ic = $("#info-count"); if (ic) ic.textContent = TRACKS.length; }
     if (!TRACKS.length){
       playing = false;
       renderList(); syncButtons();
@@ -6888,7 +6887,7 @@ function animate(t){
   if (analyser && playing) analyser.getByteFrequencyData(freqData);
   updateWaveSamples();
   drawWaveCanvas();
-  panoUniforms.uIntensity.value += (audioIntensity() - panoUniforms.uIntensity.value) * 0.15;
+  panoUniforms.uIntensity.value = 0;   // the background no longer reacts to the music (no glow / dimming / beat on the sphere or the 3D scenes): it was not smooth
   // flight controls: advance the shared scroll clock by the (smoothed)
   // speed factor, and integrate the steered scene roll
   const dtSec = lastAnimT === null ? 0.016 : Math.min(0.1, ((t || 0) - lastAnimT) * 0.001);
@@ -6943,7 +6942,7 @@ function animate(t){
   // every 30s, forever - as a camera ROLL (rotation.z), applied further
   // down where the sphere screen sets its position sway, not here (this
   // block only ever drives yaw/pitch - see camera.rotation.z below)
-  if (document.body.classList.contains("scene-sphere") && !panoNoSpin) sphereSpinRoll += dtSec * (Math.PI * 2 / 30);
+  // (the steady clockwise turn of the sphere is switched off: the background no longer rotates)
 
   let targetYaw, targetPitch, camSmooth;
   if (document.body.classList.contains("scene-sphere")){
@@ -7820,7 +7819,7 @@ fetch("/api/tracks").then(r => r.json()).then(data => {
     lines: [],
     _lyricsLoaded: false,
   }));
-  $("#info-count").textContent = TRACKS.length;
+  { const ic = $("#info-count"); if (ic) ic.textContent = TRACKS.length; }
   EDITABLE = !!data.editable;
   updateEditControlsVisibility();
   initLyricsAudit();
